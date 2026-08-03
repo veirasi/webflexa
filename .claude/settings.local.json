@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"codigoPacote\\\\s*[:=]\\\\|codigoEntrega\\\\s*[:=]\\\\|\\\\.codigo\\\\s*=\\\\|codigo:\\\\s*['\\\\\"\\\\`]\\\\|gerarCodigo\\\\|Math.random.*codigo\\\\|codigo.*Math.random\" app.js)",
+      "Bash(npm install *)",
+      "Bash(grep -n \"localizacaoAtual\\\\|geolocation\\\\|watchPosition\\\\|/chat/\\\\|chatRotaId\\\\|function.*[Cc]hat\\\\|rotaChat\\\\|db.ref\\(\\\\`chat\" app.js)",
+      "Bash(npx.cmd serve *)",
+      "Bash(node -c app.js)"
+    ]
+  }
+}

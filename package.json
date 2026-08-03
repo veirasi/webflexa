@@ -1,0 +1,9 @@
+{
+  "name": "webflexa-dev",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dev tooling only — the app itself is static HTML/CSS/JS, no build step.",
+  "scripts": {
+    "dev": "serve -l 5500"
+  }
+}
