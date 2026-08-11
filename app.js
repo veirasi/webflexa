@@ -1478,38 +1478,24 @@ function aplicarFreteTesteSeConfigurado(totalCalculado) {
 }
 
 const GOOGLE_MAPS_KEY = (window.FLEXA_GOOGLE_MAPS_KEY || '').trim();
-const MERCADO_PAGO_ACCESS_TOKEN = (window.FLEXA_MP_ACCESS_TOKEN || '').trim();
-const MERCADO_PAGO_PUBLIC_KEY = (window.FLEXA_MP_PUBLIC_KEY || '').trim();
-const MERCADO_PAGO_API_BASE = 'https://api.mercadopago.com';
-const MERCADO_PAGO_AMBIENTE = MERCADO_PAGO_ACCESS_TOKEN.startsWith('TEST-') ? 'teste' : 'producao';
+const FLEXA_PAYMENTS_PROXY_URL = (window.FLEXA_PAYMENTS_PROXY_URL || '').trim();
+// Caminho TEMPORÁRIO só pra desenvolvimento local, enquanto o plano Blaze não é
+// ativado e a Cloud Function "payments" não pode ser deployada. Só aceita token
+// de TESTE — nunca deve receber uma credencial de produção. Assim que
+// FLEXA_PAYMENTS_PROXY_URL estiver configurada, esse caminho deixa de ser usado.
+const FLEXA_MP_TEST_TOKEN = (window.FLEXA_MP_TEST_TOKEN || '').trim();
+if (FLEXA_MP_TEST_TOKEN && !FLEXA_MP_TEST_TOKEN.startsWith('TEST-')) {
+    throw new Error('FLEXA_MP_TEST_TOKEN precisa começar com "TEST-". Nunca coloque uma credencial de produção do Mercado Pago no navegador — use a Cloud Function "payments" (FLEXA_PAYMENTS_PROXY_URL) para produção.');
+}
+// O ambiente (teste/produção) depende de qual token está configurado no servidor
+// (Cloud Function "payments") — o cliente não tem mais acesso a esse token, então só
+// sabe o ambiente depois da primeira resposta do servidor (ou de imediato, se estiver
+// usando o caminho de teste local acima).
+let mercadoPagoAmbienteAtual = FLEXA_MP_TEST_TOKEN ? 'teste' : 'desconhecido';
 let rotaPixCodigoRawAtual = '';
 
 function normalizarCodigoPix(codigo = '') {
     return (codigo || '').toString().replace(/\s+/g, '').trim();
-}
-
-function gerarIdempotencyKey() {
-    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-        return window.crypto.randomUUID();
-    }
-    return 'flexa-' + Date.now() + '-' + Math.random().toString(16).slice(2, 12);
-}
-
-function obterNomeLojistaSeparado() {
-    const nomeCompleto = (window.usuarioLogado?.nome || 'Lojista Flexa').toString().trim();
-    const partes = nomeCompleto.split(/\s+/).filter(Boolean);
-    const firstName = partes[0] || 'Lojista';
-    const lastName = partes.slice(1).join(' ') || 'Flexa';
-    return { firstName, lastName };
-}
-
-function obterEmailPagadorMercadoPago() {
-    const email = (
-        auth.currentUser?.email ||
-        window.usuarioLogado?.email ||
-        'cliente_teste@flexa.app'
-    ).toString().trim().toLowerCase();
-    return email.includes('@') ? email : 'cliente_teste@flexa.app';
 }
 
 function setStatusPagamentoPixRota(texto, tipo = 'pending') {
@@ -1542,20 +1528,32 @@ function atualizarAvisoAmbientePix() {
     const aviso = document.getElementById('rota-pix-ambiente');
     if (!aviso) return;
 
-    if (!MERCADO_PAGO_ACCESS_TOKEN) {
+    if (!FLEXA_PAYMENTS_PROXY_URL && FLEXA_MP_TEST_TOKEN) {
         aviso.className = 'rota-pix-env rota-pix-env-warning';
-        aviso.innerText = 'Token do Mercado Pago não configurado.';
+        aviso.innerText = 'Modo TESTE LOCAL (temporário, sem Cloud Function — não usar em produção).';
         return;
     }
 
-    if (MERCADO_PAGO_AMBIENTE === 'teste') {
+    if (!FLEXA_PAYMENTS_PROXY_URL) {
+        aviso.className = 'rota-pix-env rota-pix-env-warning';
+        aviso.innerText = 'Pagamento não configurado (defina FLEXA_PAYMENTS_PROXY_URL ou FLEXA_MP_TEST_TOKEN).';
+        return;
+    }
+
+    if (mercadoPagoAmbienteAtual === 'teste') {
         aviso.className = 'rota-pix-env rota-pix-env-warning';
         aviso.innerText = 'Ambiente TESTE: alguns bancos podem recusar o Pix. Para pagamento real, use credencial PROD.';
         return;
     }
 
-    aviso.className = 'rota-pix-env rota-pix-env-ok';
-    aviso.innerText = 'Ambiente PRODUÇÃO ativo para cobrança Pix.';
+    if (mercadoPagoAmbienteAtual === 'producao') {
+        aviso.className = 'rota-pix-env rota-pix-env-ok';
+        aviso.innerText = 'Ambiente PRODUÇÃO ativo para cobrança Pix.';
+        return;
+    }
+
+    aviso.className = 'rota-pix-env rota-pix-env-warning';
+    aviso.innerText = 'Ambiente definido pelo servidor ao gerar o Pix.';
 }
 function formatarEnderecoEstruturado(end) {
     if (!end) return '';
@@ -2219,6 +2217,7 @@ async function loginReal() {
         const tipo = obterTipoUsuarioAtual();
         aplicarPermissoesPorTipoUsuario();
         navegar(telaInicialPorTipoUsuario(tipo));
+        iniciarListenerNotificacoes();
 
         if (tipo !== 'entregador') {
             pararListenerHomeEntregador();
@@ -2371,6 +2370,7 @@ firebase.auth().onAuthStateChanged((user) => {
                     }
 
                     const telaInicial = telaInicialPorTipoUsuario(tipo);
+                    iniciarListenerNotificacoes();
 
                     if (tipo !== 'entregador') {
                         pararListenerHomeEntregador();
@@ -2400,6 +2400,8 @@ firebase.auth().onAuthStateChanged((user) => {
         usuarioLogado = null;
         pararListenerHomeEntregador();
         pararListenerMarketplaceEntregador();
+        pararListenerNotificacoes();
+        pararRastreioGpsEntregador();
         if (document.body) document.body.classList.remove('usuario-entregador');
         pararPresencaUsuarioAtual();
 
@@ -2508,7 +2510,7 @@ function renderizarDashboard(user) {
     const rotaAtual = rotasOrdenadas.find((r) => {
         const st = normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || 'CRIADA');
         return st === 'EM_ROTA' || st === 'BUSCANDO';
-    }) || rotasOrdenadas[0] || null;
+    }) || null;
 
     let pacoteAtual = null;
     let distanciaTotal = 0;
@@ -2621,7 +2623,7 @@ function renderizarDashboard(user) {
                             <div class="home-current-track-fill" style="width:${progressoPctRota}%;"></div>
                             <div class="home-current-track-line"></div>
                             <div class="home-current-dots">${timelineHtml}</div>
-                            <span class="home-current-bike"><img src="img/box2.png" alt="Em rota"></span>
+                            <span class="home-current-bike" style="left: clamp(0px, calc(${progressoPctRota}% - 18px), calc(100% - 36px));"><img src="img/timeline-icon.png" alt="Em rota"></span>
                         </div>
                     </div>
 
@@ -2634,12 +2636,21 @@ function renderizarDashboard(user) {
                 <img src="img/box2.png" alt="Pacote em rota" class="home-current-box-image">
             </button>
         `
-        : `
-            <div class="home-current-card home-current-empty-card">
-                <div class="home-empty-inline">Sem rota ativa no momento.</div>
-                <button type="button" class="home-inline-btn" onclick="navegar('view-rotas')">Criar rota</button>
-            </div>
-        `;
+        : '';
+
+    // A seção "Em Rota" só aparece quando existe alguma rota realmente em andamento
+    // (Buscando/Em rota) — sem rota ativa, a seção inteira fica invisível, não só o card.
+    const secaoEmRotaHtml = rotaAtual
+        ? `
+            <section class="home-section">
+                <div class="home-section-head">
+                    <h3>Em Rota</h3>
+                    <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
+                </div>
+                ${cardEmRota}
+            </section>
+        `
+        : '';
 
     container.innerHTML = `
         ${headerHtml}
@@ -2673,13 +2684,7 @@ function renderizarDashboard(user) {
                 </button>
             </div>
 
-            <section class="home-section">
-                <div class="home-section-head">
-                    <h3>Em Rota</h3>
-                    <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
-                </div>
-                ${cardEmRota}
-            </section>
+            ${secaoEmRotaHtml}
 
             <section class="home-section">
                 <div class="home-section-head">
@@ -3176,7 +3181,7 @@ function renderHeaderGlobal(tipoUsuario = '', saldo = 0) {
                 </div>
                 <div class="gh-actions">
                     ${chipHtml}
-                    <div class="entregador-bell gh-bell">
+                    <div class="entregador-bell gh-bell" onclick="abrirPainelNotificacoes()">
                         <i data-lucide="bell" size="18"></i>
                         <span class="dot"></span>
                     </div>
@@ -3198,6 +3203,152 @@ function renderHeaderGlobal(tipoUsuario = '', saldo = 0) {
         if (span) span.textContent = precoParaMoeda(Number(saldo) || 0);
     }
     return node.outerHTML || buildInline();
+}
+
+// ===== [NOTIFICAÇÕES] =====
+let notificacoesCache = [];
+let notificacoesListenerRef = null;
+let notificacoesListenerCb = null;
+
+async function criarNotificacao(destinoUid, { tipo = 'info', titulo = '', mensagem = '', rotaId = '' } = {}) {
+    if (!destinoUid) return;
+    try {
+        const ref = db.ref(`usuarios/${destinoUid}/notificacoes`).push();
+        await ref.set({
+            id: ref.key,
+            tipo,
+            titulo,
+            mensagem,
+            rotaId: rotaId || '',
+            lida: false,
+            criadoEm: Date.now()
+        });
+    } catch (err) {
+        console.warn('Falha ao criar notificação:', err);
+    }
+}
+
+function pararListenerNotificacoes() {
+    if (notificacoesListenerRef && notificacoesListenerCb) {
+        notificacoesListenerRef.off('value', notificacoesListenerCb);
+    }
+    notificacoesListenerRef = null;
+    notificacoesListenerCb = null;
+    notificacoesCache = [];
+}
+
+function iniciarListenerNotificacoes() {
+    const uid = getUsuarioIdAtual();
+    if (!uid || notificacoesListenerRef) return;
+
+    // Mostra sempre as 10 notificações mais recentes (lidas ou não) — as mais antigas
+    // somem da lista sozinhas conforme novas chegam, sem precisar marcar/limpar nada.
+    const ref = db.ref(`usuarios/${uid}/notificacoes`).limitToLast(10);
+    const callback = (snap) => {
+        const data = snap.val() || {};
+        notificacoesCache = Object.keys(data)
+            .map((id) => ({ id, ...data[id] }))
+            .sort((a, b) => Number(b?.criadoEm || 0) - Number(a?.criadoEm || 0));
+        atualizarBadgeNotificacoes();
+        const overlay = document.getElementById('overlay-notificacoes');
+        if (overlay && overlay.style.display === 'flex') {
+            renderListaNotificacoes();
+        }
+    };
+    ref.on('value', callback);
+    notificacoesListenerRef = ref;
+    notificacoesListenerCb = callback;
+}
+
+function atualizarBadgeNotificacoes() {
+    const naoLidas = notificacoesCache.filter((n) => !n?.lida).length;
+    document.querySelectorAll('.gh-bell').forEach((bell) => {
+        bell.classList.toggle('has-unread', naoLidas > 0);
+    });
+}
+
+function formatarHoraNotificacao(ts) {
+    const n = Number(ts || 0);
+    if (!n) return '';
+    const d = new Date(n);
+    const hoje = new Date();
+    const mesmoDia = d.toDateString() === hoje.toDateString();
+    return mesmoDia
+        ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function renderListaNotificacoes() {
+    const lista = document.getElementById('notificacoes-lista');
+    if (!lista) return;
+
+    if (!notificacoesCache.length) {
+        lista.innerHTML = '<div class="notificacoes-empty">Nenhuma notificação por enquanto.</div>';
+        return;
+    }
+
+    lista.innerHTML = notificacoesCache.map((n) => `
+        <button type="button" class="notificacao-item ${n.lida ? '' : 'nao-lida'}" onclick="abrirNotificacao('${String(n.id).replace(/'/g, "\\'")}')">
+            <strong>${escapeHtmlChat(n.titulo || 'Notificação')}</strong>
+            <p>${escapeHtmlChat(n.mensagem || '')}</p>
+            <small>${formatarHoraNotificacao(n.criadoEm)}</small>
+        </button>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function marcarNotificacaoLida(notifId) {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !notifId) return;
+    try {
+        await db.ref(`usuarios/${uid}/notificacoes/${notifId}/lida`).set(true);
+    } catch (err) {
+        console.warn('Falha ao marcar notificação como lida:', err);
+    }
+}
+
+async function marcarTodasNotificacoesLidas() {
+    const uid = getUsuarioIdAtual();
+    if (!uid) return;
+    const naoLidas = notificacoesCache.filter((n) => !n?.lida);
+    if (!naoLidas.length) return;
+    const updates = {};
+    naoLidas.forEach((n) => {
+        updates[`usuarios/${uid}/notificacoes/${n.id}/lida`] = true;
+    });
+    try {
+        await db.ref().update(updates);
+    } catch (err) {
+        console.warn('Falha ao marcar notificações como lidas:', err);
+    }
+}
+
+function abrirNotificacao(notifId) {
+    const notif = notificacoesCache.find((n) => String(n.id) === String(notifId));
+    if (!notif) return;
+    marcarNotificacaoLida(notifId);
+    if (notif.rotaId) {
+        fecharPainelNotificacoes();
+        if (usuarioEhEntregador()) {
+            if (typeof abrirSheetRotaEntregadorHome === 'function') abrirSheetRotaEntregadorHome(notif.rotaId);
+        } else if (typeof abrirModalTrackingLoja === 'function') {
+            abrirModalTrackingLoja(notif.rotaId);
+        }
+    }
+}
+
+function abrirPainelNotificacoes() {
+    const overlay = document.getElementById('overlay-notificacoes');
+    if (!overlay) return;
+    renderListaNotificacoes();
+    overlay.style.display = 'flex';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function fecharPainelNotificacoes() {
+    const overlay = document.getElementById('overlay-notificacoes');
+    if (overlay) overlay.style.display = 'none';
 }
 
 function limparHeaderGlobalEmView(viewId) {
@@ -3537,6 +3688,11 @@ async function abrirSheetRotaEntregador(rotaId, opts = {}) {
     overlay.classList.remove('hidden');
     requestAnimationFrame(() => overlay.classList.add('show'));
     renderSheetRotaEntregadorConteudo();
+
+    const statusAtual = normalizarStatusRotaFiltro(rotaObj?.status || rotaObj?.pagamentoStatus || 'CRIADA');
+    if (statusAtual === 'EM_ROTA') {
+        iniciarRastreioGpsEntregador(rotaObj);
+    }
 }
 
 function fecharSheetRotaEntregador() {
@@ -3550,6 +3706,54 @@ function fecharSheetRotaEntregador() {
     rotaEntSheetPacotes = [];
     rotaEntSheetIndex = 0;
     rotaEntSheetRotaAtual = null;
+    pararRastreioGpsEntregador();
+}
+
+// ===== [RASTREIO GPS DO ENTREGADOR] =====
+// Enquanto o entregador está com a rota aberta (EM_ROTA), envia a localização real
+// pro lojista acompanhar. Se o navegador/usuário não permitir geolocalização, falha
+// em silêncio — o resto do app continua funcionando normalmente sem GPS.
+let geoRastreioWatchId = null;
+let geoRastreioUltimoEnvio = 0;
+const GEO_RASTREIO_INTERVALO_MS = 15000;
+
+function pararRastreioGpsEntregador() {
+    if (geoRastreioWatchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoRastreioWatchId);
+    }
+    geoRastreioWatchId = null;
+}
+
+function iniciarRastreioGpsEntregador(rotaObj) {
+    if (!navigator.geolocation || !usuarioEhEntregador()) return;
+
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, {});
+    const rotaId = String(rotaObj?.id || '').trim();
+    const uidEntregador = getUsuarioIdAtual();
+    if (!lojistaUid || !rotaId || !uidEntregador) return;
+
+    pararRastreioGpsEntregador();
+
+    geoRastreioWatchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            const agora = Date.now();
+            if (agora - geoRastreioUltimoEnvio < GEO_RASTREIO_INTERVALO_MS) return;
+            geoRastreioUltimoEnvio = agora;
+
+            const payload = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                precisaoM: Math.round(pos.coords.accuracy || 0),
+                atualizadoEm: agora
+            };
+            db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorGeo`).set(payload).catch(() => {});
+            db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}/entregadorGeo`).set(payload).catch(() => {});
+        },
+        (err) => {
+            console.warn('Geolocalização indisponível:', err?.message || err);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+    );
 }
 
 function prepararPacotesRotaEntregador(rotaObj = {}) {
@@ -3665,6 +3869,21 @@ function obterIdPacoteConfirmacao(pac = {}) {
     return String(pac?.id || pac?.codigo || pac?.codigoPacote || pac?.codigoEntrega || '').trim();
 }
 
+// Nome do destinatário do pacote — usado nas notificações em vez do ID do envio
+// (mesma cadeia de fallback usada na tela de entrega, ver renderSheetRotaEntregadorConteudo).
+function obterNomeDestinatarioPacote(pac = {}, rotaObj = {}) {
+    return String(
+        pac?.destinatario
+        || pac?.destinatarioNome
+        || pac?.cliente
+        || pac?.nomeCliente
+        || rotaObj?.destinatario
+        || rotaObj?.destinatarioNome
+        || rotaObj?.clienteNome
+        || 'Destinatário'
+    ).trim() || 'Destinatário';
+}
+
 function gerarCodigoConfirmacaoEntrega() {
     return String(Math.floor(1000 + Math.random() * 9000));
 }
@@ -3759,23 +3978,30 @@ async function creditarCarteiraEntregadorRotaFinalizada(rotaObj = {}, valorCredi
     }
 
     const agora = Date.now();
+    // Trava contra crédito duplicado: lê-e-grava em vez de .transaction() (mesmo
+    // motivo documentado em ajustarSaldoUsuario — .transaction() nesse app recebe
+    // `null` mesmo quando já existe valor real, o que faria essa trava achar que
+    // "ainda não foi creditado" e liberar um crédito duplicado). Ainda existe uma
+    // janela pequena de corrida entre ler e gravar, mas esse evento (finalizar rota)
+    // só dispara uma vez por ação do entregador, risco baixo na prática.
     const markerRef = db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`);
-    const markerTx = await markerRef.transaction((atual) => {
-        if (atual) return;
-        return agora;
-    });
-
-    if (!markerTx?.committed) {
+    let markerJaExistia = false;
+    try {
+        const markerSnap = await markerRef.once('value');
+        markerJaExistia = Boolean(markerSnap.val());
+    } catch (err) {
+        console.warn('Falha ao checar marcador de crédito da rota:', err);
         return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
     }
 
-    const saldoRef = db.ref(`usuarios/${uidEntregador}/financeiro/saldo`);
-    let saldoAtualizado = Number(window.usuarioLogado?.financeiro?.saldo || 0);
-    await saldoRef.transaction((saldoAtual) => {
-        const novoSaldo = Number((Number(saldoAtual || 0) + valor).toFixed(2));
-        saldoAtualizado = novoSaldo;
-        return novoSaldo;
-    });
+    if (markerJaExistia) {
+        return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
+    }
+
+    await markerRef.set(agora);
+
+    const resultadoSaldo = await ajustarSaldoUsuario(uidEntregador, valor);
+    let saldoAtualizado = resultadoSaldo.ok ? resultadoSaldo.saldoDepois : Number(window.usuarioLogado?.financeiro?.saldo || 0);
 
     const updates = {
         [`usuarios/${uidEntregador}/financeiro/atualizadoEm`]: agora,
@@ -4084,6 +4310,20 @@ function iniciarCorridaPacoteAtual(btn) {
 
     setEstadoPacoteRota(rotaId, pac, { status: 'em_corrida' }, rotaEntSheetIndex);
 
+    // Persiste "corrida iniciada" no pacote (não só na memória local) — é essa marca
+    // que decide se a exclusão desse envio depois cobra taxa de cancelamento do lojista.
+    const lojistaUidCorrida = obterLojistaUidDaRota(rotaEntSheetRotaAtual, pac);
+    const pacoteIdCorrida = obterIdPacoteConfirmacao(pac);
+    if (lojistaUidCorrida && pacoteIdCorrida) {
+        db.ref(`usuarios/${lojistaUidCorrida}/pacotes/${pacoteIdCorrida}/corridaIniciadaEm`).set(Date.now()).catch(() => {});
+        criarNotificacao(lojistaUidCorrida, {
+            tipo: 'corrida_iniciada',
+            titulo: 'Entrega iniciada',
+            mensagem: `${window.usuarioLogado?.nome || 'O entregador'} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`,
+            rotaId: String(rotaId)
+        });
+    }
+
     if (btn) {
         btn.classList.add('sliding');
         setTimeout(() => btn.classList.remove('sliding'), 800);
@@ -4146,6 +4386,25 @@ async function confirmarEntregaPacoteAtual() {
         entregueEm: Date.now()
     };
 
+    const lojistaUidEntrega = obterLojistaUidDaRota(rotaEntSheetRotaAtual, pac);
+    if (lojistaUidEntrega) {
+        if (resultadoPersist?.todosPacotesConcluidos) {
+            criarNotificacao(lojistaUidEntrega, {
+                tipo: 'rota_concluida',
+                titulo: 'Rota concluída',
+                mensagem: `Todos os pacotes da rota #${rotaId} foram entregues.`,
+                rotaId: String(rotaId)
+            });
+        } else {
+            criarNotificacao(lojistaUidEntrega, {
+                tipo: 'pacote_entregue',
+                titulo: 'Pacote entregue',
+                mensagem: `O pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)} foi entregue.`,
+                rotaId: String(rotaId)
+            });
+        }
+    }
+
     if (resultadoPersist?.todosPacotesConcluidos && resultadoPersist?.creditado && Number(resultadoPersist?.valorCreditado || 0) > 0) {
         alert(`Entrega confirmada. Rota finalizada e ${precoParaMoeda(resultadoPersist.valorCreditado)} creditado na wallet.`);
     } else {
@@ -4173,8 +4432,45 @@ function atualizarCodigoConfirmacaoAtual(valor) {
     setEstadoPacoteRota(rotaId, pac, { codigoConfirmacao: valor }, rotaEntSheetIndex);
 }
 
-function relatarProblemaRota() {
-    alert('Descreva o problema ao suporte ou registre via chat.');
+async function relatarProblemaRota() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const rotaId = rotaObj?.id;
+    if (!rotaId) {
+        alert('Abra a rota para relatar um problema.');
+        return;
+    }
+
+    const descricao = (window.prompt('Descreva o problema com esta rota:') || '').trim();
+    if (!descricao) return;
+
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, {});
+    if (!lojistaUid) {
+        alert('Não foi possível identificar o lojista desta rota.');
+        return;
+    }
+
+    try {
+        const ref = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}/problemasReportados`).push();
+        await ref.set({
+            id: ref.key,
+            descricao,
+            entregadorId: getUsuarioIdAtual() || '',
+            entregadorNome: window.usuarioLogado?.nome || 'Entregador',
+            criadoEm: Date.now()
+        });
+
+        await criarNotificacao(lojistaUid, {
+            tipo: 'problema_relatado',
+            titulo: 'Problema relatado na rota',
+            mensagem: `${window.usuarioLogado?.nome || 'O entregador'} relatou: ${descricao}`,
+            rotaId: String(rotaId)
+        });
+
+        alert('Problema relatado ao lojista.');
+    } catch (err) {
+        console.warn('Falha ao relatar problema da rota:', err);
+        alert('Não foi possível registrar o problema agora. Tente novamente.');
+    }
 }
 function montarOptionsFiltroMarketplace(cidades, valorAtual, labelPadrao) {
     const atualNorm = (valorAtual || 'TODAS').toString();
@@ -4425,6 +4721,13 @@ async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) 
             totalFrete: rotaAtualizada?.totalFrete || rotaMarketplaceAtual?.totalFrete || 0
         };
         await db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}`).set(rotaNoEntregador);
+
+        criarNotificacao(lojistaUid, {
+            tipo: 'rota_aceita',
+            titulo: 'Rota aceita',
+            mensagem: `${window.usuarioLogado?.nome || 'Um entregador'} aceitou a rota #${rotaId}.`,
+            rotaId: String(rotaId)
+        });
 
         rotasMarketplaceEntregadorCache = rotasMarketplaceEntregadorCache.map((r) => {
             if (String(r.id) !== String(rotaId) || String(r.lojistaUid) !== String(lojistaUid)) return r;
@@ -4897,6 +5200,90 @@ function handleRotaCardClick(event, rotaId) {
     abrirModalDetalheRota(rotaId);
 }
 
+// Ajusta usuarios/{uid}/financeiro/saldo lendo o valor real com .once('value') e
+// gravando o resultado com .set() — NÃO usa .transaction().
+//
+// Motivo (descoberto e confirmado com logs em 2026-08-11): nesse app, .transaction()
+// nesse caminho específico chama o callback UMA vez com valor `null`, mesmo quando
+// .once('value') no mesmo instante lê o valor real corretamente (ex.: saldo real de
+// R$300 chegando como null dentro da transação) — e nunca tenta de novo com o valor
+// do servidor. Resultado: débitos abortavam sempre ("saldo insuficiente" mesmo tendo
+// saldo), e créditos gravavam por cima do saldo real com `0 + valor`, apagando o que
+// já existia. Ler-e-gravar não é perfeitamente atômico (janela pequena entre leitura
+// e escrita), mas nesse app o cenário de risco real — o mesmo usuário pagando/
+// recebendo crédito ao mesmo tempo em duas abas — é raro; a confiabilidade ganha aqui
+// compensa a perda de atomicidade estrita. Não trocar de volta para .transaction()
+// nesse caminho sem entender por que ela se comporta assim primeiro.
+async function ajustarSaldoUsuario(uid, delta, { permitirNegativo = true } = {}) {
+    if (!uid || !Number.isFinite(delta) || delta === 0) {
+        return { ok: false, saldoAntes: 0, saldoDepois: 0 };
+    }
+
+    const saldoRef = db.ref(`usuarios/${uid}/financeiro/saldo`);
+    let saldoAntes = 0;
+    try {
+        const snap = await saldoRef.once('value');
+        saldoAntes = Number(snap.val() || 0);
+    } catch (err) {
+        console.warn('Falha ao ler saldo atual:', err);
+        return { ok: false, saldoAntes: 0, saldoDepois: 0 };
+    }
+
+    const saldoDepois = Number((saldoAntes + delta).toFixed(2));
+    if (!permitirNegativo && saldoDepois < 0) {
+        return { ok: false, saldoAntes, saldoDepois: saldoAntes, saldoInsuficiente: true };
+    }
+
+    try {
+        await saldoRef.set(saldoDepois);
+    } catch (err) {
+        console.warn('Falha ao gravar novo saldo:', err);
+        return { ok: false, saldoAntes, saldoDepois: saldoAntes };
+    }
+
+    return { ok: true, saldoAntes, saldoDepois };
+}
+
+async function creditarSaldoUsuarioAtual(valor, descricao) {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !Number.isFinite(valor) || valor <= 0) return;
+
+    const resultado = await ajustarSaldoUsuario(uid, valor);
+    if (!resultado.ok) return;
+
+    if (!window.usuarioLogado) window.usuarioLogado = {};
+    window.usuarioLogado.financeiro = { ...(window.usuarioLogado.financeiro || {}), saldo: resultado.saldoDepois, atualizadoEm: Date.now() };
+    await registrarTransacaoFinanceira('CREDITO', valor, descricao);
+    if (typeof atualizarSaldoPagamentoUI === 'function') atualizarSaldoPagamentoUI();
+}
+
+// Débito voluntário (pagamento com saldo) — diferente da taxa de cancelamento
+// (que é uma penalidade e pode deixar o saldo negativo), esse débito é bloqueado
+// se não houver saldo suficiente na hora da leitura.
+// Retorna { ok, saldoEncontrado, novoSaldo } em vez de só true/false — assim quem
+// chama consegue mostrar exatamente qual saldo foi encontrado no banco quando o
+// débito falha por saldo insuficiente, em vez de uma mensagem genérica.
+async function debitarSaldoUsuarioAtual(valor, descricao) {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !Number.isFinite(valor) || valor <= 0) return { ok: false, saldoEncontrado: 0 };
+
+    const resultado = await ajustarSaldoUsuario(uid, -valor, { permitirNegativo: false });
+    if (!resultado.ok) return { ok: false, saldoEncontrado: resultado.saldoAntes };
+
+    if (!window.usuarioLogado) window.usuarioLogado = {};
+    window.usuarioLogado.financeiro = { ...(window.usuarioLogado.financeiro || {}), saldo: resultado.saldoDepois, atualizadoEm: Date.now() };
+    await registrarTransacaoFinanceira('DEBITO', valor, descricao);
+    if (typeof atualizarSaldoPagamentoUI === 'function') atualizarSaldoPagamentoUI();
+    return { ok: true, saldoEncontrado: resultado.saldoAntes, novoSaldo: resultado.saldoDepois };
+}
+
+// Uma rota só pode ser excluída por inteiro enquanto nenhum entregador aceitou (status
+// Buscando) e ela já está vazia (todos os envios já foram excluídos individualmente
+// antes — ver confirmarExclusaoEnvio, que já devolve o valor de cada envio removido).
+// Por isso NÃO estorna nada aqui: quando chega vazia, o valor já foi todo devolvido
+// envio por envio. Depois que um entregador aceita, a rota deixa de poder ser excluída
+// por inteiro — só dá para remover envios um a um (e ela vira CANCELADA sozinha ao
+// esvaziar, ver marcarRotaCanceladaSeVazia).
 async function excluirRotaPorId(rotaId, opts = {}) {
     if (usuarioEhEntregador()) {
         alert('Perfil entregador nao pode excluir rotas.');
@@ -4908,15 +5295,22 @@ async function excluirRotaPorId(rotaId, opts = {}) {
     const rota = rotasHomeCache.find((r) => String(r.id) === String(rotaId));
     if (!rota) return;
 
-    if (confirmar && !window.confirm(`Deseja excluir a rota ${rota.id}?`)) return;
+    const temEntregador = Boolean(rota.entregadorId || rota.aceitoPor);
+    if (temEntregador) {
+        alert('Esta rota já foi aceita por um entregador e não pode mais ser excluída por inteiro. Remova os envios um a um, se necessário.');
+        return;
+    }
 
     let pacoteIds = [];
     if (Array.isArray(rota.pacoteIds)) pacoteIds = rota.pacoteIds;
     else if (Array.isArray(rota.pacotes)) pacoteIds = rota.pacotes.map((p) => (typeof p === 'object' ? p.id || p.codigo || p : p));
 
     if (pacoteIds.length) {
-        setStatusPacotes(pacoteIds, 'PACOTE_NOVO', true);
+        alert('Exclua todos os envios desta rota antes de excluir a rota.');
+        return;
     }
+
+    if (confirmar && !window.confirm(`Deseja excluir a rota ${rota.id}?`)) return;
 
     const uid = getUsuarioIdAtual();
     if (uid) {
@@ -5644,6 +6038,18 @@ async function adminSalvarRotas() {
 
 async function restaurarRotaMaster(lojistaUid, rotaId) {
     if (!usuarioEhMaster() || !lojistaUid || !rotaId) return;
+
+    // pega o entregador atual (se tiver) antes de limpar, pra também remover a cópia
+    // da rota do lado dele — sem isso a rota reaparecia fantasma no dashboard dele.
+    let entregadorId = '';
+    try {
+        const snap = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
+        const atual = snap.val() || {};
+        entregadorId = String(atual.entregadorId || atual.aceitoPor || '');
+    } catch (_) {
+        entregadorId = '';
+    }
+
     const updates = {};
     const agora = Date.now();
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/status`] = 'BUSCANDO';
@@ -5651,8 +6057,14 @@ async function restaurarRotaMaster(lojistaUid, rotaId) {
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorId`] = null;
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoPor`] = null;
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoEm`] = null;
+    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorGeo`] = null;
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/atualizadoEm`] = agora;
     await db.ref().update(updates);
+
+    if (entregadorId) {
+        await db.ref(`usuarios/${entregadorId}/rotas/${rotaId}`).remove().catch(() => {});
+    }
+
     alert('Rota restaurada para BUSCANDO.');
     renderDashboardMaster();
 }
@@ -5930,46 +6342,91 @@ function renderEtapaModalRota() {
     }
 }
 
-async function criarPagamentoPixMercadoPago(rotaDraft) {
-    if (!MERCADO_PAGO_ACCESS_TOKEN) {
-        throw new Error('Token do Mercado Pago não configurado.');
+async function chamarPaymentsProxy(caminho, payload) {
+    if (!FLEXA_PAYMENTS_PROXY_URL) {
+        throw new Error('Endpoint de pagamento (FLEXA_PAYMENTS_PROXY_URL) não configurado.');
+    }
+    if (!auth.currentUser) {
+        throw new Error('Sessão expirada. Faça login novamente.');
     }
 
-    const valor = Number(rotaDraft?.totalFrete || 0);
+    const idToken = await auth.currentUser.getIdToken();
+    const resp = await fetch(FLEXA_PAYMENTS_PROXY_URL + caminho, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + idToken,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const data = await resp.json().catch(() => ({}));
+    if (data?.ambiente) {
+        mercadoPagoAmbienteAtual = data.ambiente;
+    }
+    if (!resp.ok) {
+        throw new Error(data?.error || data?.message || ('HTTP ' + resp.status));
+    }
+    return data;
+}
+
+function obterNomeLojistaSeparadoTesteLocal() {
+    const nomeCompleto = (window.usuarioLogado?.nome || 'Lojista Flexa').toString().trim();
+    const partes = nomeCompleto.split(/\s+/).filter(Boolean);
+    const firstName = partes[0] || 'Lojista';
+    const lastName = partes.slice(1).join(' ') || 'Flexa';
+    return { firstName, lastName };
+}
+
+function obterEmailPagadorTesteLocal() {
+    const email = (
+        auth.currentUser?.email ||
+        window.usuarioLogado?.email ||
+        'cliente_teste@flexa.app'
+    ).toString().trim().toLowerCase();
+    return email.includes('@') ? email : 'cliente_teste@flexa.app';
+}
+
+function gerarIdempotencyKeyTesteLocal() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+    }
+    return 'flexa-' + Date.now() + '-' + Math.random().toString(16).slice(2, 12);
+}
+
+// Caminho TEMPORÁRIO de teste local: chama o Mercado Pago direto do navegador com
+// FLEXA_MP_TEST_TOKEN (validado no topo do arquivo para só aceitar token "TEST-").
+// Existe só porque a Cloud Function "payments" exige plano Blaze, ainda não ativado.
+// Assim que FLEXA_PAYMENTS_PROXY_URL estiver configurada, esse caminho para de ser usado
+// automaticamente (ver criarPagamentoPixMercadoPago).
+async function criarPagamentoPixTesteClienteLocal(rotaDraft) {
+    // valorRestantePix já vem descontado do crédito de saldo aplicado (ver
+    // irParaPagamentoRota) — cai pro totalFrete cheio se não tiver sido calculado.
+    const valor = Number(rotaDraft?.valorRestantePix ?? rotaDraft?.totalFrete ?? 0);
     if (!Number.isFinite(valor) || valor <= 0) {
         throw new Error('Valor da rota inválido para cobrança Pix.');
     }
 
-    const { firstName, lastName } = obterNomeLojistaSeparado();
-    const expiracao = new Date(Date.now() + (30 * 60 * 1000)).toISOString();
-    const body = {
-        transaction_amount: Number(valor.toFixed(2)),
-        description: 'Flexa Rota ' + rotaDraft.id + ' (' + rotaDraft.qtd + ' pacote(s))',
-        payment_method_id: 'pix',
-        payer: {
-            email: obterEmailPagadorMercadoPago(),
-            first_name: firstName,
-            last_name: lastName
-        },
-        date_of_expiration: expiracao,
-        external_reference: rotaDraft.id,
-        metadata: {
-            modulo: 'rota',
-            rotaId: rotaDraft.id,
-            quantidadePacotes: rotaDraft.qtd,
-            origem: 'flexa-web',
-            publicKeyConfigurada: !!MERCADO_PAGO_PUBLIC_KEY
-        }
-    };
-
-    const resp = await fetch(MERCADO_PAGO_API_BASE + '/v1/payments', {
+    const { firstName, lastName } = obterNomeLojistaSeparadoTesteLocal();
+    const resp = await fetch('https://api.mercadopago.com/v1/payments', {
         method: 'POST',
         headers: {
-            'Authorization': 'Bearer ' + MERCADO_PAGO_ACCESS_TOKEN,
+            'Authorization': 'Bearer ' + FLEXA_MP_TEST_TOKEN,
             'Content-Type': 'application/json',
-            'X-Idempotency-Key': gerarIdempotencyKey()
+            'X-Idempotency-Key': gerarIdempotencyKeyTesteLocal()
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+            transaction_amount: Number(valor.toFixed(2)),
+            description: 'Flexa Rota ' + rotaDraft.id + ' (' + rotaDraft.qtd + ' pacote(s)) [TESTE LOCAL]',
+            payment_method_id: 'pix',
+            payer: {
+                email: obterEmailPagadorTesteLocal(),
+                first_name: firstName,
+                last_name: lastName
+            },
+            date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            external_reference: rotaDraft.id
+        })
     });
 
     const data = await resp.json().catch(() => ({}));
@@ -5979,42 +6436,83 @@ async function criarPagamentoPixMercadoPago(rotaDraft) {
     }
 
     const tx = data?.point_of_interaction?.transaction_data || {};
-    const pixCode = normalizarCodigoPix(tx.qr_code || '');
+    return {
+        provider: 'mercadopago',
+        paymentId: data?.id ? String(data.id) : '',
+        status: data?.status || 'pending',
+        statusDetail: data?.status_detail || '',
+        pixCode: tx.qr_code || '',
+        ticketUrl: tx.ticket_url || '',
+        qrCodeBase64: tx.qr_code_base64 || ''
+    };
+}
+
+async function consultarPagamentoPixTesteClienteLocal(paymentId) {
+    const resp = await fetch('https://api.mercadopago.com/v1/payments/' + paymentId, {
+        headers: { 'Authorization': 'Bearer ' + FLEXA_MP_TEST_TOKEN }
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+        throw new Error('Falha ao consultar pagamento: ' + (data?.message || data?.error || ('HTTP ' + resp.status)));
+    }
+    return {
+        status: data?.status || 'pending',
+        statusDetail: data?.status_detail || ''
+    };
+}
+
+// Cria a cobrança Pix. Prioridade: Cloud Function "payments" (produção, token nunca
+// chega ao navegador) — se não estiver configurada, cai no teste local só-TEST- acima.
+async function criarPagamentoPixMercadoPago(rotaDraft) {
+    const uid = getUsuarioIdAtual();
+    if (!uid) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    if (!Array.isArray(rotaDraft?.pacotes) || !rotaDraft.pacotes.length) {
+        throw new Error('Rota sem pacotes selecionados.');
+    }
+
+    let data;
+    if (FLEXA_PAYMENTS_PROXY_URL) {
+        data = await chamarPaymentsProxy('/create-pix', {
+            tenantId: uid,
+            rotaId: rotaDraft.id,
+            envioIds: rotaDraft.pacotes
+        });
+    } else if (FLEXA_MP_TEST_TOKEN) {
+        data = await criarPagamentoPixTesteClienteLocal(rotaDraft);
+    } else {
+        throw new Error('Pagamento não configurado: defina FLEXA_PAYMENTS_PROXY_URL (produção) ou FLEXA_MP_TEST_TOKEN (só teste local) no index.html.');
+    }
+
+    const pixCode = normalizarCodigoPix(data.pixCode || '');
     if (!pixCode) {
         throw new Error('Mercado Pago não retornou código Pix Copia e Cola.');
     }
 
     return {
         provider: 'mercadopago',
-        paymentId: data?.id ? String(data.id) : '',
+        paymentId: data?.paymentId ? String(data.paymentId) : '',
         status: data?.status || 'pending',
-        statusDetail: data?.status_detail || '',
+        statusDetail: data?.statusDetail || '',
         pixCode,
-        ticketUrl: tx.ticket_url || '',
-        qrCodeBase64: tx.qr_code_base64 || ''
+        ticketUrl: data?.ticketUrl || '',
+        qrCodeBase64: data?.qrCodeBase64 || ''
     };
 }
 
 async function consultarPagamentoPixMercadoPago(paymentId) {
-    if (!MERCADO_PAGO_ACCESS_TOKEN || !paymentId) return null;
+    const uid = getUsuarioIdAtual();
+    if (!uid || !paymentId) return null;
+    if (!FLEXA_PAYMENTS_PROXY_URL && !FLEXA_MP_TEST_TOKEN) return null;
 
-    const resp = await fetch(MERCADO_PAGO_API_BASE + '/v1/payments/' + paymentId, {
-        method: 'GET',
-        headers: {
-            'Authorization': 'Bearer ' + MERCADO_PAGO_ACCESS_TOKEN,
-            'Content-Type': 'application/json'
-        }
-    });
-
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-        const detalhe = data?.message || data?.error || ('HTTP ' + resp.status);
-        throw new Error('Falha ao consultar pagamento: ' + detalhe);
-    }
+    const data = FLEXA_PAYMENTS_PROXY_URL
+        ? await chamarPaymentsProxy('/check-pix', { tenantId: uid, paymentId })
+        : await consultarPagamentoPixTesteClienteLocal(paymentId);
 
     return {
         status: data?.status || 'pending',
-        statusDetail: data?.status_detail || ''
+        statusDetail: data?.statusDetail || ''
     };
 }
 
@@ -6038,6 +6536,64 @@ async function irParaPagamentoRota() {
         pagamentoMercadoPago: null
     };
 
+    // Saldo/crédito da carteira: nunca passa pelo Mercado Pago, é um valor interno
+    // do sistema (inclui crédito de estornos, ver project-flexa-notificacoes-e-exclusao).
+    // Se cobre o total, mostra botão "Pagar com saldo" (sem Pix nenhum). Se cobre só
+    // parte, aplica automaticamente como desconto e gera o Pix só pela diferença.
+    // IMPORTANTE: busca o saldo AO VIVO no Firebase, não usa window.usuarioLogado
+    // (que é só um cache carregado no login e pode estar desatualizado) — assim o
+    // valor mostrado aqui sempre bate com o que a transação de débito vai encontrar.
+    const saldoCard = document.getElementById('rota-saldo-pagamento-card');
+    const saldoValorEl = document.getElementById('rota-saldo-disponivel-valor');
+    const saldoBtnEl = document.getElementById('rota-saldo-pagar-btn');
+    const saldoInfoEl = document.getElementById('rota-saldo-aplicado-info');
+    const uidSaldo = getUsuarioIdAtual();
+    let saldoAtualLive = 0;
+    if (uidSaldo) {
+        try {
+            const snapSaldo = await db.ref(`usuarios/${uidSaldo}/financeiro/saldo`).once('value');
+            saldoAtualLive = Number(snapSaldo.val() || 0);
+        } catch (err) {
+            console.warn('Erro ao ler saldo ao vivo:', err);
+            saldoAtualLive = 0;
+        }
+    }
+    rotaDraftAtual.saldoDisponivelNoMomento = saldoAtualLive;
+
+    // Aplicação parcial automática de crédito só é feita no caminho local de teste
+    // (sem Cloud Function configurada) — a Cloud Function "payments" ainda não sabe
+    // recalcular o valor do Pix descontando saldo, então em produção mantemos o
+    // comportamento antigo (só "pagar tudo com saldo" ou "pagar tudo no Pix") até
+    // essa parte ser implementada no servidor também.
+    const podeAplicarCreditoParcial = !FLEXA_PAYMENTS_PROXY_URL;
+    const creditoAplicavel = podeAplicarCreditoParcial
+        ? Math.max(0, Math.min(saldoAtualLive, rotaDraftAtual.totalFrete))
+        : (saldoAtualLive >= rotaDraftAtual.totalFrete ? rotaDraftAtual.totalFrete : 0);
+    const valorRestantePix = Number((rotaDraftAtual.totalFrete - creditoAplicavel).toFixed(2));
+    rotaDraftAtual.creditoCarteiraAplicado = creditoAplicavel;
+    rotaDraftAtual.valorRestantePix = valorRestantePix;
+
+    if (saldoCard) {
+        if (creditoAplicavel <= 0 || rotaDraftAtual.totalFrete <= 0) {
+            saldoCard.style.display = 'none';
+        } else {
+            saldoCard.style.display = 'block';
+            if (saldoValorEl) saldoValorEl.innerText = precoParaMoeda(saldoAtualLive);
+            if (valorRestantePix <= 0) {
+                if (saldoBtnEl) saldoBtnEl.style.display = '';
+                if (saldoInfoEl) saldoInfoEl.style.display = 'none';
+            } else {
+                // cobre só parte: aplica sozinho, sem precisar clicar em nada — o botão
+                // some porque o crédito já vai entrar automaticamente ao confirmar o Pix
+                if (saldoBtnEl) saldoBtnEl.style.display = 'none';
+                if (saldoInfoEl) {
+                    saldoInfoEl.style.display = 'block';
+                    saldoInfoEl.innerText = `${precoParaMoeda(creditoAplicavel)} do seu saldo serão aplicados automaticamente. Falta pagar ${precoParaMoeda(valorRestantePix)} via Pix.`;
+                }
+            }
+        }
+    }
+
     const pixTxt = document.getElementById('rota-pix-code');
     const pixQtd = document.getElementById('rota-pix-qtd');
     const pixTotal = document.getElementById('rota-pix-total');
@@ -6046,14 +6602,22 @@ async function irParaPagamentoRota() {
     rotaPixCodigoRawAtual = '';
     if (pixTxt) pixTxt.textContent = 'Gerando código Pix...';
     if (pixQtd) pixQtd.innerText = String(rotaDraftAtual.qtd);
-    if (pixTotal) pixTotal.innerText = precoParaMoeda(rotaDraftAtual.totalFrete);
+    if (pixTotal) pixTotal.innerText = precoParaMoeda(valorRestantePix > 0 ? valorRestantePix : rotaDraftAtual.totalFrete);
     if (pixFeedback) pixFeedback.innerText = '';
     setTicketPagamentoPixRota('');
-    setStatusPagamentoPixRota('Gerando cobrança Pix no Mercado Pago...', 'loading');
     atualizarAvisoAmbientePix();
 
     rotaModalStep = 2;
     renderEtapaModalRota();
+
+    if (valorRestantePix <= 0) {
+        // saldo cobre o total: nem gera Pix, só espera o clique em "Pagar com saldo"
+        if (pixTxt) pixTxt.textContent = '--';
+        setStatusPagamentoPixRota('Saldo cobre o valor total. Use "Pagar com saldo" acima.', 'approved');
+        return;
+    }
+
+    setStatusPagamentoPixRota('Gerando cobrança Pix no Mercado Pago...', 'loading');
 
     try {
         const pixPagamento = await criarPagamentoPixMercadoPago(rotaDraftAtual);
@@ -6066,7 +6630,7 @@ async function irParaPagamentoRota() {
 
         if (pixTxt) pixTxt.textContent = codigoPixLimpo;
         setTicketPagamentoPixRota(pixPagamento.ticketUrl || '');
-        if (MERCADO_PAGO_AMBIENTE === 'teste') {
+        if (mercadoPagoAmbienteAtual === 'teste') {
             setStatusPagamentoPixRota('Pix de teste gerado. Em banco real ele pode ser recusado.', 'warning');
         } else {
             setStatusPagamentoPixRota('Pix gerado com sucesso. Aguardando pagamento.', 'pending');
@@ -6081,7 +6645,7 @@ async function irParaPagamentoRota() {
 
         const detalheErro = erro?.message || 'erro desconhecido';
 
-        if (MERCADO_PAGO_AMBIENTE === 'teste') {
+        if (mercadoPagoAmbienteAtual === 'teste') {
             const simular = confirm(
                 'Não foi possível gerar o Pix real no Mercado Pago (ambiente TESTE).\n\n' +
                 'Detalhe: ' + detalheErro + '\n\n' +
@@ -6153,7 +6717,7 @@ async function copiarCodigoPixRota() {
     }
 
     if (feedback) {
-        if (copiado && MERCADO_PAGO_AMBIENTE === 'teste') {
+        if (copiado && mercadoPagoAmbienteAtual === 'teste') {
             feedback.innerText = 'Código Pix copiado (ambiente TESTE).';
         } else {
             feedback.innerText = copiado ? 'Código Pix copiado.' : 'Não foi possível copiar automaticamente.';
@@ -6197,7 +6761,9 @@ async function salvarRotaNoBanco(rota) {
         atualizadoEm: Date.now(),
         pagamentoProvider: pagamentoMp.provider || 'manual',
         pagamentoId: pagamentoMp.paymentId || null,
-        pagamentoStatus: pagamentoMp.status || rota.pagamento || 'APROVADO'
+        pagamentoStatus: pagamentoMp.status || rota.pagamento || 'APROVADO',
+        creditoCarteiraAplicado: Number(rota.creditoCarteiraAplicado || 0),
+        valorPixPago: Number.isFinite(Number(rota.valorRestantePix)) ? Number(rota.valorRestantePix) : rota.totalFrete
     };
 
     try {
@@ -6205,6 +6771,48 @@ async function salvarRotaNoBanco(rota) {
     } catch (err) {
         console.warn('Falha ao salvar rota no banco:', err);
     }
+}
+
+// Pagamento com saldo da carteira (inclui crédito de estornos, ver
+// project-flexa-notificacoes-e-exclusao). Debita o valor e reaproveita
+// confirmarPagamentoRota pra terminar o fluxo (marca envios, salva rota, avança
+// pro passo 3) — o mesmo caminho já usado pelo pagamento simulado em modo teste.
+async function pagarRotaComSaldo() {
+    if (!rotaDraftAtual) return;
+
+    const total = Number(rotaDraftAtual.totalFrete || 0);
+    if (!Number.isFinite(total) || total <= 0) return;
+
+    const ok = window.confirm(`Pagar ${precoParaMoeda(total)} usando o saldo da sua carteira?`);
+    if (!ok) return;
+
+    const resultado = await debitarSaldoUsuarioAtual(total, `Pagamento da rota ${rotaDraftAtual.id} com saldo`);
+    if (!resultado.ok) {
+        alert(
+            'Não foi possível debitar o saldo.\n\n' +
+            `Saldo encontrado no banco agora: ${precoParaMoeda(resultado.saldoEncontrado)}\n` +
+            `Valor necessário: ${precoParaMoeda(total)}\n\n` +
+            'Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento. Por enquanto, pague via Pix abaixo.'
+        );
+        // Corrige o card na tela com o valor real, já que o cache local estava errado.
+        const saldoValorEl = document.getElementById('rota-saldo-disponivel-valor');
+        if (saldoValorEl) saldoValorEl.innerText = precoParaMoeda(resultado.saldoEncontrado);
+        const saldoCard = document.getElementById('rota-saldo-pagamento-card');
+        if (saldoCard && resultado.saldoEncontrado < total) saldoCard.style.display = 'none';
+        return;
+    }
+
+    rotaDraftAtual.pagamentoMercadoPago = {
+        provider: 'saldo-interno',
+        paymentId: 'saldo_' + Date.now(),
+        status: 'approved',
+        statusDetail: 'pago_com_saldo_carteira',
+        pixCode: '',
+        ticketUrl: '',
+        qrCodeBase64: ''
+    };
+
+    await confirmarPagamentoRota();
 }
 
 async function confirmarPagamentoRota() {
@@ -6230,7 +6838,7 @@ async function confirmarPagamentoRota() {
             } else {
                 setStatusPagamentoPixRota('Pagamento ainda pendente no Mercado Pago.', 'warning');
 
-                if (MERCADO_PAGO_AMBIENTE !== 'teste') {
+                if (mercadoPagoAmbienteAtual !== 'teste') {
                     alert('O pagamento ainda não foi aprovado pelo Mercado Pago. Aguarde a confirmação para liberar a rota.');
                     return;
                 }
@@ -6240,6 +6848,29 @@ async function confirmarPagamentoRota() {
                     return;
                 }
                 rotaDraftAtual.pagamentoMercadoPago.status = 'test_override';
+            }
+        }
+
+        // Aplica o crédito de saldo (se algum foi calculado em irParaPagamentoRota) só
+        // agora que o Pix foi de fato confirmado — evita gastar o crédito do lojista se
+        // ele nunca chegar a pagar o restante. Não se aplica ao provider 'saldo-interno'
+        // porque esse caminho (pagarRotaComSaldo) já debita o valor cheio antes de chegar
+        // aqui.
+        if (
+            pagamentoMp?.provider !== 'saldo-interno'
+            && !rotaDraftAtual.creditoJaAplicado
+            && Number(rotaDraftAtual.creditoCarteiraAplicado) > 0
+        ) {
+            const debitoCredito = await debitarSaldoUsuarioAtual(
+                rotaDraftAtual.creditoCarteiraAplicado,
+                `Crédito de saldo aplicado na rota ${rotaDraftAtual.id}`
+            );
+            if (debitoCredito.ok) {
+                rotaDraftAtual.creditoJaAplicado = true;
+            } else {
+                // Não trava a rota por isso — o Pix já foi pago, a rota deve seguir.
+                // Só fica sem aplicar o desconto de saldo dessa vez; avisa no console.
+                console.warn('Pix aprovado mas não foi possível aplicar o crédito de saldo:', debitoCredito);
             }
         }
 
@@ -7176,21 +7807,145 @@ async function excluirEnvioPorId(envioId, { persistir = false } = {}) {
     return true;
 }
 
-function confirmarExclusaoEnvio(envioId) {
+const TAXA_CANCELAMENTO_ENVIO = 5;
+
+async function cobrarTaxaCancelamentoEnvio(envioId, rotaId) {
+    const uid = getUsuarioIdAtual();
+    if (!uid) return;
+
+    // Penalidade: pode deixar o saldo negativo (permitirNegativo: true, padrão).
+    const resultado = await ajustarSaldoUsuario(uid, -TAXA_CANCELAMENTO_ENVIO);
+    if (!resultado.ok) {
+        console.warn('Falha ao cobrar taxa de cancelamento');
+        return;
+    }
+
+    if (!window.usuarioLogado) window.usuarioLogado = {};
+    window.usuarioLogado.financeiro = { ...(window.usuarioLogado.financeiro || {}), saldo: resultado.saldoDepois, atualizadoEm: Date.now() };
+    await registrarTransacaoFinanceira('DEBITO', TAXA_CANCELAMENTO_ENVIO, `Taxa de cancelamento — pedido #${envioId}${rotaId ? ` (rota #${rotaId})` : ''}`);
+    if (typeof atualizarSaldoPagamentoUI === 'function') atualizarSaldoPagamentoUI();
+}
+
+// Acha em qual rota (se alguma) esse envio está, com o objeto da rota completo
+// (precisa pra checar status de pagamento) e o id do entregador, se já tiver um.
+function localizarRotaDoEnvio(envioId) {
+    const rotas = window.usuarioLogado?.rotas || {};
+    for (const rid of Object.keys(rotas)) {
+        const r = rotas[rid];
+        if (!r) continue;
+        const lista = Array.isArray(r.pacoteIds) ? r.pacoteIds : (Array.isArray(r.pacotes) ? r.pacotes : []);
+        if (lista.includes(envioId)) {
+            return { rotaId: rid, rota: r, entregadorId: String(r.entregadorId || r.aceitoPor || '') };
+        }
+    }
+    return { rotaId: '', rota: null, entregadorId: '' };
+}
+
+// Quando um envio é removido e isso esvazia uma rota que já tem entregador designado,
+// a rota não é excluída (excluirRotaPorId bloqueia isso) — em vez disso vira CANCELADA,
+// atualizada nas duas cópias (lojista e entregador) pra não desincronizar.
+async function marcarRotaCanceladaSeVazia(rotaId, entregadorId) {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !rotaId) return;
+
+    const rota = window.usuarioLogado?.rotas?.[rotaId];
+    if (!rota) return;
+    const lista = Array.isArray(rota.pacoteIds) ? rota.pacoteIds : (Array.isArray(rota.pacotes) ? rota.pacotes : []);
+    if (lista.length) return;
+
+    const agora = Date.now();
+    const updates = {
+        [`usuarios/${uid}/rotas/${rotaId}/status`]: 'CANCELADA',
+        [`usuarios/${uid}/rotas/${rotaId}/atualizadoEm`]: agora
+    };
+    if (entregadorId) {
+        updates[`usuarios/${entregadorId}/rotas/${rotaId}/status`] = 'CANCELADA';
+        updates[`usuarios/${entregadorId}/rotas/${rotaId}/atualizadoEm`] = agora;
+    }
+
+    try {
+        await db.ref().update(updates);
+        if (window.usuarioLogado?.rotas?.[rotaId]) {
+            window.usuarioLogado.rotas[rotaId].status = 'CANCELADA';
+        }
+    } catch (err) {
+        console.warn('Falha ao marcar rota como cancelada:', err);
+    }
+}
+
+async function confirmarExclusaoEnvio(envioId) {
     if (!envioId) return;
-    const ok = window.confirm('Deseja excluir este envio?');
+    const uid = getUsuarioIdAtual();
+
+    const { rotaId, rota, entregadorId } = localizarRotaDoEnvio(envioId);
+
+    // Descobre, num único fetch, se a corrida desse envio já começou e qual o valor
+    // pago por ele (pra saber se cabe reembolso e/ou taxa de cancelamento).
+    let corridaIniciada = false;
+    let valorFrete = 0;
+    let nomeDestinatario = 'Destinatário';
+    if (uid) {
+        try {
+            const snap = await db.ref(`usuarios/${uid}/pacotes/${envioId}`).once('value');
+            const dados = snap.val() || {};
+            corridaIniciada = Boolean(dados.corridaIniciadaEm);
+            valorFrete = Number(dados.valorFrete || 0);
+            nomeDestinatario = obterNomeDestinatarioPacote(dados, rota || {});
+        } catch (_) {
+            corridaIniciada = false;
+            valorFrete = 0;
+        }
+    }
+
+    // Só reembolsa se esse envio já foi pago de fato (fez parte de uma rota com Pix
+    // aprovado) — envio avulso, nunca colocado numa rota paga, não gera crédito.
+    const podeReembolsar = Boolean(rota) && rota.pagamento === 'APROVADO' && Number.isFinite(valorFrete) && valorFrete > 0;
+
+    let avisoConta = '';
+    if (podeReembolsar && corridaIniciada) {
+        const liquido = Number((valorFrete - TAXA_CANCELAMENTO_ENVIO).toFixed(2));
+        avisoConta = `\n\nO entregador já iniciou a entrega deste pacote. Será cobrada uma taxa de cancelamento de ${precoParaMoeda(TAXA_CANCELAMENTO_ENVIO)} e devolvido ${precoParaMoeda(liquido)} de crédito na carteira (valor do pedido menos a taxa).`;
+    } else if (podeReembolsar) {
+        avisoConta = `\n\n${precoParaMoeda(valorFrete)} voltam como crédito na sua carteira.`;
+    } else if (corridaIniciada) {
+        avisoConta = `\n\nO entregador já iniciou a entrega deste pacote — será cobrada uma taxa de cancelamento de ${precoParaMoeda(TAXA_CANCELAMENTO_ENVIO)}.`;
+    }
+
+    const ok = window.confirm('Deseja excluir este envio?' + avisoConta);
     if (!ok) return;
-    excluirEnvioPorId(envioId, { persistir: true })
-        .then(() => {
-            saveClientes();
-            renderEnviosHome();
-            atualizarListaEnviosSelector?.();
-            if (envioDetalheAtualId === envioId) fecharModalDetalheEnvio();
-            notificarErro('Envio excluído.');
-        })
-        .catch(() => {
-            alert('Não foi possível excluir este envio.');
-        });
+
+    try {
+        await excluirEnvioPorId(envioId, { persistir: true });
+
+        if (entregadorId) {
+            criarNotificacao(entregadorId, {
+                tipo: 'envio_removido',
+                titulo: 'Pacote removido da rota',
+                mensagem: `O lojista removeu o pedido de ${nomeDestinatario} da rota${rotaId ? ` #${rotaId}` : ''}.`,
+                rotaId: rotaId || ''
+            });
+        }
+
+        if (podeReembolsar) {
+            await creditarSaldoUsuarioAtual(valorFrete, `Estorno do pedido #${envioId} cancelado${rotaId ? ` (rota #${rotaId})` : ''}`);
+        }
+        if (corridaIniciada) {
+            await cobrarTaxaCancelamentoEnvio(envioId, rotaId);
+        }
+
+        if (rotaId && entregadorId) {
+            await marcarRotaCanceladaSeVazia(rotaId, entregadorId);
+        }
+
+        saveClientes();
+        renderEnviosHome();
+        atualizarListaEnviosSelector?.();
+        if (envioDetalheAtualId === envioId) fecharModalDetalheEnvio();
+        notificarErro(corridaIniciada ? `Envio excluído. Taxa de ${precoParaMoeda(TAXA_CANCELAMENTO_ENVIO)} cobrada.` : 'Envio excluído.');
+    } catch (err) {
+        console.warn('Falha ao excluir envio:', err);
+        alert('Não foi possível excluir este envio.');
+    }
 }
 
 let envioTouchStartX = 0;
@@ -7770,6 +8525,13 @@ async function enviarMensagemChat() {
         const chatRefDestino = db.ref(`usuarios/${destinoUid}/chats/${chatAtualId}`);
         await chatRefDestino.child(`mensagens/${msgId}`).set(payload);
         await chatRefDestino.child('meta').update(metaPayload);
+
+        criarNotificacao(destinoUid, {
+            tipo: 'chat_mensagem',
+            titulo: `Mensagem de ${window.usuarioLogado?.nome || (remetenteTipoAtual === 'ENTREGADOR' ? 'entregador' : 'lojista')}`,
+            mensagem: texto || 'Enviou uma imagem.',
+            rotaId: conversa.rotaId || ''
+        });
     }
 
     if (input) input.value = '';
@@ -7960,73 +8722,6 @@ async function registrarTransacaoFinanceira(tipo, valor, descricao = '') {
     } catch (err) {
         console.warn('Falha ao registrar transacao financeira:', err);
     }
-}
-
-async function comprarCredito(valor) {
-    const num = Number(valor || 0);
-    if (!Number.isFinite(num) || num <= 0) return;
-
-    pagamentoPerfilCache.saldo = Number((Number(pagamentoPerfilCache.saldo || 0) + num).toFixed(2));
-    atualizarSaldoPagamentoUI();
-
-    const ok = await persistirFinanceiroUsuario({
-        saldo: pagamentoPerfilCache.saldo,
-        atualizadoEm: Date.now()
-    });
-    if (!ok) {
-        alert('Nao foi possivel atualizar seu saldo agora.');
-        return;
-    }
-
-    await registrarTransacaoFinanceira('CREDITO', num, 'Recarga manual no app');
-}
-
-function comprarCreditoOutroValor() {
-    const valorTxt = window.prompt('Digite o valor da recarga (ex: 37,50):', '0,00');
-    if (valorTxt === null) return;
-    const valor = lerValorMonetarioInput(valorTxt);
-    if (!Number.isFinite(valor) || valor <= 0) {
-        alert('Digite um valor valido.');
-        return;
-    }
-    comprarCredito(valor);
-}
-
-async function enviarPixSimulado() {
-    const chaveDestino = (document.getElementById('pag-envio-chave')?.value || '').trim();
-    const valor = lerValorMonetarioInput(document.getElementById('pag-envio-valor')?.value || '0');
-
-    if (!chaveDestino) {
-        alert('Digite a chave Pix de destino.');
-        return;
-    }
-    if (!Number.isFinite(valor) || valor <= 0) {
-        alert('Digite um valor valido para envio.');
-        return;
-    }
-
-    const saldoAtual = Number(pagamentoPerfilCache.saldo || 0);
-    if (valor > saldoAtual) {
-        alert('Saldo insuficiente para este envio.');
-        return;
-    }
-
-    pagamentoPerfilCache.saldo = Number((saldoAtual - valor).toFixed(2));
-    atualizarSaldoPagamentoUI();
-
-    const ok = await persistirFinanceiroUsuario({
-        saldo: pagamentoPerfilCache.saldo,
-        atualizadoEm: Date.now()
-    });
-    if (!ok) {
-        alert('Nao foi possivel concluir o Pix agora.');
-        return;
-    }
-
-    await registrarTransacaoFinanceira('DEBITO', valor, `Pix enviado para ${chaveDestino}`);
-    const campoValor = document.getElementById('pag-envio-valor');
-    if (campoValor) campoValor.value = '';
-    alert('Pix enviado em modo simulacao.');
 }
 
 function abrirModalInfoPerfil(titulo, html) {
@@ -8846,6 +9541,20 @@ async function abrirModalTrackingLoja(rotaId) {
             rowDriver.style.display = 'none';
         }
 
+        const uidLojista = getUsuarioIdAtual();
+        if (hasDriver && uidLojista) {
+            iniciarListenerGeoTrackingLoja(uidLojista, rotaId);
+        } else {
+            pararListenerGeoTrackingLoja();
+            atualizarMapaTrackingLoja(null);
+        }
+
+        const banner = document.getElementById('track-loja-stale-banner');
+        if (banner) {
+            const parada = await verificarRotaParada(rota);
+            banner.style.display = parada ? 'block' : 'none';
+        }
+
         const overlay = document.getElementById('overlay-tracking-loja');
         if (overlay) {
             overlay.style.display = 'flex';
@@ -8895,6 +9604,129 @@ function fecharModalTrackingLoja() {
     const overlay = document.getElementById('overlay-tracking-loja');
     if (overlay) overlay.style.display = 'none';
     trackLojaIdAtual = null;
+    pararListenerGeoTrackingLoja();
+}
+
+// ===== [MAPA AO VIVO NO TRACKING DO LOJISTA] =====
+let geoTrackingListenerRef = null;
+let geoTrackingListenerCb = null;
+
+function pararListenerGeoTrackingLoja() {
+    if (geoTrackingListenerRef && geoTrackingListenerCb) {
+        geoTrackingListenerRef.off('value', geoTrackingListenerCb);
+    }
+    geoTrackingListenerRef = null;
+    geoTrackingListenerCb = null;
+}
+
+function iniciarListenerGeoTrackingLoja(lojistaUid, rotaId) {
+    pararListenerGeoTrackingLoja();
+    if (!lojistaUid || !rotaId) return;
+
+    const ref = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorGeo`);
+    const callback = (snap) => atualizarMapaTrackingLoja(snap.val());
+    ref.on('value', callback);
+    geoTrackingListenerRef = ref;
+    geoTrackingListenerCb = callback;
+}
+
+function atualizarMapaTrackingLoja(geo) {
+    const wrap = document.getElementById('track-loja-map-wrap');
+    const frame = document.getElementById('track-loja-map-frame');
+    const status = document.getElementById('track-loja-geo-status');
+    if (!wrap || !frame || !status) return;
+
+    const lat = Number(geo?.lat);
+    const lng = Number(geo?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        wrap.style.display = 'none';
+        frame.src = '';
+        return;
+    }
+
+    wrap.style.display = 'block';
+    frame.src = `https://www.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
+
+    const atualizadoEm = Number(geo?.atualizadoEm || 0);
+    if (atualizadoEm) {
+        const minutosAtras = Math.max(0, Math.round((Date.now() - atualizadoEm) / 60000));
+        status.innerText = minutosAtras <= 0 ? 'Localização atualizada agora' : `Localização atualizada há ${minutosAtras} min`;
+    } else {
+        status.innerText = '--';
+    }
+}
+
+// Considera a rota "parada" se o entregador aceitou há mais de 2h e ainda não iniciou
+// a corrida de NENHUM pacote dela (ver corridaIniciadaEm, gravado em iniciarCorridaPacoteAtual).
+const LIMITE_ROTA_PARADA_MS = 2 * 60 * 60 * 1000;
+
+async function verificarRotaParada(rota) {
+    const temEntregador = Boolean(rota?.entregadorId || rota?.aceitoPor);
+    if (!temEntregador) return false;
+
+    const aceitoEm = Number(rota?.aceitoEm || 0);
+    if (!aceitoEm || (Date.now() - aceitoEm) < LIMITE_ROTA_PARADA_MS) return false;
+
+    const uid = getUsuarioIdAtual();
+    const pacoteIds = Array.isArray(rota?.pacoteIds) ? rota.pacoteIds : (Array.isArray(rota?.pacotes) ? rota.pacotes : []);
+    if (!uid || !pacoteIds.length) return true;
+
+    try {
+        const snap = await db.ref(`usuarios/${uid}/pacotes`).once('value');
+        const pacotesNo = snap.val() || {};
+        const algumaCorridaIniciada = pacoteIds.some((id) => Boolean(pacotesNo?.[id]?.corridaIniciadaEm));
+        return !algumaCorridaIniciada;
+    } catch (_) {
+        return false;
+    }
+}
+
+// Ação do lojista pra destravar uma rota parada sem precisar do admin: remove o
+// entregador atual e devolve a rota pro marketplace (status BUSCANDO), removendo
+// também a cópia da rota no lado do entregador (evita o bug de desincronização).
+async function liberarRotaParadaLojista() {
+    const rotaId = trackLojaIdAtual;
+    const uid = getUsuarioIdAtual();
+    if (!rotaId || !uid) return;
+
+    const rota = (rotasHomeCache || []).find((r) => String(r.id) === String(rotaId));
+    if (!rota) return;
+
+    const ok = window.confirm('O entregador atual será removido da rota e ela volta a ficar disponível no marketplace para qualquer entregador aceitar. Continuar?');
+    if (!ok) return;
+
+    const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+    const agora = Date.now();
+    const updates = {
+        [`usuarios/${uid}/rotas/${rotaId}/status`]: 'BUSCANDO',
+        [`usuarios/${uid}/rotas/${rotaId}/pagamentoStatus`]: 'BUSCANDO',
+        [`usuarios/${uid}/rotas/${rotaId}/entregadorId`]: null,
+        [`usuarios/${uid}/rotas/${rotaId}/aceitoPor`]: null,
+        [`usuarios/${uid}/rotas/${rotaId}/aceitoEm`]: null,
+        [`usuarios/${uid}/rotas/${rotaId}/entregadorGeo`]: null,
+        [`usuarios/${uid}/rotas/${rotaId}/atualizadoEm`]: agora
+    };
+
+    try {
+        await db.ref().update(updates);
+        if (entregadorId) {
+            await db.ref(`usuarios/${entregadorId}/rotas/${rotaId}`).remove();
+            criarNotificacao(entregadorId, {
+                tipo: 'rota_liberada',
+                titulo: 'Rota removida de você',
+                mensagem: `O lojista liberou a rota #${rotaId} para outro entregador por inatividade.`,
+                rotaId: String(rotaId)
+            });
+        }
+        notificarErro('Rota liberada para novo entregador.');
+        fecharModalTrackingLoja();
+        rotasHomeCache = await carregarRotasDoBanco();
+        if (typeof renderRotasTelaPrincipal === 'function') renderRotasTelaPrincipal();
+        if (typeof renderEnviosHome === 'function') renderEnviosHome();
+    } catch (err) {
+        console.warn('Falha ao liberar rota parada:', err);
+        alert('Não foi possível liberar a rota agora. Tente novamente.');
+    }
 }
 
 function iniciarListenerHomeEntregador() {

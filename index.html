@@ -36,7 +36,7 @@
                 <button type="button" class="entregador-wallet-chip gh-chip">
                     <span>R$ 0,00</span>
                 </button>
-                <div class="entregador-bell gh-bell">
+                <div class="entregador-bell gh-bell" onclick="abrirPainelNotificacoes()">
                     <i data-lucide="bell" size="18"></i>
                     <span class="dot"></span>
                 </div>
@@ -219,8 +219,37 @@
                 </div>
             </div>
 
+            <div class="tracking-map-wrap" id="track-loja-map-wrap" style="display:none;">
+                <iframe id="track-loja-map-frame" class="tracking-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Localização do entregador"></iframe>
+                <small id="track-loja-geo-status" class="tracking-geo-status">--</small>
+            </div>
+
+            <div class="tracking-stale-banner" id="track-loja-stale-banner" style="display:none;">
+                <p>O entregador aceitou a rota mas ainda não iniciou nenhuma entrega há bastante tempo.</p>
+                <button type="button" class="tracking-btn ghost full" onclick="liberarRotaParadaLojista()">Liberar rota para outro entregador</button>
+            </div>
+
             <div class="tracking-actions tracking-actions-full">
                 <button class="tracking-btn main full" onclick="fecharModalTrackingLoja()">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="overlay-notificacoes" class="modal-overlay tracking-overlay" onclick="fecharPainelNotificacoes()" style="display:none;">
+    <div class="tracking-shell" onclick="event.stopPropagation()">
+        <div class="tracking-sheet tracking-sheet-dark">
+            <div class="tracking-handle tracking-handle-light"></div>
+            <div class="tracking-row tracking-row-header">
+                <div class="tracking-route-id">
+                    <span class="tracking-label">NOTIFICAÇÕES</span>
+                </div>
+                <button type="button" class="tracking-btn-circle ghost" onclick="marcarTodasNotificacoesLidas()" title="Marcar todas como lidas">
+                    <i data-lucide="check-check"></i>
+                </button>
+            </div>
+            <div id="notificacoes-lista" class="notificacoes-lista"></div>
+            <div class="tracking-actions tracking-actions-full">
+                <button class="tracking-btn main full" onclick="fecharPainelNotificacoes()">Fechar</button>
             </div>
         </div>
     </div>
@@ -461,7 +490,13 @@
             </section>
 
             <section id="rota-flow-step-2" class="hidden">
-                <p class="rota-flow-help">Use o Pix Copia e Cola para pagar e liberar a rota para os entregadores.</p>
+                <div id="rota-saldo-pagamento-card" class="rota-pix-card" style="display:none;">
+                    <span class="rota-pix-label">Saldo disponível</span>
+                    <p class="rota-flow-help" style="margin:4px 0 10px;">Saldo disponível: <strong id="rota-saldo-disponivel-valor">R$ 0,00</strong></p>
+                    <button id="rota-saldo-pagar-btn" type="button" class="btn-main" style="margin-top:0;" onclick="pagarRotaComSaldo()">Pagar com saldo</button>
+                    <p id="rota-saldo-aplicado-info" class="rota-flow-help" style="display:none; margin-top:8px;"></p>
+                </div>
+                <p class="rota-flow-help">Ou use o Pix Copia e Cola para pagar e liberar a rota para os entregadores.</p>
                 <div class="rota-pix-card">
                     <span class="rota-pix-label">Pix Copia e Cola</span>
                     <div id="rota-pix-code" class="rota-pix-code-text">--</div>
@@ -794,32 +829,6 @@
                         <div class="input-wrapper"><input type="text" id="pag-pix-chave" placeholder="Digite sua chave"></div>
                     </div>
                 </div>
-            </div>
-
-            <div class="pagamento-section">
-                <h4>Comprar credito</h4>
-                <div class="pagamento-creditos-grid">
-                    <button type="button" onclick="comprarCredito(5)">R$ 5,00</button>
-                    <button type="button" onclick="comprarCredito(10)">R$ 10,00</button>
-                    <button type="button" onclick="comprarCredito(25)">R$ 25,00</button>
-                    <button type="button" onclick="comprarCredito(50)">R$ 50,00</button>
-                    <button type="button" onclick="comprarCredito(100)">R$ 100,00</button>
-                    <button type="button" class="btn-other" onclick="comprarCreditoOutroValor()">Outro valor</button>
-                </div>
-            </div>
-
-            <div class="pagamento-section">
-                <h4>Enviar Pix (simulacao)</h4>
-                <div class="form-group">
-                    <label>Chave destino</label>
-                    <div class="input-wrapper"><input type="text" id="pag-envio-chave" placeholder="Chave Pix do destinatario"></div>
-                </div>
-                <div class="form-group">
-                    <label>Valor</label>
-                    <div class="input-wrapper"><input type="text" id="pag-envio-valor" placeholder="0,00"></div>
-                </div>
-                <button type="button" class="btn-main" style="margin-top:0;" onclick="enviarPixSimulado()">Enviar Pix</button>
-                <p class="pagamento-hint">Modo teste: o valor sera debitado do saldo disponivel.</p>
             </div>
 
             <div class="pagamento-section">
@@ -1214,8 +1223,17 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script>
       window.FLEXA_GOOGLE_MAPS_KEY = "AIzaSyDgO6wu3gbsZYIYb1KxGOpZGZIb2pM-YAk";
-      window.FLEXA_MP_PUBLIC_KEY = "TEST-7a40c419-af65-4319-936d-47e6f6e422e2";
-      window.FLEXA_MP_ACCESS_TOKEN = "TEST-2697640432267445-061309-cc681e1bce52b21e4cd7fe12bc950d23-454485523";
+      // Pagamento Pix: preferência é a Cloud Function "payments" (backend/functions) —
+      // o access token do Mercado Pago NUNCA fica no navegador nesse caminho.
+      // TEMPORÁRIO: plano Blaze ainda não ativado, então a Cloud Function não está
+      // deployada — FLEXA_PAYMENTS_PROXY_URL fica vazia por enquanto e o app usa
+      // FLEXA_MP_TEST_TOKEN abaixo (SOMENTE token que comece com "TEST-", nunca
+      // produção). Quando ativar o Blaze e fizer o deploy, preencha a URL de volta
+      // com "https://southamerica-east1-flexa-app-41205.cloudfunctions.net/payments"
+      // e pode deixar FLEXA_MP_TEST_TOKEN vazio — o app volta a priorizar a Cloud
+      // Function automaticamente. Ver backend/README.md.
+      window.FLEXA_PAYMENTS_PROXY_URL = "";
+      window.FLEXA_MP_TEST_TOKEN = "TEST-2697640432267445-061309-cc681e1bce52b21e4cd7fe12bc950d23-454485523";
     </script>
     <!-- LOGIN ADMIN MASTER -->
     <section id="view-admin-login" class="view hidden">

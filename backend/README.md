@@ -89,3 +89,83 @@ No frontend, configure:
 window.FLEXA_ROUTING_PROXY_URL = 'https://southamerica-east1-flexa-app-41205.cloudfunctions.net/routing';
 ```
 
+---
+
+# Backend de Pagamentos (Mercado Pago Pix)
+
+Segundo endpoint de produção, no mesmo projeto:
+
+- `POST /create-pix`
+- `POST /check-pix`
+
+O access token do Mercado Pago fica **só no servidor** (Secret Manager), nunca no navegador. O valor cobrado é sempre recalculado no servidor a partir dos envios persistidos em `usuarios/{tenantId}/pacotes` — o total enviado pelo cliente nunca é usado diretamente.
+
+## Configurar o segredo (uma vez, antes do primeiro deploy)
+
+```bash
+firebase functions:secrets:set MP_ACCESS_TOKEN
+```
+
+Cole o *access token* do Mercado Pago quando o terminal pedir (começa com `TEST-` em ambiente de teste, ou `APP_USR-`/outro prefixo em produção). O valor fica guardado no Secret Manager do Google Cloud, nunca no código-fonte.
+
+## Deploy
+
+```bash
+cd backend
+firebase deploy --only functions:payments
+```
+
+## URL final
+
+- `https://southamerica-east1-flexa-app-41205.cloudfunctions.net/payments`
+
+## Contrato esperado
+
+### `POST /create-pix`
+
+Request (cabeçalho `Authorization: Bearer <ID_TOKEN_FIREBASE>`):
+
+```json
+{
+  "tenantId": "UID_DO_LOJISTA",
+  "rotaId": "rota-123",
+  "envioIds": ["envio-1", "envio-2"]
+}
+```
+
+Response:
+
+```json
+{
+  "paymentId": "123456789",
+  "status": "pending",
+  "pixCode": "000201...",
+  "ticketUrl": "https://...",
+  "qrCodeBase64": "...",
+  "totalFrete": 34.00,
+  "ambiente": "teste"
+}
+```
+
+### `POST /check-pix`
+
+Request:
+
+```json
+{ "tenantId": "UID_DO_LOJISTA", "paymentId": "123456789" }
+```
+
+Response:
+
+```json
+{ "paymentId": "123456789", "status": "approved", "statusDetail": "accredited", "ambiente": "teste" }
+```
+
+## Frontend
+
+No frontend, configure:
+
+```js
+window.FLEXA_PAYMENTS_PROXY_URL = 'https://southamerica-east1-flexa-app-41205.cloudfunctions.net/payments';
+```
+

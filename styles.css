@@ -3418,7 +3418,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .home-current-track {
     position: relative;
-    padding: 7px 8px;
+    padding: 26px 8px;
 }
 
 .home-current-track-fill {
@@ -3484,16 +3484,17 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .home-current-bike {
     position: absolute;
-    right: 4px;
     top: 50%;
+    left: 0;
     transform: translateY(-52%);
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     z-index: 3;
     pointer-events: none;
+    transition: left 0.4s ease;
 }
 
 .home-current-bike img {
@@ -3732,13 +3733,12 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .home-current-track {
-    padding: 7px 34px 7px 8px;
+    padding: 18px 34px 18px 8px;
 }
 
 .home-current-bike {
-    right: 8px;
-    width: 20px;
-    height: 20px;
+    width: 36px;
+    height: 36px;
     background: transparent;
     border: none;
 }
@@ -3837,9 +3837,8 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .home-current-bike {
-    right: 12px;
-    width: 20px;
-    height: 20px;
+    width: 36px;
+    height: 36px;
 }
 
 .home-current-box-image {
@@ -5319,8 +5318,17 @@ body.usuario-entregador #entregador-rotas-shell {
 .entregador-wallet-chip small {
     color: #fff !important;
 }
-.entregador-bell { width: 42px; height: 42px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,0.08); position: relative; }
-.entregador-bell .dot { width: 8px; height: 8px; background: var(--brand-orange); border-radius: 50%; position: absolute; top: 9px; right: 9px; border: 2px solid #fff; }
+.entregador-bell { width: 42px; height: 42px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,0.08); position: relative; cursor: pointer; }
+.entregador-bell .dot { width: 8px; height: 8px; background: var(--brand-orange); border-radius: 50%; position: absolute; top: 9px; right: 9px; border: 2px solid #fff; display: none; }
+.entregador-bell.has-unread .dot { display: block; }
+
+.notificacoes-lista { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px 2px 10px; }
+.notificacoes-empty { color: rgba(255,255,255,0.6); text-align: center; padding: 24px 8px; font-size: 13px; }
+.notificacao-item { display: flex; flex-direction: column; gap: 3px; background: #eef1f5; border: 1px solid #dde3ea; border-radius: 12px; padding: 10px 12px; text-align: left; cursor: pointer; }
+.notificacao-item.nao-lida { background: #ffffff; border-color: #f5a35c; border-left: 3px solid #f58220; }
+.notificacao-item strong { font-size: 13px; color: #1b2a2e; }
+.notificacao-item p { font-size: 12px; color: #4d5f61; margin: 0; }
+.notificacao-item small { font-size: 10px; color: #8592a3; }
 
 /* Cabeçalho global (template, não aplicado automaticamente) */
 .global-header {
@@ -5584,6 +5592,14 @@ body.admin-mode { overflow: auto; }
 .tracking-driver-actions { display:flex; gap:8px; }
 .tracking-btn-circle { width:38px; height:38px; border-radius:50%; border:1px solid #e5e7eb; background:#ffffff; color:#0f172a; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.08); }
 .tracking-btn-circle.ghost { background:#f8fafc; border:1px solid #e5e7eb; color:#0f172a; }
+
+.tracking-map-wrap { margin-top:14px; border-radius:14px; overflow:hidden; border:1px solid #e5e7eb; background:#f8fafc; }
+.tracking-map-frame { width:100%; height:160px; border:0; display:block; }
+.tracking-geo-status { display:block; padding:6px 10px; font-size:11px; color:#475569; background:#f8fafc; }
+
+.tracking-stale-banner { margin-top:14px; background:#fff7ed; border:1px solid #fdba74; border-radius:14px; padding:12px; }
+.tracking-stale-banner p { font-size:12px; color:#9a3412; margin:0 0 8px; font-weight:600; }
+.tracking-stale-banner .tracking-btn.ghost { background:#fff; border:1px solid #fdba74; color:#9a3412; }
 
 .tracking-actions { display:flex; gap:10px; margin-top:14px; }
 .tracking-actions-full { margin-top:18px; }
