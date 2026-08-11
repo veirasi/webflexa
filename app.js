@@ -25,7 +25,6 @@
     abrirModalNovoCliente: () => abrirModalNovoCliente,
     abrirModalPerfil: () => abrirModalPerfil,
     abrirModalRastrearRotas: () => abrirModalRastrearRotas,
-    abrirModalSheetGenerico: () => abrirModalSheetGenerico,
     abrirModalTrackingLoja: () => abrirModalTrackingLoja,
     abrirNotificacao: () => abrirNotificacao,
     abrirNovaRotaPeloChip: () => abrirNovaRotaPeloChip,
@@ -59,13 +58,10 @@
     alternarStatusUsuarioMaster: () => alternarStatusUsuarioMaster,
     animarAtivacaoItemMenu: () => animarAtivacaoItemMenu,
     aplicarFiltroRotaEntregador: () => aplicarFiltroRotaEntregador,
-    aplicarFotoComPlaceholder: () => aplicarFotoComPlaceholder,
     aplicarFreteTesteSeConfigurado: () => aplicarFreteTesteSeConfigurado,
     aplicarHeaderGlobalEmViewEstatica: () => aplicarHeaderGlobalEmViewEstatica,
-    aplicarLinkInstagram: () => aplicarLinkInstagram,
     aplicarPermissoesPorTipoUsuario: () => aplicarPermissoesPorTipoUsuario,
     aplicarTipoCadastroNaTela: () => aplicarTipoCadastroNaTela,
-    assinaturaEndereco: () => assinaturaEndereco,
     ativarAbaChat: () => ativarAbaChat,
     ativarMenuInferior: () => ativarMenuInferior,
     ativarModoAdminSeNecessario: () => ativarModoAdminSeNecessario,
@@ -117,7 +113,6 @@
     coletarEnviosPendentesParaRota: () => coletarEnviosPendentesParaRota,
     confirmarEntregaPacoteAtual: () => confirmarEntregaPacoteAtual,
     confirmarEnvioFinal: () => confirmarEnvioFinal,
-    confirmarExclusao: () => confirmarExclusao,
     confirmarExclusaoEnvio: () => confirmarExclusaoEnvio,
     confirmarExclusaoRota: () => confirmarExclusaoRota,
     confirmarPagamentoRota: () => confirmarPagamentoRota,
@@ -131,9 +126,7 @@
     criarPagamentoPixMercadoPago: () => criarPagamentoPixMercadoPago,
     criarPagamentoPixTesteClienteLocal: () => criarPagamentoPixTesteClienteLocal,
     debitarSaldoUsuarioAtual: () => debitarSaldoUsuarioAtual,
-    desfazerExclusao: () => desfazerExclusao,
     desfazerExclusaoCliente: () => desfazerExclusaoCliente,
-    desfazerExclusao_legacy: () => desfazerExclusao_legacy,
     desistirRotaEntregador: () => desistirRotaEntregador,
     detalheRotaParaTexto: () => detalheRotaParaTexto,
     encerrarListenerMensagensChat: () => encerrarListenerMensagensChat,
@@ -142,8 +135,6 @@
     enviarMensagemChat: () => enviarMensagemChat,
     enviarResetSenhaMaster: () => enviarResetSenhaMaster,
     envioPassaNoFiltro: () => envioPassaNoFiltro,
-    escaparHtmlMarketplace: () => escaparHtmlMarketplace,
-    escapeHtmlChat: () => escapeHtmlChat,
     estimarRotaEntrega: () => estimarRotaEntrega,
     estimarRotaGoogle: () => estimarRotaGoogle,
     estimarRotaRoutesApi: () => estimarRotaRoutesApi,
@@ -154,7 +145,6 @@
     excluirEnvioPorId: () => excluirEnvioPorId,
     excluirRotaAtualComConfirmacao: () => excluirRotaAtualComConfirmacao,
     excluirRotaPorId: () => excluirRotaPorId,
-    extrairCamposEnderecoCliente: () => extrairCamposEnderecoCliente,
     extrairCidadeEnderecoSimples: () => extrairCidadeEnderecoSimples,
     fecharModalAcoesCliente: () => fecharModalAcoesCliente,
     fecharModalDetalheEnvio: () => fecharModalDetalheEnvio,
@@ -168,7 +158,6 @@
     fecharModalPerfil: () => fecharModalPerfil,
     fecharModalRastrearRotas: () => fecharModalRastrearRotas,
     fecharModalRota: () => fecharModalRota,
-    fecharModalSheetGenerico: () => fecharModalSheetGenerico,
     fecharModalTrackingLoja: () => fecharModalTrackingLoja,
     fecharPainelNotificacoes: () => fecharPainelNotificacoes,
     fecharSeletorCliente: () => fecharSeletorCliente,
@@ -179,18 +168,9 @@
     fecharSwipesRota: () => fecharSwipesRota,
     fecharToastSuave: () => fecharToastSuave,
     finalizarSplash: () => finalizarSplash,
-    finalizarSplash_legacy: () => finalizarSplash_legacy,
     finalizarSwipeEntSheet: () => finalizarSwipeEntSheet,
     finalizarSwipePaginaRota: () => finalizarSwipePaginaRota,
-    formatEnderecoDisplay: () => formatEnderecoDisplay,
-    formatarCep: () => formatarCep,
     formatarDataExtrato: () => formatarDataExtrato,
-    formatarDistancia: () => formatarDistancia,
-    formatarDuracao: () => formatarDuracao,
-    formatarEnderecoClienteParaRota: () => formatarEnderecoClienteParaRota,
-    formatarEnderecoEstruturado: () => formatarEnderecoEstruturado,
-    formatarEnderecoLojaParaCalculo: () => formatarEnderecoLojaParaCalculo,
-    formatarEnderecoLojaParaRota: () => formatarEnderecoLojaParaRota,
     formatarHoraChat: () => formatarHoraChat,
     formatarHoraNotificacao: () => formatarHoraNotificacao,
     formatarSaldoPagamento: () => formatarSaldoPagamento,
@@ -201,7 +181,6 @@
     garantirEstimativaAtual: () => garantirEstimativaAtual,
     garantirGeoClienteSelecionado: () => garantirGeoClienteSelecionado,
     garantirPacotesDaRota: () => garantirPacotesDaRota,
-    geoNoBrasil: () => geoNoBrasil,
     geocodificarCliente: () => geocodificarCliente,
     geocodificarEndereco: () => geocodificarEndereco,
     geocodificarPorCampos: () => geocodificarPorCampos,
@@ -229,9 +208,6 @@
     handleSelectorTouchEnd: () => handleSelectorTouchEnd,
     handleSelectorTouchMove: () => handleSelectorTouchMove,
     handleSelectorTouchStart: () => handleSelectorTouchStart,
-    handleTouchEnd: () => handleTouchEnd,
-    handleTouchMove: () => handleTouchMove,
-    handleTouchStart: () => handleTouchStart,
     iniciarCorridaPacoteAtual: () => iniciarCorridaPacoteAtual,
     iniciarListenerGeoTrackingLoja: () => iniciarListenerGeoTrackingLoja,
     iniciarListenerHomeEntregador: () => iniciarListenerHomeEntregador,
@@ -265,7 +241,6 @@
     localizarRotaDoEnvio: () => localizarRotaDoEnvio,
     loginAdmin: () => loginAdmin,
     loginReal: () => loginReal,
-    loginReal_legacy: () => loginReal_legacy,
     logoutReal: () => logoutReal,
     mapearCategoriaEnvio: () => mapearCategoriaEnvio,
     marcarEnviosEmRota: () => marcarEnviosEmRota,
@@ -278,9 +253,7 @@
     montarCardRotaEntregador: () => montarCardRotaEntregador,
     montarCidadeUfMarketplace: () => montarCidadeUfMarketplace,
     montarDropdownFiltroMarketplace: () => montarDropdownFiltroMarketplace,
-    montarEnderecoCliente: () => montarEnderecoCliente,
     montarEnderecoCompletoPacote: () => montarEnderecoCompletoPacote,
-    montarEnderecoParaCalculo: () => montarEnderecoParaCalculo,
     montarLinkMapaEnvio: () => montarLinkMapaEnvio,
     montarMapaEnviosPorId: () => montarMapaEnviosPorId,
     montarMapaPacotesParaEntregador: () => montarMapaPacotesParaEntregador,
@@ -298,18 +271,11 @@
     normalizarCodigoConfirmacaoEntrega: () => normalizarCodigoConfirmacaoEntrega,
     normalizarCodigoPix: () => normalizarCodigoPix,
     normalizarFiltroChipEnvio: () => normalizarFiltroChipEnvio,
-    normalizarGeo: () => normalizarGeo,
-    normalizarHandleInstagram: () => normalizarHandleInstagram,
     normalizarIdPacoteBusca: () => normalizarIdPacoteBusca,
     normalizarStatusEnvioFiltro: () => normalizarStatusEnvioFiltro,
     normalizarStatusPacoteEntrega: () => normalizarStatusPacoteEntrega,
     normalizarStatusRotaFiltro: () => normalizarStatusRotaFiltro,
-    normalizarTexto: () => normalizarTexto,
     normalizarTipoCadastro: () => normalizarTipoCadastro,
-    normalizarUf: () => normalizarUf,
-    notificarApp: () => notificarApp,
-    notificarErro: () => notificarErro,
-    notificarSucesso: () => notificarSucesso,
     obterCidadeDestinoPacoteMarketplace: () => obterCidadeDestinoPacoteMarketplace,
     obterCidadeUfUsuarioLogado: () => obterCidadeUfUsuarioLogado,
     obterClasseCorStatusEnvioCard: () => obterClasseCorStatusEnvioCard,
@@ -323,7 +289,6 @@
     obterFreteTesteDasObservacoes: () => obterFreteTesteDasObservacoes,
     obterIdPacoteConfirmacao: () => obterIdPacoteConfirmacao,
     obterInicioDiaLocal: () => obterInicioDiaLocal,
-    obterLayerSnackbar: () => obterLayerSnackbar,
     obterLogoLojista: () => obterLogoLojista,
     obterLojistaUidDaRota: () => obterLojistaUidDaRota,
     obterMetaDiaEntregador: () => obterMetaDiaEntregador,
@@ -348,12 +313,9 @@
     pararRastreioGpsEntregador: () => pararRastreioGpsEntregador,
     parseDurationSecondsGoogle: () => parseDurationSecondsGoogle,
     parseMensagensChatDoBanco: () => parseMensagensChatDoBanco,
-    parseMoedaParaNumero: () => parseMoedaParaNumero,
     persistirEntregaPacoteAtual: () => persistirEntregaPacoteAtual,
     persistirFinanceiroUsuario: () => persistirFinanceiroUsuario,
     podeSelecionarPacoteRota: () => podeSelecionarPacoteRota,
-    precoParaInput: () => precoParaInput,
-    precoParaMoeda: () => precoParaMoeda,
     preencherPerfilEntregador: () => preencherPerfilEntregador,
     preencherPerfilLojista: () => preencherPerfilLojista,
     preencherTextoDetalheEnvio: () => preencherTextoDetalheEnvio,
@@ -364,7 +326,6 @@
     registrarPresencaUsuario: () => registrarPresencaUsuario,
     registrarTransacaoFinanceira: () => registrarTransacaoFinanceira,
     relatarProblemaRota: () => relatarProblemaRota,
-    renderClientes: () => renderClientes,
     renderClientesSelector: () => renderClientesSelector,
     renderDashboardMaster: () => renderDashboardMaster,
     renderEnviosHome: () => renderEnviosHome,
@@ -388,7 +349,6 @@
     restaurarRotaMaster: () => restaurarRotaMaster,
     resumirCidadesRota: () => resumirCidadesRota,
     resumirRotaParaEntregador: () => resumirRotaParaEntregador,
-    revealEditButton: () => revealEditButton,
     rotaMarketplacePassaNoFiltro: () => rotaMarketplacePassaNoFiltro,
     rotaPassaNoFiltro: () => rotaPassaNoFiltro,
     rotaSheetBloqueada: () => rotaSheetBloqueada,
@@ -399,7 +359,6 @@
     salvarNovoCliente: () => salvarNovoCliente,
     salvarPerfil: () => salvarPerfil,
     salvarRotaNoBanco: () => salvarRotaNoBanco,
-    sanitizeFirebaseKey: () => sanitizeFirebaseKey,
     saveClientes: () => saveClientes,
     selecionarClienteNoSheet: () => selecionarClienteNoSheet,
     selecionarFiltroEnvios: () => selecionarFiltroEnvios,
@@ -420,7 +379,6 @@
     telaPerfilPorTipoUsuario: () => telaPerfilPorTipoUsuario,
     togglePacoteRota: () => togglePacoteRota,
     togglePass: () => togglePass,
-    uploadLogo: () => uploadLogo,
     usuarioEhEntregador: () => usuarioEhEntregador,
     usuarioEhMaster: () => usuarioEhMaster,
     verHistoricoCliente: () => verHistoricoCliente,
@@ -431,6 +389,8 @@
     voltarParaDetalhes: () => voltarParaDetalhes,
     zerarMetaDiaEntregador: () => zerarMetaDiaEntregador
   });
+
+  // src/core/firebase.js
   var firebaseConfig = {
     apiKey: "AIzaSyBNsTcLawc8VaILryw36F5Iv6tIK0N41Og",
     authDomain: "flexa-app-41205.firebaseapp.com",
@@ -442,6 +402,162 @@
   firebase.initializeApp(firebaseConfig);
   var db = firebase.database();
   var auth = firebase.auth();
+
+  // src/core/format.js
+  function normalizarTexto(valor) {
+    return (valor || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+  function formatEnderecoDisplay(endereco) {
+    if (!endereco) return "";
+    const parts = endereco.split(" - ");
+    const ruaNum = parts[0] || endereco;
+    const resto = parts[1] || "";
+    const cidadeUf = resto.split(",").pop() || "";
+    if (cidadeUf.includes("/")) {
+      const [cidade] = cidadeUf.split("/");
+      return `${ruaNum} - ${cidade.trim()}`;
+    }
+    return ruaNum;
+  }
+  function normalizarUf(valor) {
+    const letras = (valor || "").toString().toUpperCase().replace(/[^A-Z]/g, "");
+    return letras.slice(0, 2);
+  }
+  function formatarCep(valor) {
+    const digits = (valor || "").toString().replace(/\D/g, "").slice(0, 8);
+    if (digits.length !== 8) return "";
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  }
+  function montarEnderecoCliente({ rua, num, bairro, cidade, estado, comp }) {
+    const uf = normalizarUf(estado);
+    const partes = [];
+    const ruaNum = [rua, num].map((v) => (v || "").trim()).filter(Boolean).join(", ");
+    if (ruaNum) partes.push(ruaNum);
+    const bairroCidade = [(bairro || "").trim(), (cidade || "").trim()].filter(Boolean).join(", ");
+    if (bairroCidade || uf) partes.push(`${bairroCidade}${uf ? `/${uf}` : ""}`.trim());
+    let endereco = partes.join(" - ");
+    const complemento = (comp || "").trim();
+    if (complemento) endereco += ` (${complemento})`;
+    return endereco.trim();
+  }
+  function assinaturaEndereco(campos = {}) {
+    const cep = formatarCep(campos.cep || "");
+    const rua = (campos.rua || "").toString().trim().toLowerCase();
+    const num = (campos.num || "").toString().trim().toLowerCase();
+    const bairro = (campos.bairro || "").toString().trim().toLowerCase();
+    const cidade = (campos.cidade || "").toString().trim().toLowerCase();
+    const uf = normalizarUf(campos.uf || campos.estado || "");
+    return [cep, rua, num, bairro, cidade, uf].join("|");
+  }
+  function normalizarGeo(geo) {
+    if (!geo) return null;
+    const lat = Number(geo.lat);
+    const lon = Number(geo.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon, updatedAt: geo.updatedAt || Date.now() };
+  }
+  function geoNoBrasil(geo) {
+    const g = normalizarGeo(geo);
+    if (!g) return false;
+    return g.lat >= -35 && g.lat <= 6 && g.lon >= -75 && g.lon <= -30;
+  }
+  function extrairCamposEnderecoCliente(cliente) {
+    const campos = {
+      cep: formatarCep(cliente?.cep),
+      rua: (cliente?.rua || "").trim(),
+      num: (cliente?.num || "").trim(),
+      bairro: (cliente?.bairro || "").trim(),
+      cidade: (cliente?.cidade || "").trim(),
+      estado: normalizarUf(cliente?.estado || cliente?.uf || ""),
+      comp: (cliente?.comp || "").trim()
+    };
+    if (campos.rua && campos.num) return campos;
+    const txt = (cliente?.endereco || "").toString().trim();
+    if (!txt) return campos;
+    const regex = /^(.*?),\s*(.*?)\s*-\s*(.*?),\s*(.*?)\/([A-Za-z]{2})(?:\s*\((.*?)\))?$/;
+    const m = txt.match(regex);
+    if (m) {
+      campos.rua = campos.rua || (m[1] || "").trim();
+      campos.num = campos.num || (m[2] || "").trim();
+      campos.bairro = campos.bairro || (m[3] || "").trim();
+      campos.cidade = campos.cidade || (m[4] || "").trim();
+      campos.estado = campos.estado || normalizarUf(m[5] || "");
+      campos.comp = campos.comp || (m[6] || "").trim();
+      return campos;
+    }
+    const primeiraParte = txt.split(" - ")[0] || "";
+    const ruaNum = primeiraParte.split(",");
+    if (!campos.rua) campos.rua = (ruaNum[0] || "").trim();
+    if (!campos.num) campos.num = (ruaNum[1] || "").trim();
+    return campos;
+  }
+  function montarEnderecoParaCalculo(cliente, fallbackEndereco = "") {
+    const campos = extrairCamposEnderecoCliente(cliente || {});
+    const base = montarEnderecoCliente(campos);
+    const cep = formatarCep(campos.cep);
+    if (base && cep) return `${base} - CEP ${cep}`;
+    return base || fallbackEndereco || "";
+  }
+  function formatarEnderecoEstruturado(end) {
+    if (!end) return "";
+    const ruaNum = [end.rua, end.num].filter(Boolean).join(", ");
+    const cidadeUf = [end.cidade, end.uf].filter(Boolean).join("/");
+    const bairro = end.bairro ? ` - ${end.bairro}` : "";
+    return `${ruaNum}${bairro}${cidadeUf ? ` - ${cidadeUf}` : ""}`.trim();
+  }
+  function formatarEnderecoLojaParaCalculo(end) {
+    const base = formatarEnderecoEstruturado(end);
+    const cep = formatarCep(end?.cep);
+    if (base && cep) return `${base} - CEP ${cep}`;
+    return base;
+  }
+  function formatarEnderecoLojaParaRota(end) {
+    if (!end) return "";
+    const cep = formatarCep(end.cep || "");
+    return [end.rua, end.num, end.bairro, end.cidade, normalizarUf(end.uf || end.estado), cep, "Brasil"].map((v) => (v || "").toString().trim()).filter(Boolean).join(", ");
+  }
+  function formatarEnderecoClienteParaRota(cliente, fallbackEndereco = "") {
+    const campos = extrairCamposEnderecoCliente(cliente || {});
+    const cep = formatarCep(campos.cep || "");
+    const enderecoRota = [campos.rua, campos.num, campos.bairro, campos.cidade, normalizarUf(campos.estado || campos.uf), cep, "Brasil"].map((v) => (v || "").toString().trim()).filter(Boolean).join(", ");
+    if (enderecoRota) return enderecoRota;
+    const fallback = (fallbackEndereco || "").toString().trim();
+    return fallback ? `${fallback}, Brasil` : "";
+  }
+  function parseMoedaParaNumero(valor) {
+    if (valor === null || valor === void 0) return 0;
+    if (typeof valor === "number") return valor;
+    const limpo = valor.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
+    const numero = Number(limpo);
+    return Number.isFinite(numero) ? numero : 0;
+  }
+  function precoParaMoeda(preco) {
+    const numero = parseMoedaParaNumero(preco);
+    return "R$ " + numero.toFixed(2).replace(".", ",");
+  }
+  function formatarDistancia(distanciaKm) {
+    if (!Number.isFinite(distanciaKm)) return "--";
+    return `${distanciaKm.toFixed(1).replace(".", ",")} km`;
+  }
+  function formatarDuracao(duracaoMin) {
+    if (!Number.isFinite(duracaoMin)) return "--";
+    if (duracaoMin < 60) return `${Math.max(1, Math.round(duracaoMin))} min`;
+    const horas = Math.floor(duracaoMin / 60);
+    const mins = Math.round(duracaoMin % 60);
+    return mins ? `${horas}h ${mins}min` : `${horas}h`;
+  }
+
+  // src/core/sanitize.js
+  function escapeHtml(valor) {
+    return (valor || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  var escapeHtmlChat = escapeHtml;
+  var escaparHtmlMarketplace = escapeHtml;
+  function sanitizeFirebaseKey(valor) {
+    return String(valor || "").replace(/[.#$\[\]/]/g, "_").replace(/\s+/g, "_");
+  }
+
+  // src/core/ui-sheet.js
   var AVATAR_PLACEHOLDER_SRC = "img/avatar.png";
   function aplicarFotoComPlaceholder(imgEl, fotoUrl = "") {
     if (!imgEl) return;
@@ -508,9 +624,6 @@
   function notificarErro(mensagem = "Falha inesperada. Tente novamente.") {
     return notificarApp(mensagem, { tipo: "error", duracao: 3600 });
   }
-  function notificarSucesso(mensagem = "Opera\xE7\xE3o conclu\xEDda.") {
-    return notificarApp(mensagem, { tipo: "success", duracao: 2600 });
-  }
   var alertaNativo = typeof window !== "undefined" && typeof window.alert === "function" ? window.alert.bind(window) : null;
   if (typeof window !== "undefined") {
     window.alertNativo = alertaNativo;
@@ -518,12 +631,27 @@
       notificarApp(mensagem, { tipo: "info" });
     };
   }
+  function abrirModalSheetGenerico(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.style.display = "flex";
+    requestAnimationFrame(() => modal.classList.add("is-open"));
+  }
+  function fecharModalSheetGenerico(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    setTimeout(() => {
+      modal.style.display = "none";
+    }, 220);
+  }
+
+  // src/legacy-monolith.js
   var usuarioLogado = null;
   var envioStepAtual = 1;
   var clientes = [];
   var clienteEmEdicaoId = null;
   var clienteSelecionadoId = null;
-  var editRevealTimeout = null;
   var cepLojaDebounceTimer = null;
   var cepClienteDebounceTimer = null;
   var ultimoCepLojaConsultado = "";
@@ -694,158 +822,6 @@
     }, {});
     await db.ref(`usuarios/${uid}/clientes`).set(map);
   }
-  function normalizarTexto(valor) {
-    return (valor || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  }
-  function renderClientes(filtro = "") {
-    const container = document.getElementById("clientes-list");
-    if (!container) return;
-    const filtroTexto = normalizarTexto(filtro);
-    const filtroNumero = (filtro || "").replace(/\D/g, "");
-    const lista = clientes.filter((c) => {
-      const texto = normalizarTexto(`${c.nome} ${c.endereco} ${c.whatsapp}`);
-      if (!filtroTexto) return true;
-      if (filtroNumero && c.whatsapp) {
-        return c.whatsapp.replace(/\D/g, "").includes(filtroNumero);
-      }
-      return texto.includes(filtroTexto);
-    }).sort((a, b) => {
-      const fa = a.frequente ? 1 : 0;
-      const fb = b.frequente ? 1 : 0;
-      if (fb !== fa) return fb - fa;
-      return (a.nome || "").localeCompare(b.nome || "");
-    });
-    if (!lista.length) {
-      container.innerHTML = `<div style="text-align:center; color: var(--text-sub); font-size: 13px; padding: 10px 0;">Nenhum cliente encontrado.</div>`;
-      return;
-    }
-    container.innerHTML = lista.map((c) => {
-      const badge = c.frequente ? '<span class="badge-freq">Frequente</span>' : "";
-      return `
-        <div class="swipe-container" id="container-${c.id}">
-            <div class="swipe-action-delete">
-                <i data-lucide="trash-2" size="20"></i>
-                <span>Excluir</span>
-            </div>
-
-            <div class="cliente-card-simples"
-                 id="card-${c.id}"
-                 data-client-id="${c.id}"
-                 onclick="irParaPasso2('${c.id}', '${c.nome.replace(/'/g, "\\'")}', '${c.endereco.replace(/'/g, "\\'")}', '${c.whatsapp.replace(/'/g, "\\'")}'); revealEditButton(this);"
-                 ontouchstart="handleTouchStart(event)"
-                 ontouchmove="handleTouchMove(event)"
-                 ontouchend="handleTouchEnd(event)"
-                 style="position: relative; z-index: 2; margin-bottom: 0 !important;">
-
-                ${badge}
-                <button class="cliente-edit-btn" onclick="abrirEditarCliente('${c.id}'); event.stopPropagation();">
-                    <i data-lucide="pencil" size="14"></i>
-                </button>
-                <button class="cliente-history-btn" onclick="verHistoricoCliente('${c.id}'); event.stopPropagation();">Ver hist\xF3rico</button>
-                <strong style="font-size: 17px; font-weight: 800; display: block; margin-bottom: 2px;">${c.nome}</strong>
-                <span class="cliente-endereco">${formatEnderecoDisplay(c.endereco)}</span>
-
-                <span style="color: var(--brand-orange); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-top: 6px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 448 512" fill="currentColor"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>
-                    ${c.whatsapp}
-                </span>
-            </div>
-        </div>
-        `;
-    }).join("");
-    if (typeof lucide !== "undefined") lucide.createIcons();
-  }
-  function formatEnderecoDisplay(endereco) {
-    if (!endereco) return "";
-    const parts = endereco.split(" - ");
-    const ruaNum = parts[0] || endereco;
-    const resto = parts[1] || "";
-    const cidadeUf = resto.split(",").pop() || "";
-    if (cidadeUf.includes("/")) {
-      const [cidade] = cidadeUf.split("/");
-      return `${ruaNum} - ${cidade.trim()}`;
-    }
-    return ruaNum;
-  }
-  function normalizarUf(valor) {
-    const letras = (valor || "").toString().toUpperCase().replace(/[^A-Z]/g, "");
-    return letras.slice(0, 2);
-  }
-  function formatarCep(valor) {
-    const digits = (valor || "").toString().replace(/\D/g, "").slice(0, 8);
-    if (digits.length !== 8) return "";
-    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-  }
-  function montarEnderecoCliente({ rua, num, bairro, cidade, estado, comp }) {
-    const uf = normalizarUf(estado);
-    const partes = [];
-    const ruaNum = [rua, num].map((v) => (v || "").trim()).filter(Boolean).join(", ");
-    if (ruaNum) partes.push(ruaNum);
-    const bairroCidade = [(bairro || "").trim(), (cidade || "").trim()].filter(Boolean).join(", ");
-    if (bairroCidade || uf) partes.push(`${bairroCidade}${uf ? `/${uf}` : ""}`.trim());
-    let endereco = partes.join(" - ");
-    const complemento = (comp || "").trim();
-    if (complemento) endereco += ` (${complemento})`;
-    return endereco.trim();
-  }
-  function assinaturaEndereco(campos = {}) {
-    const cep = formatarCep(campos.cep || "");
-    const rua = (campos.rua || "").toString().trim().toLowerCase();
-    const num = (campos.num || "").toString().trim().toLowerCase();
-    const bairro = (campos.bairro || "").toString().trim().toLowerCase();
-    const cidade = (campos.cidade || "").toString().trim().toLowerCase();
-    const uf = normalizarUf(campos.uf || campos.estado || "");
-    return [cep, rua, num, bairro, cidade, uf].join("|");
-  }
-  function geoNoBrasil(geo) {
-    const g = normalizarGeo(geo);
-    if (!g) return false;
-    return g.lat >= -35 && g.lat <= 6 && g.lon >= -75 && g.lon <= -30;
-  }
-  function extrairCamposEnderecoCliente(cliente) {
-    const campos = {
-      cep: formatarCep(cliente?.cep),
-      rua: (cliente?.rua || "").trim(),
-      num: (cliente?.num || "").trim(),
-      bairro: (cliente?.bairro || "").trim(),
-      cidade: (cliente?.cidade || "").trim(),
-      estado: normalizarUf(cliente?.estado || cliente?.uf || ""),
-      comp: (cliente?.comp || "").trim()
-    };
-    if (campos.rua && campos.num) return campos;
-    const txt = (cliente?.endereco || "").toString().trim();
-    if (!txt) return campos;
-    const regex = /^(.*?),\s*(.*?)\s*-\s*(.*?),\s*(.*?)\/([A-Za-z]{2})(?:\s*\((.*?)\))?$/;
-    const m = txt.match(regex);
-    if (m) {
-      campos.rua = campos.rua || (m[1] || "").trim();
-      campos.num = campos.num || (m[2] || "").trim();
-      campos.bairro = campos.bairro || (m[3] || "").trim();
-      campos.cidade = campos.cidade || (m[4] || "").trim();
-      campos.estado = campos.estado || normalizarUf(m[5] || "");
-      campos.comp = campos.comp || (m[6] || "").trim();
-      return campos;
-    }
-    const primeiraParte = txt.split(" - ")[0] || "";
-    const ruaNum = primeiraParte.split(",");
-    if (!campos.rua) campos.rua = (ruaNum[0] || "").trim();
-    if (!campos.num) campos.num = (ruaNum[1] || "").trim();
-    return campos;
-  }
-  function montarEnderecoParaCalculo(cliente, fallbackEndereco = "") {
-    const campos = extrairCamposEnderecoCliente(cliente || {});
-    const base = montarEnderecoCliente(campos);
-    const cep = formatarCep(campos.cep);
-    if (base && cep) return `${base} - CEP ${cep}`;
-    return base || fallbackEndereco || "";
-  }
-  function normalizarGeo(geo) {
-    if (!geo) return null;
-    const lat = Number(geo.lat);
-    const lon = Number(geo.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    return { lat, lon, updatedAt: geo.updatedAt || Date.now() };
-  }
   async function geocodificarPorCampos(campos = {}) {
     if (!GOOGLE_MAPS_KEY) return null;
     const rua = (campos.rua || "").toString().trim();
@@ -913,15 +889,6 @@
   }
   function getGeoCliente(cliente) {
     return normalizarGeo(cliente?.geo);
-  }
-  function revealEditButton(cardEl) {
-    if (!cardEl) return;
-    document.querySelectorAll(".cliente-card-simples.show-edit").forEach((el) => el.classList.remove("show-edit"));
-    cardEl.classList.add("show-edit");
-    if (editRevealTimeout) clearTimeout(editRevealTimeout);
-    editRevealTimeout = setTimeout(() => {
-      cardEl.classList.remove("show-edit");
-    }, 2200);
   }
   async function initClientes() {
     clientes = await loadClientes();
@@ -1505,78 +1472,6 @@
     window.scrollTo(0, 0);
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
-  var touchStartX = 0;
-  var activeCard = null;
-  var pendingDeleteClientId = null;
-  function handleTouchStart(e) {
-    touchStartX = e.touches[0].clientX;
-    activeCard = e.currentTarget;
-    activeCard.style.transition = "none";
-    revealEditButton(activeCard);
-  }
-  function handleTouchMove(e) {
-    if (!activeCard) return;
-    let touchX = e.touches[0].clientX;
-    let diff = touchX - touchStartX;
-    if (diff < 0 && diff > -150) {
-      activeCard.style.transform = `translateX(${diff}px)`;
-    }
-  }
-  function handleTouchEnd(e) {
-    if (!activeCard) return;
-    activeCard.style.transition = "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
-    let touchX = e.changedTouches[0].clientX;
-    let diff = touchX - touchStartX;
-    if (diff < -70) {
-      activeCard.style.transform = "translateX(-120%)";
-      const idParaDeletar = activeCard.id;
-      setTimeout(() => {
-        confirmarExclusao(idParaDeletar);
-      }, 300);
-    } else {
-      activeCard.style.transform = "translateX(0)";
-    }
-    activeCard = null;
-  }
-  function confirmarExclusao(cardId) {
-    const card = document.getElementById(cardId);
-    const container = card.parentElement;
-    container.style.display = "none";
-    pendingDeleteClientId = card.dataset?.clientId || null;
-    const toastAntigo = document.getElementById("toast-desfazer");
-    if (toastAntigo) toastAntigo.remove();
-    const toast = document.createElement("div");
-    toast.className = "undo-toast";
-    toast.id = "toast-desfazer";
-    toast.onclick = () => desfazerExclusao(cardId);
-    let segundosRestantes = 10;
-    toast.innerHTML = `
-                <div class="undo-content">
-                    <div class="undo-timer" id="timer-count">${segundosRestantes}</div>
-                    <span style="font-size: 14px;">Cliente removido</span>
-                </div>
-                <div class="undo-btn">Desfazer</div>
-            `;
-    document.body.appendChild(toast);
-    const interval = setInterval(() => {
-      segundosRestantes--;
-      const timerElement = document.getElementById("timer-count");
-      if (timerElement) {
-        timerElement.innerText = segundosRestantes;
-      }
-      if (segundosRestantes <= 0) {
-        clearInterval(interval);
-        fecharToastSuave(toast);
-        if (pendingDeleteClientId) {
-          clientes = clientes.filter((c) => c.id !== pendingDeleteClientId);
-          saveClientes();
-          renderClientes(document.getElementById("buscar-cliente")?.value || "");
-          pendingDeleteClientId = null;
-        }
-      }
-    }, 1e3);
-    toast.dataset.intervalId = interval;
-  }
   function fecharToastSuave(elemento) {
     if (elemento) {
       elemento.style.opacity = "0";
@@ -1584,28 +1479,6 @@
       setTimeout(() => elemento.remove(), 1e3);
     }
   }
-  function desfazerExclusao(cardId) {
-    const toast = document.getElementById("toast-desfazer");
-    if (toast) {
-      clearInterval(toast.dataset.intervalId);
-      toast.remove();
-    }
-    const card = document.getElementById(cardId);
-    const container = card.parentElement;
-    container.style.display = "block";
-    card.style.transform = "translateX(0)";
-    pendingDeleteClientId = null;
-  }
-  function desfazerExclusao_legacy(cardId) {
-    const card = document.getElementById(cardId);
-    const container = card.parentElement;
-    container.style.display = "block";
-    card.style.transform = "translateX(0)";
-    const aviso = document.getElementById("toast-desfazer");
-    if (aviso) aviso.remove();
-  }
-  var veiculoSelecionado = "Moto";
-  var veiculoPrecoSelecionado = "R$ 12,50";
   var resumoRevisaoAtual = {
     origem: "",
     destino: "",
@@ -1644,21 +1517,6 @@
   var VEICULOS_CURTOS = ["Patinete", "Bicicleta"];
   function getServicoSelecionadoAtual() {
     return document.querySelector("#modal-envio-detalhes .selection-grid .select-box.active strong")?.innerText || "Standard";
-  }
-  function parseMoedaParaNumero(valor) {
-    if (valor === null || valor === void 0) return 0;
-    if (typeof valor === "number") return valor;
-    const limpo = valor.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
-    const numero = Number(limpo);
-    return Number.isFinite(numero) ? numero : 0;
-  }
-  function precoParaInput(preco) {
-    const numero = parseMoedaParaNumero(preco);
-    return numero ? numero.toFixed(2) : "";
-  }
-  function precoParaMoeda(preco) {
-    const numero = parseMoedaParaNumero(preco);
-    return "R$ " + numero.toFixed(2).replace(".", ",");
   }
   function obterFreteTesteDasObservacoes(texto = "") {
     const t = (texto || "").toString();
@@ -1738,32 +1596,6 @@
     aviso.className = "rota-pix-env rota-pix-env-warning";
     aviso.innerText = "Ambiente definido pelo servidor ao gerar o Pix.";
   }
-  function formatarEnderecoEstruturado(end) {
-    if (!end) return "";
-    const ruaNum = [end.rua, end.num].filter(Boolean).join(", ");
-    const cidadeUf = [end.cidade, end.uf].filter(Boolean).join("/");
-    const bairro = end.bairro ? ` - ${end.bairro}` : "";
-    return `${ruaNum}${bairro}${cidadeUf ? ` - ${cidadeUf}` : ""}`.trim();
-  }
-  function formatarEnderecoLojaParaCalculo(end) {
-    const base = formatarEnderecoEstruturado(end);
-    const cep = formatarCep(end?.cep);
-    if (base && cep) return `${base} - CEP ${cep}`;
-    return base;
-  }
-  function formatarEnderecoLojaParaRota(end) {
-    if (!end) return "";
-    const cep = formatarCep(end.cep || "");
-    return [end.rua, end.num, end.bairro, end.cidade, normalizarUf(end.uf || end.estado), cep, "Brasil"].map((v) => (v || "").toString().trim()).filter(Boolean).join(", ");
-  }
-  function formatarEnderecoClienteParaRota(cliente, fallbackEndereco = "") {
-    const campos = extrairCamposEnderecoCliente(cliente || {});
-    const cep = formatarCep(campos.cep || "");
-    const enderecoRota = [campos.rua, campos.num, campos.bairro, campos.cidade, normalizarUf(campos.estado || campos.uf), cep, "Brasil"].map((v) => (v || "").toString().trim()).filter(Boolean).join(", ");
-    if (enderecoRota) return enderecoRota;
-    const fallback = (fallbackEndereco || "").toString().trim();
-    return fallback ? `${fallback}, Brasil` : "";
-  }
   function obterEnderecoLojaTexto() {
     return formatarEnderecoEstruturado(window.usuarioLogado?.endereco);
   }
@@ -1821,17 +1653,6 @@
     const ajuste = mapaAjusteServico?.[veiculo] || 0;
     const minimoServico = TAXA_MINIMA[servico] || TAXA_MINIMA.Standard;
     return Number(Math.max(0, minimoServico, base + ajuste).toFixed(2));
-  }
-  function formatarDistancia(distanciaKm) {
-    if (!Number.isFinite(distanciaKm)) return "--";
-    return `${distanciaKm.toFixed(1).replace(".", ",")} km`;
-  }
-  function formatarDuracao(duracaoMin) {
-    if (!Number.isFinite(duracaoMin)) return "--";
-    if (duracaoMin < 60) return `${Math.max(1, Math.round(duracaoMin))} min`;
-    const horas = Math.floor(duracaoMin / 60);
-    const mins = Math.round(duracaoMin % 60);
-    return mins ? `${horas}h ${mins}min` : `${horas}h`;
   }
   async function geocodificarEndereco(endereco) {
     if (!endereco) return null;
@@ -2490,50 +2311,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     initClienteSearch();
     initClientes();
   });
-  function finalizarSplash_legacy(elemento) {
-    if (elemento) {
-      elemento.style.opacity = "0";
-      setTimeout(() => {
-        elemento.style.display = "none";
-      }, 500);
-    }
-  }
   function finalizarSplash(elemento) {
     if (elemento) {
       elemento.style.opacity = "0";
       setTimeout(() => {
         elemento.style.display = "none";
       }, 500);
-    }
-  }
-  function loginReal_legacy() {
-    const email = document.getElementById("email-login").value;
-    const senha = document.querySelector("#pass-login").value;
-    if (!email || !senha) {
-      alert("Preencha todos os campos!");
-      return;
-    }
-    firebase.auth().signInWithEmailAndPassword(email, senha).then((userCredential) => {
-    }).catch((error) => {
-      alert("Erro no login: " + error.message);
-    });
-  }
-  function uploadLogo(input) {
-    if (input.files && input.files[0]) {
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const base64Image = e.target.result;
-        document.getElementById("logo-perfil-display").src = base64Image;
-        try {
-          await db.ref("usuarios/" + usuarioLogado.id).update({ logo: base64Image });
-          const logoDash = document.querySelector(".profile-img");
-          if (logoDash) logoDash.src = base64Image;
-          alert("Logo atualizada!");
-        } catch (err) {
-          alert("Erro ao salvar: " + err.message);
-        }
-      };
-      reader.readAsDataURL(input.files[0]);
     }
   }
   function renderizarDashboard(user) {
@@ -2899,11 +2682,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       console.warn("Falha ao carregar rotas:", err);
       return [];
     }
-  }
-  function escaparHtmlMarketplace(valor) {
-    const txt = (valor || "").toString();
-    if (typeof escapeHtmlChat === "function") return escapeHtmlChat(txt);
-    return txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   function montarCidadeUfMarketplace(cidade, uf) {
     const c = (cidade || "").toString().trim();
@@ -7166,12 +6944,6 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   var chatMsgUnsubscribe = null;
   var chatImagemSelecionadaDataUrl = "";
   var chatImagemSelecionadaNome = "";
-  function escapeHtmlChat(valor) {
-    return (valor || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-  function sanitizeFirebaseKey(valor) {
-    return String(valor || "").replace(/[.#$\[\]/]/g, "_").replace(/\s+/g, "_");
-  }
   function pacoteAbertoParaChat(pacote) {
     const status = normalizarStatusEnvioFiltro(pacote?.status || "PENDENTE");
     return status !== "ENTREGUE" && status !== "CANCELADO";
@@ -7618,20 +7390,6 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   function atualizarSaldoPagamentoUI() {
     const saldoEl = document.getElementById("pag-saldo");
     if (saldoEl) saldoEl.innerText = formatarSaldoPagamento(pagamentoPerfilCache.saldo || 0);
-  }
-  function abrirModalSheetGenerico(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.style.display = "flex";
-    requestAnimationFrame(() => modal.classList.add("is-open"));
-  }
-  function fecharModalSheetGenerico(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.classList.remove("is-open");
-    setTimeout(() => {
-      modal.style.display = "none";
-    }, 220);
   }
   async function carregarDadosPagamento() {
     const path = caminhoFinanceiroUsuario();

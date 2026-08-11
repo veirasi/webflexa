@@ -1,110 +1,24 @@
-﻿// ===================== [CONFIG & ESTADO GLOBAL] =====================
-const firebaseConfig = {
-  apiKey: "AIzaSyBNsTcLawc8VaILryw36F5Iv6tIK0N41Og",
-  authDomain: "flexa-app-41205.firebaseapp.com",
-  projectId: "flexa-app-41205",
-  storageBucket: "flexa-app-41205.firebasestorage.app",
-  messagingSenderId: "1008393678489",
-  appId: "1:1008393678489:web:8b9df090ef4695d6d6d208"
-};
-// Inicializa o Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const auth = firebase.auth();
-const AVATAR_PLACEHOLDER_SRC = 'img/avatar.png';
-
-function aplicarFotoComPlaceholder(imgEl, fotoUrl = '') {
-    if (!imgEl) return;
-    const fallback = AVATAR_PLACEHOLDER_SRC;
-    const src = String(fotoUrl || '').trim();
-    imgEl.onerror = () => {
-        imgEl.onerror = null;
-        imgEl.src = fallback;
-    };
-    imgEl.src = src || fallback;
-}
-
-function normalizarHandleInstagram(valor = '') {
-    let txt = String(valor || '').trim();
-    if (!txt) return '';
-    txt = txt.replace(/^@+/, '');
-
-    const m = txt.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
-    if (m && m[1]) {
-        txt = m[1];
-    } else {
-        txt = txt.split(/[/?#\s]/)[0];
-    }
-
-    return txt.replace(/^@+/, '').trim();
-}
-
-function aplicarLinkInstagram(el, valor = '') {
-    if (!el) return;
-    const handle = normalizarHandleInstagram(valor);
-    const hasHandle = Boolean(handle);
-    el.textContent = hasHandle ? handle : 'instagram';
-    el.href = hasHandle ? `https://www.instagram.com/${encodeURIComponent(handle)}/` : '#';
-    el.classList.toggle('is-empty', !hasHandle);
-}
-
-function obterLayerSnackbar() {
-    let layer = document.getElementById('ui-snackbar-layer');
-    if (layer) return layer;
-    layer = document.createElement('div');
-    layer.id = 'ui-snackbar-layer';
-    layer.className = 'ui-snackbar-layer';
-    document.body.appendChild(layer);
-    return layer;
-}
-
-function notificarApp(mensagem = '', opts = {}) {
-    const texto = String(mensagem || '').trim();
-    if (!texto) return null;
-
-    const tipo = String(opts.tipo || 'info').toLowerCase();
-    const duracaoBase = Number.isFinite(Number(opts.duracao)) ? Number(opts.duracao) : Math.max(2200, Math.min(5200, texto.length * 45));
-    const duracao = Math.max(1200, duracaoBase);
-
-    const layer = obterLayerSnackbar();
-    const toast = document.createElement('div');
-    toast.className = `ui-snackbar is-${tipo}`;
-    toast.setAttribute('role', 'status');
-    toast.textContent = texto;
-    layer.appendChild(toast);
-
-    const fechar = () => {
-        toast.classList.remove('show');
-        setTimeout(() => {
-            if (toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 220);
-    };
-
-    requestAnimationFrame(() => toast.classList.add('show'));
-    if (!opts.persistente) setTimeout(fechar, duracao);
-    toast.addEventListener('click', fechar);
-    return { close: fechar, element: toast };
-}
-
-function notificarErro(mensagem = 'Falha inesperada. Tente novamente.') {
-    return notificarApp(mensagem, { tipo: 'error', duracao: 3600 });
-}
-
-function notificarSucesso(mensagem = 'Operação concluída.') {
-    return notificarApp(mensagem, { tipo: 'success', duracao: 2600 });
-}
-
-const alertaNativo = (typeof window !== 'undefined' && typeof window.alert === 'function')
-    ? window.alert.bind(window)
-    : null;
-
-if (typeof window !== 'undefined') {
-    window.alertNativo = alertaNativo;
-    // Mensagens internas no app em formato Toast/Snackbar (sem alerta do sistema).
-    window.alert = function alertInterno(mensagem = '') {
-        notificarApp(mensagem, { tipo: 'info' });
-    };
-}
+// ============================================================================
+// STAGE 2 do refactor: os helpers puros/genéricos abaixo já saíram deste
+// arquivo e moram em core/*. Este import existe só pra manter todo o resto
+// (ainda não fatiado) funcionando sem mudar nenhum call-site por enquanto —
+// vai encolher a cada novo domínio extraído nas próximas etapas.
+// ============================================================================
+import { db, auth } from './core/firebase.js';
+import {
+  normalizarTexto, formatEnderecoDisplay, normalizarUf, formatarCep,
+  montarEnderecoCliente, assinaturaEndereco, geoNoBrasil, extrairCamposEnderecoCliente,
+  montarEnderecoParaCalculo, normalizarGeo, parseMoedaParaNumero, precoParaInput,
+  precoParaMoeda, formatarEnderecoEstruturado, formatarEnderecoLojaParaCalculo,
+  formatarEnderecoLojaParaRota, formatarEnderecoClienteParaRota, formatarDistancia,
+  formatarDuracao,
+} from './core/format.js';
+import { escapeHtml, escapeHtmlChat, escaparHtmlMarketplace, sanitizeFirebaseKey } from './core/sanitize.js';
+import {
+  AVATAR_PLACEHOLDER_SRC, aplicarFotoComPlaceholder, normalizarHandleInstagram,
+  aplicarLinkInstagram, obterLayerSnackbar, notificarApp, notificarErro, notificarSucesso,
+  abrirModalSheetGenerico, fecharModalSheetGenerico,
+} from './core/ui-sheet.js';
 
 // Variável para controle do usuário logado
 let usuarioLogado = null;
@@ -112,7 +26,6 @@ let envioStepAtual = 1;
 let clientes = [];
 let clienteEmEdicaoId = null;
 let clienteSelecionadoId = null;
-let editRevealTimeout = null;
 let cepLojaDebounceTimer = null;
 let cepClienteDebounceTimer = null;
 let ultimoCepLojaConsultado = '';
@@ -308,182 +221,6 @@ async function saveClientes() {
     await db.ref(`usuarios/${uid}/clientes`).set(map);
 }
 
-function normalizarTexto(valor) {
-    return (valor || '')
-        .toString()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-}
-
-function renderClientes(filtro = '') {
-    const container = document.getElementById('clientes-list');
-    if (!container) return;
-
-    const filtroTexto = normalizarTexto(filtro);
-    const filtroNumero = (filtro || '').replace(/\D/g, '');
-
-    const lista = clientes.filter((c) => {
-        const texto = normalizarTexto(`${c.nome} ${c.endereco} ${c.whatsapp}`);
-        if (!filtroTexto) return true;
-        if (filtroNumero && c.whatsapp) {
-            return c.whatsapp.replace(/\D/g, '').includes(filtroNumero);
-        }
-        return texto.includes(filtroTexto);
-    }).sort((a, b) => {
-        const fa = a.frequente ? 1 : 0;
-        const fb = b.frequente ? 1 : 0;
-        if (fb !== fa) return fb - fa;
-        return (a.nome || '').localeCompare(b.nome || '');
-    });
-
-    if (!lista.length) {
-        container.innerHTML = `<div style="text-align:center; color: var(--text-sub); font-size: 13px; padding: 10px 0;">Nenhum cliente encontrado.</div>`;
-        return;
-    }
-
-    container.innerHTML = lista.map((c) => {
-        const badge = c.frequente ? '<span class="badge-freq">Frequente</span>' : '';
-        return `
-        <div class="swipe-container" id="container-${c.id}">
-            <div class="swipe-action-delete">
-                <i data-lucide="trash-2" size="20"></i>
-                <span>Excluir</span>
-            </div>
-
-            <div class="cliente-card-simples"
-                 id="card-${c.id}"
-                 data-client-id="${c.id}"
-                 onclick="irParaPasso2('${c.id}', '${c.nome.replace(/'/g, "\\'")}', '${c.endereco.replace(/'/g, "\\'")}', '${c.whatsapp.replace(/'/g, "\\'")}'); revealEditButton(this);"
-                 ontouchstart="handleTouchStart(event)"
-                 ontouchmove="handleTouchMove(event)"
-                 ontouchend="handleTouchEnd(event)"
-                 style="position: relative; z-index: 2; margin-bottom: 0 !important;">
-
-                ${badge}
-                <button class="cliente-edit-btn" onclick="abrirEditarCliente('${c.id}'); event.stopPropagation();">
-                    <i data-lucide="pencil" size="14"></i>
-                </button>
-                <button class="cliente-history-btn" onclick="verHistoricoCliente('${c.id}'); event.stopPropagation();">Ver histórico</button>
-                <strong style="font-size: 17px; font-weight: 800; display: block; margin-bottom: 2px;">${c.nome}</strong>
-                <span class="cliente-endereco">${formatEnderecoDisplay(c.endereco)}</span>
-
-                <span style="color: var(--brand-orange); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-top: 6px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 448 512" fill="currentColor"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>
-                    ${c.whatsapp}
-                </span>
-            </div>
-        </div>
-        `;
-    }).join('');
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-function formatEnderecoDisplay(endereco) {
-    if (!endereco) return '';
-    const parts = endereco.split(' - ');
-    const ruaNum = parts[0] || endereco;
-    const resto = parts[1] || '';
-
-    const cidadeUf = resto.split(',').pop() || '';
-    if (cidadeUf.includes('/')) {
-        const [cidade] = cidadeUf.split('/');
-        return `${ruaNum} - ${cidade.trim()}`;
-    }
-    return ruaNum;
-}
-
-function normalizarUf(valor) {
-    const letras = (valor || '').toString().toUpperCase().replace(/[^A-Z]/g, '');
-    return letras.slice(0, 2);
-}
-
-function formatarCep(valor) {
-    const digits = (valor || '').toString().replace(/\D/g, '').slice(0, 8);
-    if (digits.length !== 8) return '';
-    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-}
-
-function montarEnderecoCliente({ rua, num, bairro, cidade, estado, comp }) {
-    const uf = normalizarUf(estado);
-    const partes = [];
-    const ruaNum = [rua, num].map((v) => (v || '').trim()).filter(Boolean).join(', ');
-    if (ruaNum) partes.push(ruaNum);
-    const bairroCidade = [(bairro || '').trim(), (cidade || '').trim()].filter(Boolean).join(', ');
-    if (bairroCidade || uf) partes.push(`${bairroCidade}${uf ? `/${uf}` : ''}`.trim());
-    let endereco = partes.join(' - ');
-    const complemento = (comp || '').trim();
-    if (complemento) endereco += ` (${complemento})`;
-    return endereco.trim();
-}
-
-function assinaturaEndereco(campos = {}) {
-    const cep = formatarCep(campos.cep || '');
-    const rua = (campos.rua || '').toString().trim().toLowerCase();
-    const num = (campos.num || '').toString().trim().toLowerCase();
-    const bairro = (campos.bairro || '').toString().trim().toLowerCase();
-    const cidade = (campos.cidade || '').toString().trim().toLowerCase();
-    const uf = normalizarUf(campos.uf || campos.estado || '');
-    return [cep, rua, num, bairro, cidade, uf].join('|');
-}
-
-function geoNoBrasil(geo) {
-    const g = normalizarGeo(geo);
-    if (!g) return false;
-    return g.lat >= -35 && g.lat <= 6 && g.lon >= -75 && g.lon <= -30;
-}
-
-function extrairCamposEnderecoCliente(cliente) {
-    const campos = {
-        cep: formatarCep(cliente?.cep),
-        rua: (cliente?.rua || '').trim(),
-        num: (cliente?.num || '').trim(),
-        bairro: (cliente?.bairro || '').trim(),
-        cidade: (cliente?.cidade || '').trim(),
-        estado: normalizarUf(cliente?.estado || cliente?.uf || ''),
-        comp: (cliente?.comp || '').trim()
-    };
-    if (campos.rua && campos.num) return campos;
-
-    const txt = (cliente?.endereco || '').toString().trim();
-    if (!txt) return campos;
-
-    const regex = /^(.*?),\s*(.*?)\s*-\s*(.*?),\s*(.*?)\/([A-Za-z]{2})(?:\s*\((.*?)\))?$/;
-    const m = txt.match(regex);
-    if (m) {
-        campos.rua = campos.rua || (m[1] || '').trim();
-        campos.num = campos.num || (m[2] || '').trim();
-        campos.bairro = campos.bairro || (m[3] || '').trim();
-        campos.cidade = campos.cidade || (m[4] || '').trim();
-        campos.estado = campos.estado || normalizarUf(m[5] || '');
-        campos.comp = campos.comp || (m[6] || '').trim();
-        return campos;
-    }
-
-    const primeiraParte = txt.split(' - ')[0] || '';
-    const ruaNum = primeiraParte.split(',');
-    if (!campos.rua) campos.rua = (ruaNum[0] || '').trim();
-    if (!campos.num) campos.num = (ruaNum[1] || '').trim();
-    return campos;
-}
-
-function montarEnderecoParaCalculo(cliente, fallbackEndereco = '') {
-    const campos = extrairCamposEnderecoCliente(cliente || {});
-    const base = montarEnderecoCliente(campos);
-    const cep = formatarCep(campos.cep);
-    if (base && cep) return `${base} - CEP ${cep}`;
-    return base || fallbackEndereco || '';
-}
-
-function normalizarGeo(geo) {
-    if (!geo) return null;
-    const lat = Number(geo.lat);
-    const lon = Number(geo.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    return { lat, lon, updatedAt: geo.updatedAt || Date.now() };
-}
-
 async function geocodificarPorCampos(campos = {}) {
     if (!GOOGLE_MAPS_KEY) return null;
     const rua = (campos.rua || '').toString().trim();
@@ -554,16 +291,6 @@ function getClienteById(id) {
 
 function getGeoCliente(cliente) {
     return normalizarGeo(cliente?.geo);
-}
-
-function revealEditButton(cardEl) {
-    if (!cardEl) return;
-    document.querySelectorAll('.cliente-card-simples.show-edit').forEach(el => el.classList.remove('show-edit'));
-    cardEl.classList.add('show-edit');
-    if (editRevealTimeout) clearTimeout(editRevealTimeout);
-    editRevealTimeout = setTimeout(() => {
-        cardEl.classList.remove('show-edit');
-    }, 2200);
 }
 
 async function initClientes() {
@@ -1250,110 +977,6 @@ function navegar(idTela) {
     window.scrollTo(0, 0);
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
-// --- CÓDIGO DO SWIPE (DESLIZAR) ---
-let touchStartX = 0;
-        let activeCard = null;
-        let pendingDeleteClientId = null;
-
-        function handleTouchStart(e) {
-            // Se o toque for no card da Maria, vamos rastrear
-            touchStartX = e.touches[0].clientX;
-            activeCard = e.currentTarget;
-            activeCard.style.transition = 'none'; // Tira a animação enquanto o dedo move
-            revealEditButton(activeCard);
-        }
-
-        function handleTouchMove(e) {
-            if (!activeCard) return;
-            let touchX = e.touches[0].clientX;
-            let diff = touchX - touchStartX;
-            
-            // Só deixa arrastar para a esquerda (diff negativo)
-            // Limitamos em -150px para o card não sair da tela totalmente sem querer
-            if (diff < 0 && diff > -150) {
-                activeCard.style.transform = `translateX(${diff}px)`;
-            }
-        }
-
-                function handleTouchEnd(e) {
-            if (!activeCard) return;
-            activeCard.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-            
-            let touchX = e.changedTouches[0].clientX;
-            let diff = touchX - touchStartX;
-
-            // Se deslizou mais de 70px para a esquerda
-            if (diff < -70) {
-                // Faz o card sair da tela
-                activeCard.style.transform = 'translateX(-120%)';
-                
-                // Guarda o ID para saber quem excluir
-                const idParaDeletar = activeCard.id;
-                
-                // Chama a confirmação após o movimento de saída
-                setTimeout(() => {
-                    confirmarExclusao(idParaDeletar);
-                }, 300);
-            } else {
-                // Volta para o lugar se deslizou pouco
-                activeCard.style.transform = 'translateX(0)';
-            }
-            activeCard = null;
-        }
-
-
-        function confirmarExclusao(cardId) {
-            const card = document.getElementById(cardId);
-            const container = card.parentElement;
-            container.style.display = 'none';
-            pendingDeleteClientId = card.dataset?.clientId || null;
-
-            const toastAntigo = document.getElementById('toast-desfazer');
-            if (toastAntigo) toastAntigo.remove();
-
-            const toast = document.createElement('div');
-            toast.className = 'undo-toast';
-            toast.id = 'toast-desfazer';
-            
-            // Agora o clique funciona em qualquer lugar do toast
-            toast.onclick = () => desfazerExclusao(cardId);
-
-            let segundosRestantes = 10;
-
-            toast.innerHTML = `
-                <div class="undo-content">
-                    <div class="undo-timer" id="timer-count">${segundosRestantes}</div>
-                    <span style="font-size: 14px;">Cliente removido</span>
-                </div>
-                <div class="undo-btn">Desfazer</div>
-            `;
-            
-            document.body.appendChild(toast);
-
-            // Lógica do contador visual
-            const interval = setInterval(() => {
-                segundosRestantes--;
-                const timerElement = document.getElementById('timer-count');
-                if (timerElement) {
-                    timerElement.innerText = segundosRestantes;
-                }
-                
-                if (segundosRestantes <= 0) {
-                    clearInterval(interval);
-                    fecharToastSuave(toast);
-                    if (pendingDeleteClientId) {
-                        clientes = clientes.filter(c => c.id !== pendingDeleteClientId);
-                        saveClientes();
-                        renderClientes(document.getElementById('buscar-cliente')?.value || '');
-                        pendingDeleteClientId = null;
-                    }
-                }
-            }, 1000);
-
-            // Guardamos o intervalo no elemento para limpar se o usuário clicar antes
-            toast.dataset.intervalId = interval;
-        }
-
         function fecharToastSuave(elemento) {
             if (elemento) {
                 elemento.style.opacity = '0';
@@ -1363,39 +986,6 @@ let touchStartX = 0;
         }
 
         // Ajuste na função de desfazer para limpar o contador
-        function desfazerExclusao(cardId) {
-            const toast = document.getElementById('toast-desfazer');
-            if (toast) {
-                clearInterval(toast.dataset.intervalId);
-                toast.remove();
-            }
-
-            const card = document.getElementById(cardId);
-            const container = card.parentElement;
-            container.style.display = 'block';
-            card.style.transform = 'translateX(0)';
-            pendingDeleteClientId = null;
-        }
-
-
-
-        // VERSÃO LEGADA: mantida para comparação de comportamento.
-        // A versão ativa de `desfazerExclusao` é a primeira (com limpeza de intervalo do timer).
-        function desfazerExclusao_legacy(cardId) {
-            const card = document.getElementById(cardId);
-            const container = card.parentElement;
-            
-            // Traz o container de volta e reseta o card para a posição original
-            container.style.display = 'block';
-            card.style.transform = 'translateX(0)';
-            
-            // Remove o aviso preto da tela imediatamente
-            const aviso = document.getElementById('toast-desfazer');
-            if (aviso) aviso.remove();
-        }
-
-let veiculoSelecionado = "Moto";
-let veiculoPrecoSelecionado = "R$ 12,50";
 let resumoRevisaoAtual = {
     origem: '',
     destino: '',
@@ -1437,24 +1027,6 @@ const VEICULOS_CURTOS = ['Patinete', 'Bicicleta'];
 
 function getServicoSelecionadoAtual() {
     return document.querySelector('#modal-envio-detalhes .selection-grid .select-box.active strong')?.innerText || 'Standard';
-}
-
-function parseMoedaParaNumero(valor) {
-    if (valor === null || valor === undefined) return 0;
-    if (typeof valor === 'number') return valor;
-    const limpo = valor.toString().replace('R$', '').trim().replace(/\./g, '').replace(',','.');
-    const numero = Number(limpo);
-    return Number.isFinite(numero) ? numero : 0;
-}
-
-function precoParaInput(preco) {
-    const numero = parseMoedaParaNumero(preco);
-    return numero ? numero.toFixed(2) : '';
-}
-
-function precoParaMoeda(preco) {
-    const numero = parseMoedaParaNumero(preco);
-    return 'R$ ' + numero.toFixed(2).replace('.', ',');
 }
 
 function obterFreteTesteDasObservacoes(texto = '') {
@@ -1555,43 +1127,6 @@ function atualizarAvisoAmbientePix() {
     aviso.className = 'rota-pix-env rota-pix-env-warning';
     aviso.innerText = 'Ambiente definido pelo servidor ao gerar o Pix.';
 }
-function formatarEnderecoEstruturado(end) {
-    if (!end) return '';
-    const ruaNum = [end.rua, end.num].filter(Boolean).join(', ');
-    const cidadeUf = [end.cidade, end.uf].filter(Boolean).join('/');
-    const bairro = end.bairro ? ` - ${end.bairro}` : '';
-    return `${ruaNum}${bairro}${cidadeUf ? ` - ${cidadeUf}` : ''}`.trim();
-}
-
-function formatarEnderecoLojaParaCalculo(end) {
-    const base = formatarEnderecoEstruturado(end);
-    const cep = formatarCep(end?.cep);
-    if (base && cep) return `${base} - CEP ${cep}`;
-    return base;
-}
-
-function formatarEnderecoLojaParaRota(end) {
-    if (!end) return '';
-    const cep = formatarCep(end.cep || '');
-    return [end.rua, end.num, end.bairro, end.cidade, normalizarUf(end.uf || end.estado), cep, 'Brasil']
-        .map((v) => (v || '').toString().trim())
-        .filter(Boolean)
-        .join(', ');
-}
-
-function formatarEnderecoClienteParaRota(cliente, fallbackEndereco = '') {
-    const campos = extrairCamposEnderecoCliente(cliente || {});
-    const cep = formatarCep(campos.cep || '');
-    const enderecoRota = [campos.rua, campos.num, campos.bairro, campos.cidade, normalizarUf(campos.estado || campos.uf), cep, 'Brasil']
-        .map((v) => (v || '').toString().trim())
-        .filter(Boolean)
-        .join(', ');
-    if (enderecoRota) return enderecoRota;
-    const fallback = (fallbackEndereco || '').toString().trim();
-    return fallback ? `${fallback}, Brasil` : '';
-}
-
-
 function obterEnderecoLojaTexto() {
     return formatarEnderecoEstruturado(window.usuarioLogado?.endereco);
 }
@@ -1661,19 +1196,6 @@ function calcularFreteEstimado({ servico, veiculo, distanciaKm }) {
     const ajuste = mapaAjusteServico?.[veiculo] || 0;
     const minimoServico = TAXA_MINIMA[servico] || TAXA_MINIMA.Standard;
     return Number(Math.max(0, minimoServico, base + ajuste).toFixed(2));
-}
-
-function formatarDistancia(distanciaKm) {
-    if (!Number.isFinite(distanciaKm)) return '--';
-    return `${distanciaKm.toFixed(1).replace('.', ',')} km`;
-}
-
-function formatarDuracao(duracaoMin) {
-    if (!Number.isFinite(duracaoMin)) return '--';
-    if (duracaoMin < 60) return `${Math.max(1, Math.round(duracaoMin))} min`;
-    const horas = Math.floor(duracaoMin / 60);
-    const mins = Math.round(duracaoMin % 60);
-    return mins ? `${horas}h ${mins}min` : `${horas}h`;
 }
 
 async function geocodificarEndereco(endereco) {
@@ -2423,17 +1945,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initClientes();
 });
 
-// ===================== [BLOCO LEGADO - N?fO REMOVER SEM VALIDAR] =====================
-// Função suave para esconder o splash
-// VERSÃO LEGADA DUPLICADA: mantida para histórico. A versão ativa está na definição logo abaixo.
-function finalizarSplash_legacy(elemento) {
-    if (elemento) {
-        elemento.style.opacity = '0';
-        setTimeout(() => {
-            elemento.style.display = 'none';
-        }, 500); // Tempo da transição CSS
-    }
-}
 
 // Função suave para esconder o splash
 function finalizarSplash(elemento) {
@@ -2442,52 +1953,6 @@ function finalizarSplash(elemento) {
         setTimeout(() => {
             elemento.style.display = 'none';
         }, 500); // Tempo da transição CSS
-    }
-}
-
-// 3. ATUALIZA - fO DA FUN - fO DE LOGIN EXISTENTE
-// Certifique-se que sua função loginReal() use o Firebase Auth corretamente
-// O Firebase por padrão já usa 'local' persistence no browser.
-// VERSÃO LEGADA: mantida para auditoria. A versão ativa é a implementação assíncrona acima.
-function loginReal_legacy() {
-    const email = document.getElementById('email-login').value;
-    const senha = document.querySelector('#pass-login').value;
-
-    if (!email || !senha) {
-        alert("Preencha todos os campos!");
-        return;
-    }
-
-    firebase.auth().signInWithEmailAndPassword(email, senha)
-        .then((userCredential) => {
-            // O onAuthStateChanged acima cuidará do redirecionamento
-           
-        })
-        .catch((error) => {
-            alert("Erro no login: " + error.message);
-        });
-}
-
-
-// --- UPLOAD DE LOGO (BASE64) ---
-function uploadLogo(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            const base64Image = e.target.result;
-            document.getElementById('logo-perfil-display').src = base64Image;
-            
-            try {
-                await db.ref('usuarios/' + usuarioLogado.id).update({ logo: base64Image });
-                // Atualiza também no Dashboard
-                const logoDash = document.querySelector('.profile-img');
-                if(logoDash) logoDash.src = base64Image;
-                alert("Logo atualizada!");
-            } catch (err) {
-                alert("Erro ao salvar: " + err.message);
-            }
-        };
-        reader.readAsDataURL(input.files[0]);
     }
 }
 
@@ -2915,17 +2380,6 @@ async function carregarRotasDoBanco() {
         return [];
     }
 }
-function escaparHtmlMarketplace(valor) {
-    const txt = (valor || '').toString();
-    if (typeof escapeHtmlChat === 'function') return escapeHtmlChat(txt);
-    return txt
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 function montarCidadeUfMarketplace(cidade, uf) {
     const c = (cidade || '').toString().trim();
     const u = normalizarUf(uf || '');
@@ -8037,22 +7491,6 @@ let chatMsgUnsubscribe = null;
 let chatImagemSelecionadaDataUrl = '';
 let chatImagemSelecionadaNome = '';
 
-function escapeHtmlChat(valor) {
-    return (valor || '')
-        .toString()
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function sanitizeFirebaseKey(valor) {
-    return String(valor || '')
-        .replace(/[.#$\[\]/]/g, '_')
-        .replace(/\s+/g, '_');
-}
-
 function pacoteAbertoParaChat(pacote) {
     const status = normalizarStatusEnvioFiltro(pacote?.status || 'PENDENTE');
     return status !== 'ENTREGUE' && status !== 'CANCELADO';
@@ -8597,21 +8035,6 @@ function atualizarSaldoPagamentoUI() {
     if (saldoEl) saldoEl.innerText = formatarSaldoPagamento(pagamentoPerfilCache.saldo || 0);
 }
 
-function abrirModalSheetGenerico(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.style.display = 'flex';
-    requestAnimationFrame(() => modal.classList.add('is-open'));
-}
-
-function fecharModalSheetGenerico(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.classList.remove('is-open');
-    setTimeout(() => {
-        modal.style.display = 'none';
-    }, 220);
-}
 
 async function carregarDadosPagamento() {
     const path = caminhoFinanceiroUsuario();
@@ -9837,7 +9260,6 @@ export {
   abrirModalNovoCliente,
   abrirModalPerfil,
   abrirModalRastrearRotas,
-  abrirModalSheetGenerico,
   abrirModalTrackingLoja,
   abrirNotificacao,
   abrirNovaRotaPeloChip,
@@ -9871,13 +9293,10 @@ export {
   alternarStatusUsuarioMaster,
   animarAtivacaoItemMenu,
   aplicarFiltroRotaEntregador,
-  aplicarFotoComPlaceholder,
   aplicarFreteTesteSeConfigurado,
   aplicarHeaderGlobalEmViewEstatica,
-  aplicarLinkInstagram,
   aplicarPermissoesPorTipoUsuario,
   aplicarTipoCadastroNaTela,
-  assinaturaEndereco,
   ativarAbaChat,
   ativarMenuInferior,
   ativarModoAdminSeNecessario,
@@ -9929,7 +9348,6 @@ export {
   coletarEnviosPendentesParaRota,
   confirmarEntregaPacoteAtual,
   confirmarEnvioFinal,
-  confirmarExclusao,
   confirmarExclusaoEnvio,
   confirmarExclusaoRota,
   confirmarPagamentoRota,
@@ -9943,9 +9361,7 @@ export {
   criarPagamentoPixMercadoPago,
   criarPagamentoPixTesteClienteLocal,
   debitarSaldoUsuarioAtual,
-  desfazerExclusao,
   desfazerExclusaoCliente,
-  desfazerExclusao_legacy,
   desistirRotaEntregador,
   detalheRotaParaTexto,
   encerrarListenerMensagensChat,
@@ -9954,8 +9370,6 @@ export {
   enviarMensagemChat,
   enviarResetSenhaMaster,
   envioPassaNoFiltro,
-  escaparHtmlMarketplace,
-  escapeHtmlChat,
   estimarRotaEntrega,
   estimarRotaGoogle,
   estimarRotaRoutesApi,
@@ -9966,7 +9380,6 @@ export {
   excluirEnvioPorId,
   excluirRotaAtualComConfirmacao,
   excluirRotaPorId,
-  extrairCamposEnderecoCliente,
   extrairCidadeEnderecoSimples,
   fecharModalAcoesCliente,
   fecharModalDetalheEnvio,
@@ -9980,7 +9393,6 @@ export {
   fecharModalPerfil,
   fecharModalRastrearRotas,
   fecharModalRota,
-  fecharModalSheetGenerico,
   fecharModalTrackingLoja,
   fecharPainelNotificacoes,
   fecharSeletorCliente,
@@ -9991,18 +9403,9 @@ export {
   fecharSwipesRota,
   fecharToastSuave,
   finalizarSplash,
-  finalizarSplash_legacy,
   finalizarSwipeEntSheet,
   finalizarSwipePaginaRota,
-  formatEnderecoDisplay,
-  formatarCep,
   formatarDataExtrato,
-  formatarDistancia,
-  formatarDuracao,
-  formatarEnderecoClienteParaRota,
-  formatarEnderecoEstruturado,
-  formatarEnderecoLojaParaCalculo,
-  formatarEnderecoLojaParaRota,
   formatarHoraChat,
   formatarHoraNotificacao,
   formatarSaldoPagamento,
@@ -10013,7 +9416,6 @@ export {
   garantirEstimativaAtual,
   garantirGeoClienteSelecionado,
   garantirPacotesDaRota,
-  geoNoBrasil,
   geocodificarCliente,
   geocodificarEndereco,
   geocodificarPorCampos,
@@ -10041,9 +9443,6 @@ export {
   handleSelectorTouchEnd,
   handleSelectorTouchMove,
   handleSelectorTouchStart,
-  handleTouchEnd,
-  handleTouchMove,
-  handleTouchStart,
   iniciarCorridaPacoteAtual,
   iniciarListenerGeoTrackingLoja,
   iniciarListenerHomeEntregador,
@@ -10077,7 +9476,6 @@ export {
   localizarRotaDoEnvio,
   loginAdmin,
   loginReal,
-  loginReal_legacy,
   logoutReal,
   mapearCategoriaEnvio,
   marcarEnviosEmRota,
@@ -10090,9 +9488,7 @@ export {
   montarCardRotaEntregador,
   montarCidadeUfMarketplace,
   montarDropdownFiltroMarketplace,
-  montarEnderecoCliente,
   montarEnderecoCompletoPacote,
-  montarEnderecoParaCalculo,
   montarLinkMapaEnvio,
   montarMapaEnviosPorId,
   montarMapaPacotesParaEntregador,
@@ -10110,18 +9506,11 @@ export {
   normalizarCodigoConfirmacaoEntrega,
   normalizarCodigoPix,
   normalizarFiltroChipEnvio,
-  normalizarGeo,
-  normalizarHandleInstagram,
   normalizarIdPacoteBusca,
   normalizarStatusEnvioFiltro,
   normalizarStatusPacoteEntrega,
   normalizarStatusRotaFiltro,
-  normalizarTexto,
   normalizarTipoCadastro,
-  normalizarUf,
-  notificarApp,
-  notificarErro,
-  notificarSucesso,
   obterCidadeDestinoPacoteMarketplace,
   obterCidadeUfUsuarioLogado,
   obterClasseCorStatusEnvioCard,
@@ -10135,7 +9524,6 @@ export {
   obterFreteTesteDasObservacoes,
   obterIdPacoteConfirmacao,
   obterInicioDiaLocal,
-  obterLayerSnackbar,
   obterLogoLojista,
   obterLojistaUidDaRota,
   obterMetaDiaEntregador,
@@ -10160,12 +9548,9 @@ export {
   pararRastreioGpsEntregador,
   parseDurationSecondsGoogle,
   parseMensagensChatDoBanco,
-  parseMoedaParaNumero,
   persistirEntregaPacoteAtual,
   persistirFinanceiroUsuario,
   podeSelecionarPacoteRota,
-  precoParaInput,
-  precoParaMoeda,
   preencherPerfilEntregador,
   preencherPerfilLojista,
   preencherTextoDetalheEnvio,
@@ -10176,7 +9561,6 @@ export {
   registrarPresencaUsuario,
   registrarTransacaoFinanceira,
   relatarProblemaRota,
-  renderClientes,
   renderClientesSelector,
   renderDashboardMaster,
   renderEnviosHome,
@@ -10200,7 +9584,6 @@ export {
   restaurarRotaMaster,
   resumirCidadesRota,
   resumirRotaParaEntregador,
-  revealEditButton,
   rotaMarketplacePassaNoFiltro,
   rotaPassaNoFiltro,
   rotaSheetBloqueada,
@@ -10211,7 +9594,6 @@ export {
   salvarNovoCliente,
   salvarPerfil,
   salvarRotaNoBanco,
-  sanitizeFirebaseKey,
   saveClientes,
   selecionarClienteNoSheet,
   selecionarFiltroEnvios,
@@ -10232,7 +9614,6 @@ export {
   telaPerfilPorTipoUsuario,
   togglePacoteRota,
   togglePass,
-  uploadLogo,
   usuarioEhEntregador,
   usuarioEhMaster,
   verHistoricoCliente,
