@@ -2,8 +2,14 @@
   "name": "webflexa-dev",
   "private": true,
   "version": "1.0.0",
-  "description": "Dev tooling only — the app itself is static HTML/CSS/JS, no build step.",
+  "description": "Frontend fonte em src/**/*.js (ES modules), empacotado pelo esbuild no app.js da raiz. app.js é gerado — não edite à mão, rode `npm run build`. Sem servidor de build no deploy: os arquivos estáticos (index.html, app.js, styles.css) continuam servidos como hoje.",
   "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --outfile=app.js",
+    "watch": "esbuild src/main.js --bundle --format=iife --outfile=app.js --watch",
     "dev": "serve -l 5500"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "serve": "^14.2.0"
   }
 }
