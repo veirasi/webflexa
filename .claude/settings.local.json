@@ -9,7 +9,8 @@
       "Bash(grep -n \"financeiro/saldo\\\\`\\).transaction\" app.js)",
       "Bash(grep -n \"^function \\\\|^async function \\\\|^// ====\\\\|^//====\\\\|^/\\\\*\\\\*\\\\*\\\\|^// ---\" app.js)",
       "Bash(awk '{print $2}')",
-      "Bash(awk -F'|' '{print $1}')"
+      "Bash(awk -F'|' '{print $1}')",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")"
     ]
   }
 }

@@ -822,6 +822,20 @@
     }, {});
     await db.ref(`usuarios/${uid}/clientes`).set(map);
   }
+  // Confere se o resultado do Google Geocoding bate com a cidade/UF esperada — usado
+  // pelos dois geocodificadores (por campos estruturados e por texto livre) pra não
+  // aceitar silenciosamente um endereço na cidade/bairro errado.
+  function geocodeBateComCidadeUf(primeiro, cityEsperada, ufEsperada) {
+    const cityEsp = normalizarTexto(cityEsperada || "");
+    const ufEsp = normalizarUf(ufEsperada || "");
+    if (!cityEsp && !ufEsp) return true;
+    const comps = Array.isArray(primeiro?.address_components) ? primeiro.address_components : [];
+    const cityComp = normalizarTexto(comps.find((c) => c.types?.includes("administrative_area_level_2"))?.long_name || comps.find((c) => c.types?.includes("locality"))?.long_name || "");
+    const ufComp = normalizarUf(comps.find((c) => c.types?.includes("administrative_area_level_1"))?.short_name || "");
+    const cidadeOk = !cityEsp || cityComp && (cityComp.includes(cityEsp) || cityEsp.includes(cityComp));
+    const ufOk = !ufEsp || ufComp === ufEsp;
+    return cidadeOk && ufOk;
+  }
   async function geocodificarPorCampos(campos = {}) {
     if (!GOOGLE_MAPS_KEY) return null;
     const rua = (campos.rua || "").toString().trim();
@@ -855,25 +869,14 @@
           setUltimoErroRota("Geocode retornou coordenada fora do Brasil.", { status: resultado?.status, enderecoGoogle, geo });
           return null;
         }
-        const cityEsperada = normalizarTexto(cidade || "");
-        const ufEsperada = normalizarUf(estado || "");
-        if (cityEsperada || ufEsperada) {
-          const comps = Array.isArray(primeiro?.address_components) ? primeiro.address_components : [];
-          const cityComp = normalizarTexto(comps.find((c) => c.types?.includes("administrative_area_level_2"))?.long_name || comps.find((c) => c.types?.includes("locality"))?.long_name || "");
-          const ufComp = normalizarUf(comps.find((c) => c.types?.includes("administrative_area_level_1"))?.short_name || "");
-          const cidadeOk = !cityEsperada || cityComp && (cityComp.includes(cityEsperada) || cityEsperada.includes(cityComp));
-          const ufOk = !ufEsperada || ufComp === ufEsperada;
-          if (!cidadeOk || !ufOk) {
-            setUltimoErroRota("Geocode retornou local divergente do endereco informado.", {
-              enderecoGoogle,
-              cityEsperada,
-              ufEsperada,
-              cityComp,
-              ufComp,
-              formatted: primeiro?.formatted_address || null
-            });
-            return null;
-          }
+        if (!geocodeBateComCidadeUf(primeiro, cidade, estado)) {
+          setUltimoErroRota("Geocode retornou local divergente do endereco informado.", {
+            enderecoGoogle,
+            cidade,
+            estado,
+            formatted: primeiro?.formatted_address || null
+          });
+          return null;
         }
         return geo;
       }
@@ -1244,6 +1247,12 @@
       e.target.value = !x[2] ? x[1] : x[1] + "-" + x[2];
     });
   }
+  function clienteTemEnvioEmRota(clienteId) {
+    const cliente = clientes.find((c) => c.id === clienteId);
+    if (!cliente) return false;
+    const historico = Array.isArray(cliente.historico) ? cliente.historico : [];
+    return historico.some((h) => normalizarStatusEnvioFiltro(h?.status || h?.statusRaw || "") === "EM_ROTA");
+  }
   async function salvarNovoCliente() {
     const nome = document.getElementById("new-cli-nome")?.value || "";
     const tel = document.getElementById("new-cli-tel")?.value || "";
@@ -1262,9 +1271,29 @@
     const enderecoCompleto = montarEnderecoCliente({ rua, num, bairro, cidade, estado, comp });
     const ufNormalizada = normalizarUf(estado);
     const cepLimpo = formatarCep(cep);
+    let geoFalhouAoSalvar = false;
     if (clienteEmEdicaoId) {
       const idx = clientes.findIndex((c) => c.id === clienteEmEdicaoId);
       if (idx >= 0) {
+        const clienteAtual = clientes[idx];
+        const enderecoMudou = (
+          cepLimpo !== (clienteAtual.cep || "") ||
+          rua.trim() !== (clienteAtual.rua || "") ||
+          num.trim() !== (clienteAtual.num || "") ||
+          bairro.trim() !== (clienteAtual.bairro || "") ||
+          cidade.trim() !== (clienteAtual.cidade || "") ||
+          ufNormalizada !== (clienteAtual.uf || "") ||
+          comp.trim() !== (clienteAtual.comp || "")
+        );
+        // Envios já criados sempre guardam o endereço de quando foram feitos (rastreabilidade
+        // — não é atualizado retroativamente). Mas enquanto o cliente tem uma entrega EM ROTA
+        // agora, mudar o endereço no cadastro criaria uma divergência perigosa entre pra onde o
+        // entregador está indo e o endereço "oficial" do cliente — por isso, bloqueia a edição
+        // do endereço (não o resto do cadastro) até a entrega em andamento terminar.
+        if (enderecoMudou && clienteTemEnvioEmRota(clienteEmEdicaoId)) {
+          alert("Este cliente tem uma entrega em rota agora. O endereço não pode ser alterado até essa entrega ser concluída (envios já criados mantêm sempre o endereço de quando foram feitos).");
+          return;
+        }
         clientes[idx] = {
           ...clientes[idx],
           nome: nome.trim(),
@@ -1284,6 +1313,8 @@
         if (geo) {
           clientes[idx].geo = normalizarGeo(geo);
           clientes[idx].geoSig = assinaturaEndereco(clientes[idx]);
+        } else {
+          geoFalhouAoSalvar = true;
         }
       }
       await saveClientes();
@@ -1310,6 +1341,8 @@
       if (geo) {
         novoCliente.geo = normalizarGeo(geo);
         novoCliente.geoSig = assinaturaEndereco(novoCliente);
+      } else {
+        geoFalhouAoSalvar = true;
       }
       clientes.unshift(novoCliente);
       await saveClientes();
@@ -1318,6 +1351,9 @@
     renderClientes(document.getElementById("buscar-cliente")?.value || "");
     if (typeof renderClientesSelector === "function") {
       renderClientesSelector(document.getElementById("buscar-cliente")?.value || "");
+    }
+    if (geoFalhouAoSalvar) {
+      alert("Cliente salvo, mas não foi possível localizar esse endereço no mapa agora (confira rua, número, bairro, cidade e CEP). O sistema vai tentar de novo automaticamente, mas por enquanto o mapa do entregador pode não abrir no lugar certo para esse cliente.");
     }
     irParaPasso2(clienteSelecionadoId, nome, enderecoCompleto, tel);
     fecharModalNovoCliente();
@@ -1654,7 +1690,10 @@
     const minimoServico = TAXA_MINIMA[servico] || TAXA_MINIMA.Standard;
     return Number(Math.max(0, minimoServico, base + ajuste).toFixed(2));
   }
-  async function geocodificarEndereco(endereco) {
+  // cidadeEsperada/ufEsperada são opcionais — quando informados, o resultado é
+  // validado com a mesma checagem usada em geocodificarPorCampos (não aceita
+  // silenciosamente um endereço em cidade/UF diferente da esperada).
+  async function geocodificarEndereco(endereco, cidadeEsperada = "", ufEsperada = "") {
     if (!endereco) return null;
     if (!GOOGLE_MAPS_KEY) return null;
     const textoBase = endereco.toString().trim();
@@ -1670,12 +1709,24 @@
           (results, status) => resolve({ results, status })
         );
       });
-      const loc = resultado?.results?.[0]?.geometry?.location;
+      const primeiro = resultado?.results?.[0] || null;
+      const loc = primeiro?.geometry?.location;
       if (resultado?.status === "OK" && loc) {
         const geo = { lat: Number(loc.lat()), lon: Number(loc.lng()) };
-        if (geoNoBrasil(geo)) return geo;
-        setUltimoErroRota("Geocode por endereco retornou coordenada fora do Brasil.", { status: resultado?.status, textoBase, geo });
-        return null;
+        if (!geoNoBrasil(geo)) {
+          setUltimoErroRota("Geocode por endereco retornou coordenada fora do Brasil.", { status: resultado?.status, textoBase, geo });
+          return null;
+        }
+        if (!geocodeBateComCidadeUf(primeiro, cidadeEsperada, ufEsperada)) {
+          setUltimoErroRota("Geocode por endereco retornou local divergente do esperado.", {
+            textoBase,
+            cidadeEsperada,
+            ufEsperada,
+            formatted: primeiro?.formatted_address || null
+          });
+          return null;
+        }
+        return geo;
       }
       setUltimoErroRota("Google Geocoding por endereco falhou.", { status: resultado?.status || null, textoBase });
       return null;
@@ -1690,7 +1741,7 @@
     const porCampos = await geocodificarPorCampos(campos).catch(() => null);
     if (porCampos) return porCampos;
     const enderecoCalculo = montarEnderecoParaCalculo(cliente, cliente.endereco || "");
-    return await geocodificarEndereco(enderecoCalculo);
+    return await geocodificarEndereco(enderecoCalculo, campos.cidade, campos.estado);
   }
   async function garantirGeoClienteSelecionado() {
     const cliente = getClienteById(clienteSelecionadoId);
@@ -2627,6 +2678,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           observacoes: (h?.observacoes || "").toString().trim(),
           origemEndereco: h?.origemEndereco || "--",
           destinoEndereco: h?.destinoEndereco || cliente.endereco || "--",
+          origemGeo: h?.origemGeo || null,
+          destinoGeo: h?.destinoGeo || null,
+          cepDestino: h?.cepDestino || "",
+          bairroDestino: h?.bairroDestino || "",
+          numero: h?.numero || "",
+          complemento: h?.complemento || "",
           status: (h?.status || "PENDENTE").toUpperCase(),
           criadoEm: Number(h?.criadoEm || Date.now())
         });
@@ -2658,6 +2715,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             observacoes: (p.observacoes || "").toString().trim(),
             origemEndereco: p.origemEndereco || p.origem || "--",
             destinoEndereco: p.destinoEndereco || p.destino || "--",
+            origemGeo: p.origemGeo || null,
+            destinoGeo: p.destinoGeo || null,
+            cepDestino: p.cepDestino || "",
+            bairroDestino: p.bairroDestino || "",
+            numero: p.numero || "",
+            complemento: p.complemento || "",
             status: (p.status || p.statusRaw || "PACOTE_NOVO").toUpperCase(),
             criadoEm: Number(p.criadoEm || Date.now())
           });
