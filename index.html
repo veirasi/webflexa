@@ -224,6 +224,8 @@
                 <small id="track-loja-geo-status" class="tracking-geo-status">--</small>
             </div>
 
+            <div id="track-loja-devolucoes"></div>
+
             <div class="tracking-stale-banner" id="track-loja-stale-banner" style="display:none;">
                 <p>O entregador aceitou a rota mas ainda não iniciou nenhuma entrega há bastante tempo.</p>
                 <button type="button" class="tracking-btn ghost full" onclick="liberarRotaParadaLojista()">Liberar rota para outro entregador</button>
@@ -541,6 +543,11 @@
             <div class="rota-detalhe-id-row">
                 <strong id="rota-detalhe-id">--</strong>
                 <span id="rota-detalhe-status" class="rota-main-status status-buscando">BUSCANDO</span>
+            </div>
+
+            <div id="rota-detalhe-coleta-aviso" class="rota-detalhe-coleta-aviso hidden" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:#fffaf5; border:1px solid var(--brand-orange); border-radius:14px; padding:12px 14px; margin-bottom:14px;">
+                <span style="font-size:13px; font-weight:700; color:#0f172a;">Informe este código ao entregador para liberar a retirada:</span>
+                <strong id="rota-detalhe-codigo-coleta" style="font-size:18px; letter-spacing:1px; color:var(--brand-orange);">----</strong>
             </div>
 
             <div class="rota-detalhe-summary-grid">
@@ -911,6 +918,31 @@
                 </div>
             </div>
 
+            <div class="form-group" id="grupo-cobranca-entrega">
+                <span class="section-title">Cobrar do cliente na entrega?</span>
+                <div class="cobranca-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="select-box active" id="cobranca-entrega-nao" onclick="definirCobrancaEntregaAtiva(false)">
+                        <strong>Não</strong>
+                        <span>Já foi pago</span>
+                    </div>
+                    <div class="select-box" id="cobranca-entrega-sim" onclick="definirCobrancaEntregaAtiva(true)">
+                        <strong>Sim</strong>
+                        <span>Cobrar na entrega</span>
+                    </div>
+                </div>
+                <div class="cobranca-grid" id="grupo-cobranca-entrega-formas" style="display: none; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                    <div class="select-box active" id="cobranca-forma-dinheiro" onclick="alternarFormaCobrancaEntrega('dinheiro', this)">
+                        <i data-lucide="banknote" size="20"></i>
+                        <strong>Dinheiro</strong>
+                    </div>
+                    <div class="select-box active" id="cobranca-forma-pix" onclick="alternarFormaCobrancaEntrega('pix', this)">
+                        <i data-lucide="qr-code" size="20"></i>
+                        <strong>Pix</strong>
+                    </div>
+                </div>
+                <span style="font-size: 11px; color: #94a3b8; font-weight: 600; display: block; margin-top: 8px;">O entregador vai coletar o valor total acima do cliente e repassar para você.</span>
+            </div>
+
             <div class="form-group">
                 <span class="section-title">Observações (Opcional)</span>
                 <div class="input-wrapper">
@@ -1169,6 +1201,16 @@
                 <span id="envio-detalhe-whatsapp" class="envio-detalhe-whatsapp">--</span>
             </div>
 
+            <div id="envio-detalhe-devolucao-aviso" class="rota-detalhe-coleta-aviso hidden" style="display:none; flex-direction:column; align-items:flex-start; gap:8px; background:#fef2f2; border:1px solid #fecaca; border-radius:14px; padding:12px 14px; margin-bottom:14px;">
+                <span style="font-size:13px; font-weight:700; color:#991b1b;">O entregador não conseguiu entregar este pedido:</span>
+                <span id="envio-detalhe-devolucao-motivo" style="font-size:13px; font-weight:600; color:#0f172a;">--</span>
+                <button type="button" class="ent-sheet-primary small" style="width:auto; padding:10px 16px;" onclick="confirmarDevolucaoComoLojista(envioDetalheAtualId)">Confirmar devolução</button>
+            </div>
+            <div id="envio-detalhe-devolucao-codigo" class="rota-detalhe-coleta-aviso hidden" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:#fffaf5; border:1px solid var(--brand-orange); border-radius:14px; padding:12px 14px; margin-bottom:14px;">
+                <span style="font-size:13px; font-weight:700; color:#0f172a;">Informe este código ao entregador quando ele voltar à loja:</span>
+                <strong id="envio-detalhe-codigo-devolucao" style="font-size:18px; letter-spacing:1px; color:var(--brand-orange);">----</strong>
+            </div>
+
             <div class="envio-detalhe-info-list">
                 <div class="envio-detalhe-info-row"><span>Distância</span><strong id="envio-detalhe-distancia">--</strong></div>
                 <div class="envio-detalhe-info-row"><span>Duração</span><strong id="envio-detalhe-duracao">--</strong></div>
@@ -1177,6 +1219,7 @@
                 <div class="envio-detalhe-info-row"><span>Valor do frete</span><strong id="envio-detalhe-valor-frete">--</strong></div>
                 <div class="envio-detalhe-info-row"><span>Tamanho do pacote</span><strong id="envio-detalhe-tamanho">--</strong></div>
                 <div class="envio-detalhe-info-row"><span>Valor do conteúdo</span><strong id="envio-detalhe-valor-conteudo">--</strong></div>
+                <div class="envio-detalhe-info-row" id="envio-detalhe-cobranca-row" style="display:none;"><span>Cobrança na entrega</span><strong id="envio-detalhe-cobranca">--</strong></div>
             </div>
 
             <div class="envio-detalhe-section">

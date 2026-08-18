@@ -10,7 +10,24 @@
       "Bash(grep -n \"^function \\\\|^async function \\\\|^// ====\\\\|^//====\\\\|^/\\\\*\\\\*\\\\*\\\\|^// ---\" app.js)",
       "Bash(awk '{print $2}')",
       "Bash(awk -F'|' '{print $1}')",
-      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")"
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")",
+      "Bash(npm run *)",
+      "Bash(node --check index.js)",
+      "Bash(firebase --version)",
+      "Bash(firebase projects:list)",
+      "Bash(firebase database:get \"/usuarios\" --project flexa-app-41205 --shallow)",
+      "Bash(firebase database:get /usuarios --project flexa-app-41205 --shallow)",
+      "Bash(MSYS_NO_PATHCONV=1 firebase database:get /usuarios --project flexa-app-41205 --shallow)",
+      "Bash(node 'C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-User-Documents-webflexa\\\\8895fc60-adfe-42d4-bf46-60c4d7f28c50\\\\scratchpad/inspect_rota.js' 'C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-User-Documents-webflexa\\\\8895fc60-adfe-42d4-bf46-60c4d7f28c50\\\\scratchpad/rota.json')",
+      "Bash(MSYS_NO_PATHCONV=1 firebase database:get \"/usuarios/i2q2aQRSlCSVdYmz06n7zSARQO43/pacotes/envio-1786648335513\" --project flexa-app-41205)",
+      "Bash(MSYS_NO_PATHCONV=1 firebase database:get \"/usuarios/i2q2aQRSlCSVdYmz06n7zSARQO43/clientes/cli-1775056112425/historico\" --project flexa-app-41205)",
+      "Bash(firebase hosting:sites:list --project flexa-app-41205)",
+      "Bash(netstat -ano)",
+      "PowerShell(Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -eq 5500 -or $_.LocalPort -eq 5501 } | Select-Object LocalPort, OwningProcess | ForEach-Object { $_; Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, Path })",
+      "Bash(MSYS_NO_PATHCONV=1 firebase database:get \"/usuarios/i2q2aQRSlCSVdYmz06n7zSARQO43/clientes/cli-1775056112425/historico/0/devolucaoStatus\" --project flexa-app-41205)",
+      "Bash(gcloud config *)",
+      "Bash(gcloud auth *)",
+      "Bash(node -c src/legacy-monolith.js)"
     ]
   }
 }

@@ -82,6 +82,35 @@ async function routeGoogleDistanceMatrix(origin, destination) {
   };
 }
 
+// Este app grava envio em DOIS modelos de dados dependendo de qual fluxo criou
+// ele: usuarios/{uid}/pacotes/{id} (modelo novo) ou usuarios/{uid}/clientes/{c}/historico[]
+// (modelo antigo, usado pelo fluxo padrão "Novo Envio" do lojista). Resolve o
+// envio em qualquer um dos dois e devolve o path certo pra gravar depois — sem
+// isso, um envio do modelo antigo nunca é encontrado por estas rotas de
+// pagamento. Ver project-flexa-cobranca-entrega-dinheiro (mesmo bug já existia
+// no frontend em persistirEntregaPacoteAtual).
+async function resolverEnvioLojista(tenantId, envioId) {
+  const pacoteSnap = await db.ref(`usuarios/${tenantId}/pacotes/${envioId}`).once('value');
+  if (pacoteSnap.exists()) {
+    return { dados: pacoteSnap.val(), path: `usuarios/${tenantId}/pacotes/${envioId}` };
+  }
+
+  const clientesSnap = await db.ref(`usuarios/${tenantId}/clientes`).once('value');
+  const clientesNo = clientesSnap.val() || {};
+  for (const clienteId of Object.keys(clientesNo)) {
+    const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
+    for (let idx = 0; idx < historico.length; idx += 1) {
+      const h = historico[idx];
+      const idAtual = String(h?.id || `envio-${clienteId}-${idx}`);
+      if (idAtual === envioId) {
+        return { dados: h, path: `usuarios/${tenantId}/clientes/${clienteId}/historico/${idx}` };
+      }
+    }
+  }
+
+  return { dados: null, path: null };
+}
+
 async function canAccessTenant(requester, tenantId) {
   if (!requester) return false;
 
@@ -232,7 +261,8 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  if (path !== '/create-pix' && path !== '/check-pix') {
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao'];
+  if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
 
@@ -317,6 +347,298 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         ticketUrl: tx.ticket_url || '',
         qrCodeBase64: tx.qr_code_base64 || '',
         totalFrete: total,
+        ambiente
+      });
+    }
+
+    // Cobranca na entrega: o ENTREGADOR gera o Pix pro cliente pagar no ato da
+    // entrega (nunca passa pela mao dele — vai direto pro lojista/plataforma via
+    // MP, por isso nao cria divida nenhuma). Ver project-flexa-cobranca-entrega-dinheiro.
+    if (path === '/create-pix-cobranca') {
+      const { tenantId, rotaId, envioId, valor: valorSolicitado } = req.body || {};
+      if (!tenantId || !rotaId || !envioId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
+      }
+
+      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
+      const rota = rotaSnap.val();
+      if (!rota) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+      const isEntregadorDaRota = Boolean(entregadorId) && requester.uid === entregadorId;
+      const allowed = isEntregadorDaRota || await canAccessTenant(requester, tenantId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      // valor-teto sempre recalculado a partir do envio persistido, nunca do que
+      // o app mandar. O app PODE pedir um valor menor (pagamento misto — parte já
+      // recebida em dinheiro, ver project-flexa-cobranca-entrega-dinheiro), nunca maior.
+      const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(tenantId, envioId);
+      const cobranca = pacote?.cobrancaEntrega;
+      const valorTotalCobranca = Number(cobranca?.valor);
+      if (!pacote || !cobranca?.ativa || !Number.isFinite(valorTotalCobranca) || valorTotalCobranca <= 0) {
+        return res.status(422).json({ error: 'Envio sem cobrança na entrega ativa' });
+      }
+      if (!Array.isArray(cobranca.formasAceitas) || !cobranca.formasAceitas.includes('pix')) {
+        return res.status(422).json({ error: 'Pix não habilitado para este envio' });
+      }
+      if (cobranca.status && cobranca.status !== 'pendente') {
+        return res.status(409).json({ error: 'Cobrança já processada para este envio' });
+      }
+      const valorPedido = Number(valorSolicitado);
+      const valorCobranca = Number.isFinite(valorPedido) && valorPedido > 0 && valorPedido <= valorTotalCobranca
+        ? valorPedido
+        : valorTotalCobranca;
+
+      const nomeCliente = String(pacote?.destinatario || 'Cliente Flexa').trim() || 'Cliente Flexa';
+      const [firstNameCliente, ...restoNomeCliente] = nomeCliente.split(' ');
+      const lastNameCliente = restoNomeCliente.join(' ') || 'Flexa';
+
+      const mpData = await criarPagamentoPixMp(token, {
+        valor: valorCobranca,
+        descricao: `Flexa - cobrança na entrega (pedido ${envioId})`,
+        payerEmail: `cliente-${envioId}@flexa.app`,
+        payerFirstName: firstNameCliente || 'Cliente',
+        payerLastName: lastNameCliente,
+        externalReference: `${rotaId}:${envioId}`,
+        idempotencyKey: `${tenantId}-${rotaId}-${envioId}-${Date.now()}`
+      });
+
+      const tx = mpData?.point_of_interaction?.transaction_data || {};
+      const pixCode = tx.qr_code || '';
+      if (!pixCode) {
+        return res.status(502).json({ error: 'Mercado Pago não retornou código Pix Copia e Cola' });
+      }
+
+      const paymentId = String(mpData?.id || '');
+      await db.ref(`mp_payments/${paymentId}`).set({
+        tenantId,
+        rotaId,
+        envioId,
+        entregadorId,
+        tipo: 'cobranca_entrega',
+        total: valorCobranca,
+        ambiente,
+        criadoEm: Date.now()
+      });
+      await db.ref(`${pacotePath}/cobrancaEntrega/pixPaymentId`).set(paymentId);
+
+      return res.status(200).json({
+        paymentId,
+        status: mpData?.status || 'pending',
+        statusDetail: mpData?.status_detail || '',
+        pixCode,
+        ticketUrl: tx.ticket_url || '',
+        qrCodeBase64: tx.qr_code_base64 || '',
+        valor: valorCobranca,
+        ambiente
+      });
+    }
+
+    if (path === '/check-pix-cobranca') {
+      const { tenantId, paymentId } = req.body || {};
+      if (!tenantId || !paymentId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'paymentId'] });
+      }
+
+      const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
+      const registro = registroSnap.val();
+      if (!registro || String(registro.tenantId) !== String(tenantId) || registro.tipo !== 'cobranca_entrega') {
+        return res.status(404).json({ error: 'Pagamento não encontrado para este tenant' });
+      }
+
+      const isEntregadorDoPagamento = Boolean(registro.entregadorId) && requester.uid === registro.entregadorId;
+      const allowed = isEntregadorDoPagamento || await canAccessTenant(requester, tenantId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden tenant access' });
+      }
+
+      const data = await consultarPagamentoPixMp(token, paymentId);
+      const statusPagamento = data?.status || 'pending';
+
+      if (statusPagamento === 'approved') {
+        // O Pix da cobrança na entrega é pago pelo cliente e vira CRÉDITO NA
+        // CARTEIRA DO LOJISTA (tenantId) — o produto é dele, o entregador só
+        // intermediou a cobrança e nunca chega a segurar esse dinheiro (por isso
+        // não gera dívida, diferente do dinheiro em espécie). O lojista depois
+        // solicita separadamente que a plataforma repasse esse saldo pro Pix dele
+        // (fluxo de saque, fora deste endpoint). Decisão do dono, 2026-08-16 —
+        // ver project-flexa-cobranca-entrega-dinheiro. Protegido por marcador pra
+        // não creditar duas vezes se o polling chamar de novo depois de aprovado.
+        const { path: envioPath } = await resolverEnvioLojista(tenantId, registro.envioId);
+        if (envioPath) {
+          const marcadorRef = db.ref(`${envioPath}/cobrancaEntrega/creditoEfetuadoEm`);
+          const marcadorSnap = await marcadorRef.once('value');
+          if (!marcadorSnap.val()) {
+            const saldoRef = db.ref(`usuarios/${tenantId}/financeiro/saldo`);
+            const saldoSnap = await saldoRef.once('value');
+            const saldoAntes = Number(saldoSnap.val() || 0);
+            const saldoDepois = Number((saldoAntes + registro.total).toFixed(2));
+            await saldoRef.set(saldoDepois);
+            await marcadorRef.set(Date.now());
+            await db.ref(`usuarios/${tenantId}/financeiro/transacoes`).push({
+              tipo: 'CREDITO',
+              valor: registro.total,
+              descricao: `Cobrança na entrega recebida via Pix (pedido #${registro.envioId})`,
+              criadoEm: Date.now()
+            });
+            await db.ref(`${envioPath}/cobrancaEntrega`).update({
+              status: 'pago',
+              pagoEm: Date.now()
+            });
+          }
+        }
+      }
+
+      return res.status(200).json({
+        paymentId,
+        status: statusPagamento,
+        statusDetail: data?.status_detail || '',
+        ambiente
+      });
+    }
+
+    // Devolucao: entrega falhou (cliente nao pagou, ausente, endereco errado,
+    // recusou, etc), entregador leva o pacote de volta pra loja. O entregador
+    // recebe o frete normal da rota de qualquer forma (ver creditarCarteiraEntregadorRotaFinalizada
+    // no frontend); esta cobranca aqui e um EXTRA que o LOJISTA paga pelo frete
+    // da viagem de volta, cobrado na hora via Pix (payer = lojista, igual o
+    // pagamento de rota), creditado direto no saldo do entregador quando aprovado.
+    // Ver project-flexa-cobranca-entrega-dinheiro.
+    if (path === '/create-pix-devolucao') {
+      const { tenantId, rotaId, envioId } = req.body || {};
+      if (!tenantId || !rotaId || !envioId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
+      }
+
+      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
+      const rota = rotaSnap.val();
+      if (!rota) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+      const isEntregadorDaRota = Boolean(entregadorId) && requester.uid === entregadorId;
+      const allowed = isEntregadorDaRota || await canAccessTenant(requester, tenantId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(tenantId, envioId);
+      if (!pacote || pacote.devolucaoStatus !== 'DEVOLUCAO_CONFIRMADA') {
+        return res.status(422).json({ error: 'Envio sem devolução confirmada pelo lojista' });
+      }
+
+      const valorFreteVolta = Number(pacote.valorFrete);
+      if (!Number.isFinite(valorFreteVolta) || valorFreteVolta <= 0) {
+        return res.status(422).json({ error: 'Frete do envio inválido para cobrança de devolução' });
+      }
+
+      const usuarioSnap = await db.ref(`usuarios/${tenantId}`).once('value');
+      const usuario = usuarioSnap.val() || {};
+      const nomeLojista = String(usuario?.nome || 'Lojista Flexa').trim() || 'Lojista Flexa';
+      const [firstNameLojista, ...restoNomeLojista] = nomeLojista.split(' ');
+      const lastNameLojista = restoNomeLojista.join(' ') || 'Flexa';
+      const payerEmailLojista = String(usuario?.email || requester.email || 'pagador@flexa.app');
+
+      const mpData = await criarPagamentoPixMp(token, {
+        valor: valorFreteVolta,
+        descricao: `Flexa - frete de devolução (pedido ${envioId})`,
+        payerEmail: payerEmailLojista,
+        payerFirstName: firstNameLojista || 'Lojista',
+        payerLastName: lastNameLojista,
+        externalReference: `devolucao:${rotaId}:${envioId}`,
+        idempotencyKey: `${tenantId}-${rotaId}-${envioId}-devolucao-${Date.now()}`
+      });
+
+      const tx = mpData?.point_of_interaction?.transaction_data || {};
+      const pixCode = tx.qr_code || '';
+      if (!pixCode) {
+        return res.status(502).json({ error: 'Mercado Pago não retornou código Pix Copia e Cola' });
+      }
+
+      const paymentId = String(mpData?.id || '');
+      await db.ref(`mp_payments/${paymentId}`).set({
+        tenantId,
+        rotaId,
+        envioId,
+        entregadorId,
+        tipo: 'devolucao_frete',
+        total: valorFreteVolta,
+        ambiente,
+        criadoEm: Date.now()
+      });
+      await db.ref(`${pacotePath}/devolucaoPixPaymentId`).set(paymentId);
+
+      return res.status(200).json({
+        paymentId,
+        status: mpData?.status || 'pending',
+        statusDetail: mpData?.status_detail || '',
+        pixCode,
+        ticketUrl: tx.ticket_url || '',
+        qrCodeBase64: tx.qr_code_base64 || '',
+        valor: valorFreteVolta,
+        ambiente
+      });
+    }
+
+    if (path === '/check-pix-devolucao') {
+      const { tenantId, paymentId } = req.body || {};
+      if (!tenantId || !paymentId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'paymentId'] });
+      }
+
+      const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
+      const registro = registroSnap.val();
+      if (!registro || String(registro.tenantId) !== String(tenantId) || registro.tipo !== 'devolucao_frete') {
+        return res.status(404).json({ error: 'Pagamento não encontrado para este tenant' });
+      }
+
+      const isEntregadorDoPagamento = Boolean(registro.entregadorId) && requester.uid === registro.entregadorId;
+      const allowed = isEntregadorDoPagamento || await canAccessTenant(requester, tenantId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden tenant access' });
+      }
+
+      const data = await consultarPagamentoPixMp(token, paymentId);
+      const statusPagamento = data?.status || 'pending';
+
+      if (statusPagamento === 'approved') {
+        // credita o entregador pelo frete extra da volta — leitura+gravacao (nao
+        // .transaction(), mesmo motivo documentado em ajustarSaldoUsuario no
+        // frontend) protegida por um marcador pra nao creditar duas vezes.
+        // O Pix pago libera o CODIGO de confirmacao pro lojista dar ao entregador
+        // na hora que ele voltar na loja com o pacote; devolucaoStatus so vira
+        // DEVOLVIDO quando esse codigo e confirmado (feito no frontend, em
+        // confirmarCodigoDevolucaoPacoteAtual) — nao aqui. Isso evita liberar a
+        // confirmacao antes do frete de volta ter sido de fato pago. Ver
+        // project-flexa-cobranca-entrega-dinheiro (pedido do dono 2026-08-15).
+        const { path: envioPath } = await resolverEnvioLojista(tenantId, registro.envioId);
+        if (envioPath) {
+          const marcadorRef = db.ref(`${envioPath}/devolucaoCreditoEfetuadoEm`);
+          const marcadorSnap = await marcadorRef.once('value');
+          if (!marcadorSnap.val()) {
+            const saldoRef = db.ref(`usuarios/${registro.entregadorId}/financeiro/saldo`);
+            const saldoSnap = await saldoRef.once('value');
+            const saldoAntes = Number(saldoSnap.val() || 0);
+            const saldoDepois = Number((saldoAntes + registro.total).toFixed(2));
+            await saldoRef.set(saldoDepois);
+            await marcadorRef.set(Date.now());
+            const codigoDevolucao = String(Math.floor(1000 + Math.random() * 9000));
+            await db.ref(envioPath).update({
+              devolucaoStatus: 'DEVOLUCAO_PIX_PAGO',
+              codigoConfirmacaoDevolucao: codigoDevolucao,
+              devolucaoFretePagoEm: Date.now()
+            });
+          }
+        }
+      }
+
+      return res.status(200).json({
+        paymentId,
+        status: statusPagamento,
+        statusDetail: data?.status_detail || '',
         ambiente
       });
     }

@@ -14,6 +14,7 @@
     abrirEditarCliente: () => abrirEditarCliente,
     abrirFaleConosco: () => abrirFaleConosco,
     abrirHistoricoDoClienteAtual: () => abrirHistoricoDoClienteAtual,
+    abrirMapaColetaLoja: () => abrirMapaColetaLoja,
     abrirModalAcoesCliente: () => abrirModalAcoesCliente,
     abrirModalDetalheEnvio: () => abrirModalDetalheEnvio,
     abrirModalDetalheRota: () => abrirModalDetalheRota,
@@ -55,6 +56,7 @@
     agendarBuscaCepLoja: () => agendarBuscaCepLoja,
     ajustarSaldoUsuario: () => ajustarSaldoUsuario,
     alternarAuth: () => alternarAuth,
+    alternarFormaCobrancaEntrega: () => alternarFormaCobrancaEntrega,
     alternarStatusUsuarioMaster: () => alternarStatusUsuarioMaster,
     animarAtivacaoItemMenu: () => animarAtivacaoItemMenu,
     aplicarFiltroRotaEntregador: () => aplicarFiltroRotaEntregador,
@@ -79,6 +81,7 @@
     atualizarMapaTrackingLoja: () => atualizarMapaTrackingLoja,
     atualizarPrecoEstimadoAtual: () => atualizarPrecoEstimadoAtual,
     atualizarPrecosCardsVeiculo: () => atualizarPrecosCardsVeiculo,
+    atualizarRestantePixCobranca: () => atualizarRestantePixCobranca,
     atualizarResumoModalDetalheRota: () => atualizarResumoModalDetalheRota,
     atualizarResumoRota: () => atualizarResumoRota,
     atualizarResumoSelecaoRota: () => atualizarResumoSelecaoRota,
@@ -111,13 +114,20 @@
     cobrarTaxaCancelamentoEnvio: () => cobrarTaxaCancelamentoEnvio,
     coletarEnviosDaBase: () => coletarEnviosDaBase,
     coletarEnviosPendentesParaRota: () => coletarEnviosPendentesParaRota,
+    confirmarCodigoDevolucaoPacoteAtual: () => confirmarCodigoDevolucaoPacoteAtual,
+    confirmarColetaPacotes: () => confirmarColetaPacotes,
+    confirmarDevolucaoComoLojista: () => confirmarDevolucaoComoLojista,
     confirmarEntregaPacoteAtual: () => confirmarEntregaPacoteAtual,
     confirmarEnvioFinal: () => confirmarEnvioFinal,
     confirmarExclusaoEnvio: () => confirmarExclusaoEnvio,
     confirmarExclusaoRota: () => confirmarExclusaoRota,
+    confirmarPagamentoMistoCobranca: () => confirmarPagamentoMistoCobranca,
     confirmarPagamentoRota: () => confirmarPagamentoRota,
+    confirmarRecebimentoDinheiro: () => confirmarRecebimentoDinheiro,
     consultarPagamentoPixMercadoPago: () => consultarPagamentoPixMercadoPago,
     consultarPagamentoPixTesteClienteLocal: () => consultarPagamentoPixTesteClienteLocal,
+    copiarCodigoPixCobrancaEntrega: () => copiarCodigoPixCobrancaEntrega,
+    copiarCodigoPixDevolucaoLojista: () => copiarCodigoPixDevolucaoLojista,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
     creditarCarteiraEntregadorRotaFinalizada: () => creditarCarteiraEntregadorRotaFinalizada,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
@@ -126,6 +136,7 @@
     criarPagamentoPixMercadoPago: () => criarPagamentoPixMercadoPago,
     criarPagamentoPixTesteClienteLocal: () => criarPagamentoPixTesteClienteLocal,
     debitarSaldoUsuarioAtual: () => debitarSaldoUsuarioAtual,
+    definirCobrancaEntregaAtiva: () => definirCobrancaEntregaAtiva,
     desfazerExclusaoCliente: () => desfazerExclusaoCliente,
     desistirRotaEntregador: () => desistirRotaEntregador,
     detalheRotaParaTexto: () => detalheRotaParaTexto,
@@ -188,6 +199,7 @@
     gerarIdRota: () => gerarIdRota,
     gerarIdempotencyKeyTesteLocal: () => gerarIdempotencyKeyTesteLocal,
     gerarIniciais: () => gerarIniciais,
+    gerarPixCobrancaEntrega: () => gerarPixCobrancaEntrega,
     getChavePacoteRota: () => getChavePacoteRota,
     getClienteById: () => getClienteById,
     getEtapaRastreamento: () => getEtapaRastreamento,
@@ -209,6 +221,7 @@
     handleSelectorTouchMove: () => handleSelectorTouchMove,
     handleSelectorTouchStart: () => handleSelectorTouchStart,
     iniciarCorridaPacoteAtual: () => iniciarCorridaPacoteAtual,
+    iniciarFluxoDevolucao: () => iniciarFluxoDevolucao,
     iniciarListenerGeoTrackingLoja: () => iniciarListenerGeoTrackingLoja,
     iniciarListenerHomeEntregador: () => iniciarListenerHomeEntregador,
     iniciarListenerMarketplaceEntregador: () => iniciarListenerMarketplaceEntregador,
@@ -303,6 +316,7 @@
     pacoteAbertoParaChat: () => pacoteAbertoParaChat,
     pacoteConcluidoOuCanceladoNoSheet: () => pacoteConcluidoOuCanceladoNoSheet,
     pagarComPix: () => pagarComPix,
+    pagarDevolucaoComSaldo: () => pagarDevolucaoComSaldo,
     pagarRotaComSaldo: () => pagarRotaComSaldo,
     paginaAnteriorDetalheRota: () => paginaAnteriorDetalheRota,
     pararListenerGeoTrackingLoja: () => pararListenerGeoTrackingLoja,
@@ -374,6 +388,7 @@
     setTicketPagamentoPixRota: () => setTicketPagamentoPixRota,
     setUltimoErroRota: () => setUltimoErroRota,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
+    solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
     switchAdminTab: () => switchAdminTab,
     telaInicialPorTipoUsuario: () => telaInicialPorTipoUsuario,
     telaPerfilPorTipoUsuario: () => telaPerfilPorTipoUsuario,
@@ -624,6 +639,9 @@
   function notificarErro(mensagem = "Falha inesperada. Tente novamente.") {
     return notificarApp(mensagem, { tipo: "error", duracao: 3600 });
   }
+  function notificarSucesso(mensagem = "Opera\xE7\xE3o conclu\xEDda.") {
+    return notificarApp(mensagem, { tipo: "success", duracao: 2600 });
+  }
   var alertaNativo = typeof window !== "undefined" && typeof window.alert === "function" ? window.alert.bind(window) : null;
   if (typeof window !== "undefined") {
     window.alertNativo = alertaNativo;
@@ -671,6 +689,8 @@
   var rotaEntSheetRotaAtual = null;
   var rotaEntSheetTouchStartX = 0;
   var rotaEntSheetTouchStartY = 0;
+  var pixCobrancaEntregaAtual = null;
+  var pixCobrancaEntregaPollTimer = null;
   var lojistaLogoCache = {};
   var rotaEntregadorProgresso = {};
   var rotaSwipeStartX = 0;
@@ -822,9 +842,6 @@
     }, {});
     await db.ref(`usuarios/${uid}/clientes`).set(map);
   }
-  // Confere se o resultado do Google Geocoding bate com a cidade/UF esperada — usado
-  // pelos dois geocodificadores (por campos estruturados e por texto livre) pra não
-  // aceitar silenciosamente um endereço na cidade/bairro errado.
   function geocodeBateComCidadeUf(primeiro, cityEsperada, ufEsperada) {
     const cityEsp = normalizarTexto(cityEsperada || "");
     const ufEsp = normalizarUf(ufEsperada || "");
@@ -1064,12 +1081,14 @@
     resumoRevisaoAtual.valorConteudo = null;
     resumoRevisaoAtual.descricao = "";
     resumoRevisaoAtual.observacoes = "";
+    resumoRevisaoAtual.cobrancaEntrega = null;
     const inputDesc = document.getElementById("input-desc");
     const inputValor = document.getElementById("input-valor");
     const inputObs = document.getElementById("input-obs-envio");
     if (inputDesc) inputDesc.value = "";
     if (inputValor) inputValor.value = "";
     if (inputObs) inputObs.value = "";
+    resetarCobrancaEntregaFormulario();
     if (cliente && !resumoRevisaoAtual.destinoGeo) {
       garantirGeoClienteSelecionado().catch(() => {
       });
@@ -1137,12 +1156,14 @@
         const totalFrete = Number.isFinite(resumoRevisaoAtual.totalFrete) ? resumoRevisaoAtual.totalFrete : parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
         const valorConteudo = Number.isFinite(resumoRevisaoAtual.valorConteudo) ? resumoRevisaoAtual.valorConteudo : parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
         const observacoes = (resumoRevisaoAtual.observacoes || document.getElementById("input-obs-envio")?.value || clientes[idx].obs || "").trim();
+        const cobrancaEntrega = resumoRevisaoAtual.cobrancaEntrega?.ativa ? resumoRevisaoAtual.cobrancaEntrega : null;
         const pacoteObj = {
           id: pedidoId,
           codigoConfirmacaoEntrega,
           criadoEm: Date.now(),
           descricao: desc,
           observacoes,
+          cobrancaEntrega,
           valorConteudo: Number(valorConteudo.toFixed(2)),
           valorFrete: Number(totalFrete.toFixed(2)),
           servico,
@@ -1276,22 +1297,9 @@
       const idx = clientes.findIndex((c) => c.id === clienteEmEdicaoId);
       if (idx >= 0) {
         const clienteAtual = clientes[idx];
-        const enderecoMudou = (
-          cepLimpo !== (clienteAtual.cep || "") ||
-          rua.trim() !== (clienteAtual.rua || "") ||
-          num.trim() !== (clienteAtual.num || "") ||
-          bairro.trim() !== (clienteAtual.bairro || "") ||
-          cidade.trim() !== (clienteAtual.cidade || "") ||
-          ufNormalizada !== (clienteAtual.uf || "") ||
-          comp.trim() !== (clienteAtual.comp || "")
-        );
-        // Envios já criados sempre guardam o endereço de quando foram feitos (rastreabilidade
-        // — não é atualizado retroativamente). Mas enquanto o cliente tem uma entrega EM ROTA
-        // agora, mudar o endereço no cadastro criaria uma divergência perigosa entre pra onde o
-        // entregador está indo e o endereço "oficial" do cliente — por isso, bloqueia a edição
-        // do endereço (não o resto do cadastro) até a entrega em andamento terminar.
+        const enderecoMudou = cepLimpo !== (clienteAtual.cep || "") || rua.trim() !== (clienteAtual.rua || "") || num.trim() !== (clienteAtual.num || "") || bairro.trim() !== (clienteAtual.bairro || "") || cidade.trim() !== (clienteAtual.cidade || "") || ufNormalizada !== (clienteAtual.uf || "") || comp.trim() !== (clienteAtual.comp || "");
         if (enderecoMudou && clienteTemEnvioEmRota(clienteEmEdicaoId)) {
-          alert("Este cliente tem uma entrega em rota agora. O endereço não pode ser alterado até essa entrega ser concluída (envios já criados mantêm sempre o endereço de quando foram feitos).");
+          alert("Este cliente tem uma entrega em rota agora. O endere\xE7o n\xE3o pode ser alterado at\xE9 essa entrega ser conclu\xEDda (envios j\xE1 criados mant\xEAm sempre o endere\xE7o de quando foram feitos).");
           return;
         }
         clientes[idx] = {
@@ -1353,7 +1361,7 @@
       renderClientesSelector(document.getElementById("buscar-cliente")?.value || "");
     }
     if (geoFalhouAoSalvar) {
-      alert("Cliente salvo, mas não foi possível localizar esse endereço no mapa agora (confira rua, número, bairro, cidade e CEP). O sistema vai tentar de novo automaticamente, mas por enquanto o mapa do entregador pode não abrir no lugar certo para esse cliente.");
+      alert("Cliente salvo, mas n\xE3o foi poss\xEDvel localizar esse endere\xE7o no mapa agora (confira rua, n\xFAmero, bairro, cidade e CEP). O sistema vai tentar de novo automaticamente, mas por enquanto o mapa do entregador pode n\xE3o abrir no lugar certo para esse cliente.");
     }
     irParaPasso2(clienteSelecionadoId, nome, enderecoCompleto, tel);
     fecharModalNovoCliente();
@@ -1690,9 +1698,6 @@
     const minimoServico = TAXA_MINIMA[servico] || TAXA_MINIMA.Standard;
     return Number(Math.max(0, minimoServico, base + ajuste).toFixed(2));
   }
-  // cidadeEsperada/ufEsperada são opcionais — quando informados, o resultado é
-  // validado com a mesma checagem usada em geocodificarPorCampos (não aceita
-  // silenciosamente um endereço em cidade/UF diferente da esperada).
   async function geocodificarEndereco(endereco, cidadeEsperada = "", ufEsperada = "") {
     if (!endereco) return null;
     if (!GOOGLE_MAPS_KEY) return null;
@@ -2028,12 +2033,48 @@
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : 0;
     veiculoPrecoSelecionado = precoParaMoeda(calcularFreteEstimado({ servico, veiculo: tipo, distanciaKm }));
   }
+  function definirCobrancaEntregaAtiva(ativa) {
+    const boxNao = document.getElementById("cobranca-entrega-nao");
+    const boxSim = document.getElementById("cobranca-entrega-sim");
+    const grupoFormas = document.getElementById("grupo-cobranca-entrega-formas");
+    if (boxNao) boxNao.classList.toggle("active", !ativa);
+    if (boxSim) boxSim.classList.toggle("active", ativa);
+    if (grupoFormas) grupoFormas.style.display = ativa ? "grid" : "none";
+  }
+  function alternarFormaCobrancaEntrega(forma, el) {
+    if (!el) return;
+    const outroId = forma === "dinheiro" ? "cobranca-forma-pix" : "cobranca-forma-dinheiro";
+    const outro = document.getElementById(outroId);
+    const estaAtivo = el.classList.contains("active");
+    if (estaAtivo && !(outro && outro.classList.contains("active"))) return;
+    el.classList.toggle("active");
+  }
+  function resetarCobrancaEntregaFormulario() {
+    definirCobrancaEntregaAtiva(false);
+    document.getElementById("cobranca-forma-dinheiro")?.classList.add("active");
+    document.getElementById("cobranca-forma-pix")?.classList.add("active");
+  }
+  function lerCobrancaEntregaDoFormulario() {
+    const ativa = Boolean(document.getElementById("cobranca-entrega-sim")?.classList.contains("active"));
+    if (!ativa) return { ativa: false, formasAceitas: [], valor: 0, status: "pendente" };
+    const formasAceitas = [];
+    if (document.getElementById("cobranca-forma-dinheiro")?.classList.contains("active")) formasAceitas.push("dinheiro");
+    if (document.getElementById("cobranca-forma-pix")?.classList.contains("active")) formasAceitas.push("pix");
+    const valor = parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
+    return {
+      ativa: true,
+      formasAceitas: formasAceitas.length ? formasAceitas : ["dinheiro", "pix"],
+      valor: Number.isFinite(valor) ? Number(valor.toFixed(2)) : 0,
+      status: "pendente"
+    };
+  }
   async function irParaVeiculos() {
     const inputDesc = (document.getElementById("input-desc")?.value || "").trim();
     const inputValorConteudo = parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
     resumoRevisaoAtual.descricao = inputDesc;
     resumoRevisaoAtual.valorConteudo = Number.isFinite(inputValorConteudo) ? inputValorConteudo : 0;
     resumoRevisaoAtual.observacoes = (document.getElementById("input-obs-envio")?.value || "").trim();
+    resumoRevisaoAtual.cobrancaEntrega = lerCobrancaEntregaDoFormulario();
     setModalEnvioStep(2);
     await garantirEstimativaAtual();
     atualizarPrecoEstimadoAtual();
@@ -2066,7 +2107,15 @@
       veiculo: veiculoSelecionado,
       descricao: resumoRevisaoAtual.descricao || "",
       observacoes: (document.getElementById("input-obs-envio")?.value || resumoRevisaoAtual.observacoes || "").trim(),
-      freteTesteOverride: resumoRevisaoAtual.freteTesteOverride || null
+      freteTesteOverride: resumoRevisaoAtual.freteTesteOverride || null,
+      // Bug encontrado 2026-08-16: esse objeto era recriado do zero aqui e
+      // esses dois campos (setados 2 passos atrás, em irParaVeiculos) ficavam
+      // pra trás — cobrancaEntrega virava undefined silenciosamente (sem
+      // fallback nenhum, ao contrário de valorConteudo, que só "funcionava"
+      // por acidente lendo direto do input escondido no DOM). Confirmado com
+      // os logs de diagnóstico no console (ver lerCobrancaEntregaDoFormulario).
+      valorConteudo: resumoRevisaoAtual.valorConteudo,
+      cobrancaEntrega: resumoRevisaoAtual.cobrancaEntrega || null
     };
     document.getElementById("rev-nome").innerText = nome;
     document.getElementById("rev-end").innerText = enderecoDestinoExibicao;
@@ -2685,7 +2734,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           numero: h?.numero || "",
           complemento: h?.complemento || "",
           status: (h?.status || "PENDENTE").toUpperCase(),
-          criadoEm: Number(h?.criadoEm || Date.now())
+          criadoEm: Number(h?.criadoEm || Date.now()),
+          cobrancaEntrega: h?.cobrancaEntrega || null,
+          devolucaoStatus: h?.devolucaoStatus || null,
+          motivoDevolucao: h?.motivoDevolucao || null,
+          motivoDevolucaoDetalhe: h?.motivoDevolucaoDetalhe || null,
+          codigoConfirmacaoDevolucao: h?.codigoConfirmacaoDevolucao || null
         });
       });
     });
@@ -2722,7 +2776,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             numero: p.numero || "",
             complemento: p.complemento || "",
             status: (p.status || p.statusRaw || "PACOTE_NOVO").toUpperCase(),
-            criadoEm: Number(p.criadoEm || Date.now())
+            criadoEm: Number(p.criadoEm || Date.now()),
+            cobrancaEntrega: p.cobrancaEntrega || null,
+            devolucaoStatus: p.devolucaoStatus || null,
+            motivoDevolucao: p.motivoDevolucao || null,
+            motivoDevolucaoDetalhe: p.motivoDevolucaoDetalhe || null,
+            codigoConfirmacaoDevolucao: p.codigoConfirmacaoDevolucao || null
           });
         });
       });
@@ -3367,10 +3426,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       if (logo) rotaObj.lojistaLogo = logo;
     }
     rotaEntSheetRotaAtual = rotaObj;
-    let pacotes = [];
-    if (opts.refetchPacotes) {
-      pacotes = await garantirPacotesDaRota(rotaObj);
-    }
+    let pacotes = await garantirPacotesDaRota(rotaObj);
     if (!pacotes || !pacotes.length) {
       pacotes = prepararPacotesRotaEntregador(rotaObj);
     }
@@ -3399,6 +3455,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     rotaEntSheetIndex = 0;
     rotaEntSheetRotaAtual = null;
     pararRastreioGpsEntregador();
+    pararPollingPixCobrancaEntrega();
+    pixCobrancaEntregaAtual = null;
   }
   var geoRastreioWatchId = null;
   var geoRastreioUltimoEnvio = 0;
@@ -3554,11 +3612,17 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function normalizarCodigoConfirmacaoEntrega(valor = "") {
     return String(valor || "").trim().replace(/^#/, "").replace(/\s+/g, "").toLowerCase();
   }
-  function pacoteConcluidoOuCanceladoNoSheet(rotaId, pac, idx = 0) {
+  function obterDesfechoPacoteNoSheet(rotaId, pac, idx = 0) {
     const estado = obterEstadoPacoteRota(rotaId, pac, idx);
-    if (estado.status === "concluido") return true;
+    if (estado.status === "concluido") return "entregue";
     const statusPac = normalizarStatusEnvioFiltro(pac?.statusRaw || pac?.status || "");
-    return statusPac === "ENTREGUE" || statusPac === "CANCELADO";
+    if (statusPac === "ENTREGUE") return "entregue";
+    if (statusPac === "CANCELADO") return "cancelado";
+    if (pac?.devolucaoStatus === "DEVOLVIDO") return "devolvido";
+    return "pendente";
+  }
+  function pacoteConcluidoOuCanceladoNoSheet(rotaId, pac, idx = 0) {
+    return obterDesfechoPacoteNoSheet(rotaId, pac, idx) !== "pendente";
   }
   function obterProximoIndicePacotePendente(rotaId, pacotes = [], startIdx = 0) {
     for (let i = startIdx; i < pacotes.length; i += 1) {
@@ -3627,11 +3691,24 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
     }
     await markerRef.set(agora);
-    const resultadoSaldo = await ajustarSaldoUsuario(uidEntregador, valor);
+    let dividaAntesLiquidacao = 0;
+    try {
+      const snapDivida = await db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once("value");
+      dividaAntesLiquidacao = Number(snapDivida.val() || 0);
+    } catch (err) {
+      console.warn("Falha ao ler d\xEDvida antes da liquida\xE7\xE3o:", err);
+    }
+    const abatimentoDivida = Number(Math.min(valor, Math.max(0, dividaAntesLiquidacao)).toFixed(2));
+    const saldoLiberado = Number((valor - abatimentoDivida).toFixed(2));
+    if (abatimentoDivida > 0) {
+      await ajustarDividaUsuario(uidEntregador, -abatimentoDivida);
+    }
+    const resultadoSaldo = saldoLiberado > 0 ? await ajustarSaldoUsuario(uidEntregador, saldoLiberado) : { ok: true, saldoDepois: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
     let saldoAtualizado = resultadoSaldo.ok ? resultadoSaldo.saldoDepois : Number(window.usuarioLogado?.financeiro?.saldo || 0);
     const updates = {
       [`usuarios/${uidEntregador}/financeiro/atualizadoEm`]: agora,
       [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorValor`]: valor,
+      [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorAbatimentoDivida`]: abatimentoDivida,
       [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`]: agora,
       [`usuarios/${uidEntregador}/rotas/${rotaId}/atualizadoEm`]: agora
     };
@@ -3659,11 +3736,73 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     atualizarWalletChipEntregadorUI(saldoAtualizado);
     return { creditado: true, saldoAtualizado, valorCreditado: valor };
   }
+  async function finalizarRotaSeCompleta(rotaObj, pacotes, { forcarEntregueIdx = -1 } = {}) {
+    const rotaId = String(rotaObj?.id || "").trim();
+    const semDesfecho = { todosPacotesConcluidos: false, statusRota: "EM_ROTA", creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0), valorCreditado: 0 };
+    if (!rotaId || !Array.isArray(pacotes) || !pacotes.length) return semDesfecho;
+    const desfechos = pacotes.map((p, idx) => idx === forcarEntregueIdx ? "entregue" : obterDesfechoPacoteNoSheet(rotaId, p, idx));
+    const todosPacotesConcluidos = desfechos.every((d) => d !== "pendente");
+    if (!todosPacotesConcluidos) return { ...semDesfecho, todosPacotesConcluidos: false };
+    const teveEntrega = desfechos.some((d) => d === "entregue");
+    const statusRota = teveEntrega ? "CONCLUIDO" : "CANCELADA";
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pacotes[0] || {});
+    const uidEntregador = getUsuarioIdAtual();
+    const agora = Date.now();
+    const updatesRota = {};
+    if (lojistaUid) {
+      const rotaLojistaPath = `usuarios/${lojistaUid}/rotas/${rotaId}`;
+      updatesRota[`${rotaLojistaPath}/status`] = statusRota;
+      updatesRota[`${rotaLojistaPath}/pagamentoStatus`] = statusRota;
+      updatesRota[`${rotaLojistaPath}/atualizadoEm`] = agora;
+      updatesRota[`${rotaLojistaPath}/concluidaEm`] = agora;
+    }
+    if (uidEntregador) {
+      const rotaEntregadorPath = `usuarios/${uidEntregador}/rotas/${rotaId}`;
+      updatesRota[`${rotaEntregadorPath}/status`] = statusRota;
+      updatesRota[`${rotaEntregadorPath}/pagamentoStatus`] = statusRota;
+      updatesRota[`${rotaEntregadorPath}/atualizadoEm`] = agora;
+      updatesRota[`${rotaEntregadorPath}/concluidaEm`] = agora;
+    }
+    if (Object.keys(updatesRota).length) {
+      try {
+        await db.ref().update(updatesRota);
+      } catch (err) {
+        console.warn("Falha ao gravar status final da rota:", err);
+      }
+    }
+    if (window.usuarioLogado?.rotas?.[rotaId]) {
+      window.usuarioLogado.rotas[rotaId] = {
+        ...window.usuarioLogado.rotas[rotaId] || {},
+        status: statusRota,
+        pagamentoStatus: statusRota,
+        atualizadoEm: agora,
+        concluidaEm: agora
+      };
+    }
+    if (entregadorHomeCache?.rotas?.[rotaId]) {
+      entregadorHomeCache.rotas[rotaId] = {
+        ...entregadorHomeCache.rotas[rotaId] || {},
+        status: statusRota,
+        pagamentoStatus: statusRota,
+        atualizadoEm: agora,
+        concluidaEm: agora
+      };
+    }
+    let creditoResumo = { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0), valorCreditado: 0 };
+    if (teveEntrega) {
+      const valorCredito = calcularValorCreditoRota(rotaObj, pacotes);
+      try {
+        creditoResumo = await creditarCarteiraEntregadorRotaFinalizada(rotaObj, valorCredito);
+      } catch (err) {
+        console.warn("Falha ao creditar carteira do entregador na conclus\xE3o da rota:", err);
+      }
+    }
+    return { todosPacotesConcluidos, statusRota, ...creditoResumo };
+  }
   async function persistirEntregaPacoteAtual(rotaObj = {}, pac = {}, codigoConfirmacao = "") {
     const rotaId = String(rotaObj?.id || "").trim();
     const pacoteId = obterIdPacoteConfirmacao(pac);
     const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const uidEntregador = getUsuarioIdAtual();
     const agora = Date.now();
     const updates = {};
     if (!rotaId || !pacoteId) {
@@ -3677,25 +3816,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       updates[`${basePacoteUsuario}/codigoConfirmacaoEntrega`] = codigoConfirmacao;
       updates[`${basePacoteUsuario}/entregueEm`] = agora;
       updates[`${basePacoteUsuario}/atualizadoEm`] = agora;
-    }
-    const todosPacotesConcluidos = rotaEntSheetPacotes.every((p, idx) => {
-      if (idx === rotaEntSheetIndex) return true;
-      return pacoteConcluidoOuCanceladoNoSheet(rotaId, p, idx);
-    });
-    const statusRota = todosPacotesConcluidos ? "CONCLUIDO" : "EM_ROTA";
-    if (lojistaUid) {
-      const rotaLojistaPath = `usuarios/${lojistaUid}/rotas/${rotaId}`;
-      updates[`${rotaLojistaPath}/status`] = statusRota;
-      updates[`${rotaLojistaPath}/pagamentoStatus`] = statusRota;
-      updates[`${rotaLojistaPath}/atualizadoEm`] = agora;
-      if (todosPacotesConcluidos) updates[`${rotaLojistaPath}/concluidaEm`] = agora;
-    }
-    if (uidEntregador) {
-      const rotaEntregadorPath = `usuarios/${uidEntregador}/rotas/${rotaId}`;
-      updates[`${rotaEntregadorPath}/status`] = statusRota;
-      updates[`${rotaEntregadorPath}/pagamentoStatus`] = statusRota;
-      updates[`${rotaEntregadorPath}/atualizadoEm`] = agora;
-      if (todosPacotesConcluidos) updates[`${rotaEntregadorPath}/concluidaEm`] = agora;
     }
     if (lojistaUid) {
       try {
@@ -3739,34 +3859,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         atualizadoEm: agora
       };
     }
-    if (window.usuarioLogado?.rotas?.[rotaId]) {
-      window.usuarioLogado.rotas[rotaId] = {
-        ...window.usuarioLogado.rotas[rotaId] || {},
-        status: statusRota,
-        pagamentoStatus: statusRota,
-        atualizadoEm: agora,
-        ...todosPacotesConcluidos ? { concluidaEm: agora } : {}
-      };
-    }
-    if (entregadorHomeCache?.rotas?.[rotaId]) {
-      entregadorHomeCache.rotas[rotaId] = {
-        ...entregadorHomeCache.rotas[rotaId] || {},
-        status: statusRota,
-        pagamentoStatus: statusRota,
-        atualizadoEm: agora,
-        ...todosPacotesConcluidos ? { concluidaEm: agora } : {}
-      };
-    }
-    let creditoResumo = { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0), valorCreditado: 0 };
-    if (todosPacotesConcluidos) {
-      const valorCredito = calcularValorCreditoRota(rotaObj, rotaEntSheetPacotes);
-      try {
-        creditoResumo = await creditarCarteiraEntregadorRotaFinalizada(rotaObj, valorCredito);
-      } catch (err) {
-        console.warn("Falha ao creditar carteira do entregador na conclus\xE3o da rota:", err);
-      }
-    }
-    return { todosPacotesConcluidos, statusRota, ...creditoResumo };
+    return finalizarRotaSeCompleta(rotaObj, rotaEntSheetPacotes, { forcarEntregueIdx: rotaEntSheetIndex });
   }
   function rotaSheetBloqueada() {
     if (!rotaEntSheetRotaAtual || !rotaEntSheetPacotes.length) return false;
@@ -3776,9 +3869,125 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (statusPac === "ENTREGUE" || statusPac === "CANCELADO" || estado.status === "concluido") return false;
     return estado.status === "em_corrida" || statusPac === "EM_ROTA";
   }
+  function rotaPrecisaConfirmarColeta(rotaObj) {
+    if (!rotaObj) return false;
+    const statusNorm = normalizarStatusRotaFiltro(rotaObj?.status || rotaObj?.pagamentoStatus || "CRIADA");
+    return statusNorm === "EM_ROTA" && rotaObj?.coletaConfirmada !== true;
+  }
+  function enderecoLojaDaRotaAtual() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const primeiroPacote = rotaEntSheetPacotes[0] || {};
+    return (rotaObj?.origemEndereco || primeiroPacote?.origemCompleta || primeiroPacote?.origemEndereco || "").toString().trim();
+  }
+  function abrirMapaColetaLoja() {
+    const origem = enderecoLojaDaRotaAtual();
+    if (!origem) {
+      alert("Endere\xE7o da loja n\xE3o informado.");
+      return;
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(origem)}`;
+    window.open(url, "_blank");
+  }
+  async function confirmarColetaPacotes() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    if (!rotaObj) return;
+    const input = document.getElementById("ent-sheet-coleta-code-input");
+    const codigo = (input?.value || "").trim();
+    if (!codigo) {
+      alert("Digite o c\xF3digo de coleta informado pelo lojista.");
+      return;
+    }
+    const codigoEsperado = String(rotaObj.codigoConfirmacaoColeta || "").trim();
+    if (!codigoEsperado) {
+      alert("Rota sem c\xF3digo de coleta gerado. Feche e reabra a rota.");
+      return;
+    }
+    if (normalizarCodigoConfirmacaoEntrega(codigo) !== normalizarCodigoConfirmacaoEntrega(codigoEsperado)) {
+      alert("C\xF3digo inv\xE1lido. Pe\xE7a o c\xF3digo de coleta ao lojista.");
+      return;
+    }
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, {});
+    const uidEntregador = getUsuarioIdAtual();
+    const agora = Date.now();
+    const updates = {};
+    if (lojistaUid) {
+      updates[`usuarios/${lojistaUid}/rotas/${rotaObj.id}/coletaConfirmada`] = true;
+      updates[`usuarios/${lojistaUid}/rotas/${rotaObj.id}/coletaConfirmadaEm`] = agora;
+    }
+    if (uidEntregador) {
+      updates[`usuarios/${uidEntregador}/rotas/${rotaObj.id}/coletaConfirmada`] = true;
+      updates[`usuarios/${uidEntregador}/rotas/${rotaObj.id}/coletaConfirmadaEm`] = agora;
+    }
+    try {
+      await db.ref().update(updates);
+    } catch (err) {
+      console.warn("Falha ao confirmar coleta:", err);
+      alert("N\xE3o foi poss\xEDvel confirmar a coleta agora. Tente novamente.");
+      return;
+    }
+    rotaObj.coletaConfirmada = true;
+    rotaObj.coletaConfirmadaEm = agora;
+    if (window.usuarioLogado?.rotas?.[rotaObj.id]) {
+      window.usuarioLogado.rotas[rotaObj.id].coletaConfirmada = true;
+    }
+    if (lojistaUid) {
+      criarNotificacao(lojistaUid, {
+        tipo: "coleta_confirmada",
+        titulo: "Pacotes retirados",
+        mensagem: `${window.usuarioLogado?.nome || "O entregador"} retirou os pacotes da rota #${rotaObj.id}.`,
+        rotaId: String(rotaObj.id)
+      });
+    }
+    renderSheetRotaEntregadorConteudo();
+  }
+  function renderSheetColetaPacotes() {
+    const content = document.getElementById("rotas-entregador-sheet-content");
+    if (!content || !rotaEntSheetRotaAtual) return;
+    const rotaObj = rotaEntSheetRotaAtual;
+    const enderecoLoja = enderecoLojaDaRotaAtual();
+    const nomeLoja = rotaObj?.lojistaNome || "Lojista";
+    const totalPacotes = rotaEntSheetPacotes.length;
+    const logo = (rotaObj?.lojistaLogo || rotaObj?.lojistaFoto || "").toString().trim();
+    const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(nomeLoja)}" />` : `<span>${escaparHtmlMarketplace(nomeLoja.slice(0, 1).toUpperCase())}</span>`;
+    content.innerHTML = `
+    <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;">
+        <div class="ent-sheet-handle"></div>
+        <div class="ent-sheet-header">
+            <div class="ent-sheet-loja">
+                <div class="ent-sheet-avatar">${avatar}</div>
+                <div>
+                    <div class="ent-sheet-loja-nome">${escaparHtmlMarketplace(nomeLoja)}</div>
+                    <div class="ent-sheet-loja-id">Rota #${escaparHtmlMarketplace(String(rotaObj.id || ""))}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ent-sheet-destino">
+            <strong>Retirar ${totalPacotes} pacote${totalPacotes === 1 ? "" : "s"} na loja</strong>
+            <div class="ent-sheet-endereco">${escaparHtmlMarketplace(enderecoLoja || "Endere\xE7o n\xE3o informado")}</div>
+        </div>
+
+        <div class="ent-sheet-code-box">
+            <label for="ent-sheet-coleta-code-input">Pe\xE7a o c\xF3digo de coleta ao lojista</label>
+            <input id="ent-sheet-coleta-code-input" type="text" placeholder="C\xF3digo de coleta">
+            <div class="ent-sheet-actions-inline">
+                <button type="button" class="ent-sheet-btn-ghost" onclick="abrirMapaColetaLoja()">Ir at\xE9 a loja</button>
+                <button type="button" class="ent-sheet-primary small" onclick="confirmarColetaPacotes()">Confirmar coleta</button>
+            </div>
+        </div>
+
+        <button class="ent-sheet-link" onclick="relatarProblemaRota()">Relatar Problema</button>
+    </div>
+    `;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
   function renderSheetRotaEntregadorConteudo() {
     const content = document.getElementById("rotas-entregador-sheet-content");
     if (!content || !rotaEntSheetRotaAtual) return;
+    if (rotaPrecisaConfirmarColeta(rotaEntSheetRotaAtual)) {
+      renderSheetColetaPacotes();
+      return;
+    }
     if (!rotaEntSheetPacotes.length) {
       content.innerHTML = '<div class="buscar-empty">Nenhum pacote associado a esta rota.</div>';
       return;
@@ -3821,6 +4030,24 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         <div class="ent-sheet-status-ok"><i data-lucide="check-circle-2"></i> Entrega confirmada</div>
         ${estadoAtual.codigoConfirmacao ? `<div class="ent-sheet-code-pill">C\xF3digo ${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao)}</div>` : ""}
     `;
+    const devolucaoStatus = pac?.devolucaoStatus || "";
+    let footerPrincipal;
+    if (devolucaoStatus === "DEVOLUCAO_SOLICITADA") {
+      footerPrincipal = `<div class="ent-sheet-status-ok ent-sheet-status-aguardando"><i data-lucide="clock"></i> Aguardando o lojista confirmar a devolu\xE7\xE3o</div>`;
+    } else if (devolucaoStatus === "DEVOLUCAO_CONFIRMADA") {
+      footerPrincipal = `<div class="ent-sheet-status-ok ent-sheet-status-aguardando"><i data-lucide="clock"></i> Devolu\xE7\xE3o confirmada \u2014 aguardando o lojista pagar o Pix do frete de volta para liberar o c\xF3digo</div>`;
+    } else if (devolucaoStatus === "DEVOLUCAO_PIX_PAGO") {
+      footerPrincipal = renderBlocoDevolucaoConfirmada(pac);
+    } else if (devolucaoStatus === "DEVOLVIDO") {
+      footerPrincipal = `<div class="ent-sheet-status-ok"><i data-lucide="check-circle-2"></i> Pacote devolvido \xE0 loja</div>`;
+    } else if (bloqueado) {
+      footerPrincipal = codeBox;
+    } else if (finalizado) {
+      footerPrincipal = statusOk;
+    } else {
+      footerPrincipal = `<button class="ent-sheet-primary" onclick="iniciarCorridaPacoteAtual(this)"><span>Iniciar Corrida</span><span class="ent-sheet-arrow" style="font-size:22px;">\u203A</span></button>`;
+    }
+    const podeSolicitarDevolucao = !devolucaoStatus && !finalizado;
     content.innerHTML = `
     <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;" ontouchstart="iniciarSwipeEntSheet(event)" ontouchend="finalizarSwipeEntSheet(event)">
         <div class="ent-sheet-handle"></div>
@@ -3847,9 +4074,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             ${obs ? `<div class="ent-sheet-obs">Obs: ${escaparHtmlMarketplace(obs)}</div>` : ""}
         </div>
 
+        ${renderBlocoCobrancaEntrega(pac)}
+
         <div class="ent-sheet-footer">
-            ${bloqueado ? codeBox : finalizado ? statusOk : `<button class="ent-sheet-primary" onclick="iniciarCorridaPacoteAtual(this)"><span>Iniciar Corrida</span><span class="ent-sheet-arrow" style="font-size:22px;">\u203A</span></button>`}
+            ${footerPrincipal}
             <button class="ent-sheet-link" onclick="relatarProblemaRota()">Relatar Problema</button>
+            ${podeSolicitarDevolucao ? `<button class="ent-sheet-link" onclick="iniciarFluxoDevolucao()">N\xE3o consegui entregar</button>` : ""}
             <div class="ent-sheet-nav-row">
                 <div class="ent-sheet-dots">${dots}</div>
             </div>
@@ -3857,6 +4087,330 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     </div>
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  function iniciarFluxoDevolucao() {
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaEntSheetRotaAtual || !pac) return;
+    renderSheetMotivoDevolucao(pac);
+  }
+  function renderSheetMotivoDevolucao(pac) {
+    const content = document.getElementById("rotas-entregador-sheet-content");
+    if (!content) return;
+    const podeClienteNaoPagou = pac?.cobrancaEntrega?.ativa && pac.cobrancaEntrega.status === "pendente";
+    content.innerHTML = `
+    <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;">
+        <div class="ent-sheet-handle"></div>
+        <strong style="display:block; font-size:16px; margin-bottom:12px; color:#0f172a;">Por que n\xE3o conseguiu entregar?</strong>
+        <div class="ent-sheet-motivo-lista">
+            ${podeClienteNaoPagou ? `<button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_nao_pagou')">Cliente n\xE3o pagou</button>` : ""}
+            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_ausente')">Cliente n\xE3o est\xE1 em casa</button>
+            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('endereco_nao_encontrado')">Endere\xE7o n\xE3o encontrado</button>
+            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_recusou')">Cliente recusou o pedido</button>
+            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('outro')">Outro motivo</button>
+        </div>
+        <button class="ent-sheet-link" onclick="renderSheetRotaEntregadorConteudo()">Cancelar</button>
+    </div>
+    `;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  async function sincronizarCamposEnvioLojista(lojistaUid, envioId, campos) {
+    if (!lojistaUid || !envioId || !campos) return;
+    const updates = {};
+    Object.keys(campos).forEach((chave) => {
+      updates[`usuarios/${lojistaUid}/pacotes/${envioId}/${chave}`] = campos[chave];
+    });
+    try {
+      const clientesSnap = await db.ref(`usuarios/${lojistaUid}/clientes`).once("value");
+      const clientesNo = clientesSnap.val() || {};
+      Object.keys(clientesNo).forEach((clienteId) => {
+        const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
+        historico.forEach((h, idx) => {
+          const idAtual = String(h?.id || `envio-${clienteId}-${idx}`);
+          if (idAtual !== envioId) return;
+          Object.keys(campos).forEach((chave) => {
+            updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/${chave}`] = campos[chave];
+          });
+        });
+      });
+    } catch (err) {
+      console.warn("Falha ao localizar envio no hist\xF3rico do cliente:", err);
+    }
+    await db.ref().update(updates);
+  }
+  async function solicitarDevolucaoPacoteAtual(motivo) {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaObj || !pac) return;
+    let motivoDetalhe = "";
+    if (motivo === "outro") {
+      motivoDetalhe = (window.prompt("Descreva o motivo:") || "").trim();
+      if (!motivoDetalhe) return;
+    }
+    if (!window.confirm("Confirma que n\xE3o conseguiu entregar este pedido? O lojista vai precisar confirmar a devolu\xE7\xE3o antes de voc\xEA levar o pacote de volta.")) {
+      return;
+    }
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    if (!lojistaUid || !envioId) return;
+    const agora = Date.now();
+    try {
+      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+        devolucaoStatus: "DEVOLUCAO_SOLICITADA",
+        motivoDevolucao: motivo,
+        motivoDevolucaoDetalhe: motivoDetalhe,
+        devolucaoSolicitadaEm: agora
+      });
+      criarNotificacao(lojistaUid, {
+        tipo: "devolucao_solicitada",
+        titulo: "Entrega n\xE3o realizada",
+        mensagem: `${window.usuarioLogado?.nome || "O entregador"} n\xE3o conseguiu entregar o pedido de ${obterNomeDestinatarioPacote(pac, rotaObj)}. Confirme a devolu\xE7\xE3o no app.`,
+        rotaId: String(rotaObj.id)
+      });
+      pac.devolucaoStatus = "DEVOLUCAO_SOLICITADA";
+      pac.motivoDevolucao = motivo;
+      pac.motivoDevolucaoDetalhe = motivoDetalhe;
+      renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+      console.warn("Falha ao solicitar devolu\xE7\xE3o:", err);
+      alert("N\xE3o foi poss\xEDvel registrar a devolu\xE7\xE3o agora. Tente novamente.");
+    }
+  }
+  function renderBlocoDevolucaoConfirmada(pac) {
+    return `
+    <div class="ent-sheet-code-box">
+        <label for="ent-sheet-devolucao-code-input">C\xF3digo de devolu\xE7\xE3o (informado pelo lojista)</label>
+        <input id="ent-sheet-devolucao-code-input" type="text" placeholder="C\xF3digo de devolu\xE7\xE3o">
+        <div class="ent-sheet-actions-inline">
+            <button type="button" class="ent-sheet-btn-ghost" onclick="abrirMapaColetaLoja()">Ir at\xE9 a loja</button>
+            <button type="button" class="ent-sheet-primary small" onclick="confirmarCodigoDevolucaoPacoteAtual()">Confirmar devolu\xE7\xE3o</button>
+        </div>
+    </div>`;
+  }
+  async function confirmarCodigoDevolucaoPacoteAtual() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaObj || !pac) return;
+    const input = document.getElementById("ent-sheet-devolucao-code-input");
+    const codigo = (input?.value || "").trim();
+    if (!codigo) {
+      alert("Digite o c\xF3digo de devolu\xE7\xE3o informado pelo lojista.");
+      return;
+    }
+    const codigoEsperado = String(pac.codigoConfirmacaoDevolucao || "").trim();
+    if (!codigoEsperado) {
+      alert("Ainda n\xE3o h\xE1 c\xF3digo de devolu\xE7\xE3o \u2014 o lojista precisa pagar o Pix do frete de volta primeiro.");
+      return;
+    }
+    if (normalizarCodigoConfirmacaoEntrega(codigo) !== normalizarCodigoConfirmacaoEntrega(codigoEsperado)) {
+      alert("C\xF3digo inv\xE1lido. Pe\xE7a o c\xF3digo de devolu\xE7\xE3o ao lojista.");
+      return;
+    }
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    if (!lojistaUid || !envioId) return;
+    const agora = Date.now();
+    try {
+      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+        devolucaoStatus: "DEVOLVIDO",
+        devolvidoEm: agora,
+        status: "PACOTE_NOVO",
+        statusRaw: "PACOTE_NOVO",
+        rotaId: null
+      });
+      pac.devolucaoStatus = "DEVOLVIDO";
+      pac.status = "PACOTE_NOVO";
+      pac.statusRaw = "PACOTE_NOVO";
+      await finalizarRotaSeCompleta(rotaObj, rotaEntSheetPacotes);
+      renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+      console.warn("Falha ao confirmar c\xF3digo de devolu\xE7\xE3o:", err);
+      alert("N\xE3o foi poss\xEDvel confirmar a devolu\xE7\xE3o agora. Tente novamente.");
+    }
+  }
+  async function criarPagamentoPixDevolucaoTesteLocal(pac, rotaId) {
+    const valor = Number(pac?.valor || pac?.valorFrete || 0);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new Error("Valor de frete inv\xE1lido para cobran\xE7a de devolu\xE7\xE3o.");
+    }
+    const { firstName, lastName } = obterNomeLojistaSeparadoTesteLocal();
+    const resp = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + FLEXA_MP_TEST_TOKEN,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": gerarIdempotencyKeyTesteLocal()
+      },
+      body: JSON.stringify({
+        transaction_amount: Number(valor.toFixed(2)),
+        description: "Flexa - frete de devolu\xE7\xE3o (pedido " + (pac?.id || "") + ") [TESTE LOCAL]",
+        payment_method_id: "pix",
+        payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
+        external_reference: "devolucao:" + rotaId + ":" + (pac?.id || "")
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || "HTTP " + resp.status;
+      throw new Error("Mercado Pago: " + detalhe);
+    }
+    const tx = data?.point_of_interaction?.transaction_data || {};
+    return {
+      paymentId: data?.id ? String(data.id) : "",
+      status: data?.status || "pending",
+      pixCode: tx.qr_code || "",
+      qrCodeBase64: tx.qr_code_base64 || "",
+      valor
+    };
+  }
+  var pixDevolucaoLojistaAtual = null;
+  var pixDevolucaoLojistaPollTimer = null;
+  function pararPollingPixDevolucaoLojista() {
+    if (pixDevolucaoLojistaPollTimer) {
+      clearInterval(pixDevolucaoLojistaPollTimer);
+      pixDevolucaoLojistaPollTimer = null;
+    }
+  }
+  function buscarValorFreteEnvioLojista(envioId) {
+    for (const cliente of clientes) {
+      const historico = Array.isArray(cliente.historico) ? cliente.historico : [];
+      const h = historico.find((x) => x.id === envioId);
+      if (h) return Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0);
+    }
+    const uid = getUsuarioIdAtual();
+    const pacoteNovo = uid ? window.pacotesRaizCache?.[uid]?.[envioId] : null;
+    return Number(pacoteNovo?.valorFrete || 0);
+  }
+  async function gerarPixDevolucaoFreteLojista(lojistaUid, rotaId, envioId, pacoteAprox = {}) {
+    try {
+      let data;
+      if (FLEXA_PAYMENTS_PROXY_URL) {
+        data = await chamarPaymentsProxy("/create-pix-devolucao", { tenantId: lojistaUid, rotaId, envioId });
+      } else if (FLEXA_MP_TEST_TOKEN) {
+        data = await criarPagamentoPixDevolucaoTesteLocal(pacoteAprox, rotaId);
+      } else {
+        throw new Error("Pagamento n\xE3o configurado: defina FLEXA_PAYMENTS_PROXY_URL (produ\xE7\xE3o) ou FLEXA_MP_TEST_TOKEN (s\xF3 teste local).");
+      }
+      const pixCode = normalizarCodigoPix(data.pixCode || "");
+      if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix.");
+      let saldoDisponivel = 0;
+      try {
+        const saldoSnap = await db.ref(`usuarios/${lojistaUid}/financeiro/saldo`).once("value");
+        saldoDisponivel = Number(saldoSnap.val() || 0);
+      } catch (err) {
+        console.warn("Falha ao ler saldo do lojista para devolu\xE7\xE3o:", err);
+      }
+      pixDevolucaoLojistaAtual = {
+        paymentId: data.paymentId ? String(data.paymentId) : "",
+        envioId,
+        lojistaUid,
+        rotaId,
+        pixCode,
+        qrCodeBase64: data.qrCodeBase64 || "",
+        valor: data.valor || Number(pacoteAprox?.valorFrete || 0),
+        saldoDisponivel
+      };
+      iniciarPollingPixDevolucaoLojista();
+    } catch (err) {
+      console.warn("Falha ao gerar Pix de devolu\xE7\xE3o (lojista):", err);
+      if (!FLEXA_PAYMENTS_PROXY_URL && mercadoPagoAmbienteAtual === "teste") {
+        const simular = confirm(
+          "N\xE3o foi poss\xEDvel gerar o Pix de devolu\xE7\xE3o (ambiente TESTE).\n\nDetalhe: " + (err?.message || "erro desconhecido") + "\n\nDeseja simular o pagamento do frete de devolu\xE7\xE3o para continuar testando o fluxo?"
+        );
+        if (simular) {
+          await liberarCodigoDevolucaoAposPagamento(lojistaUid, rotaId, envioId);
+          return;
+        }
+      }
+      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix de devolu\xE7\xE3o agora.");
+    }
+  }
+  function iniciarPollingPixDevolucaoLojista() {
+    pararPollingPixDevolucaoLojista();
+    pixDevolucaoLojistaPollTimer = setInterval(async () => {
+      if (!pixDevolucaoLojistaAtual?.paymentId) {
+        pararPollingPixDevolucaoLojista();
+        return;
+      }
+      try {
+        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxy("/check-pix-devolucao", { tenantId: pixDevolucaoLojistaAtual.lojistaUid, paymentId: pixDevolucaoLojistaAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixDevolucaoLojistaAtual.paymentId);
+        if (data?.status === "approved") {
+          pararPollingPixDevolucaoLojista();
+          const { lojistaUid, rotaId, envioId } = pixDevolucaoLojistaAtual;
+          pixDevolucaoLojistaAtual = null;
+          await liberarCodigoDevolucaoAposPagamento(lojistaUid, rotaId, envioId);
+        }
+      } catch (err) {
+        console.warn("Falha ao consultar status do Pix de devolu\xE7\xE3o (lojista):", err);
+      }
+    }, 4e3);
+  }
+  async function liberarCodigoDevolucaoAposPagamento(lojistaUid, rotaId, envioId) {
+    const codigo = gerarCodigoConfirmacaoEntrega();
+    const agora = Date.now();
+    try {
+      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+        devolucaoStatus: "DEVOLUCAO_PIX_PAGO",
+        codigoConfirmacaoDevolucao: codigo,
+        devolucaoFretePagoEm: agora
+      });
+      alert(`Pix do frete de devolu\xE7\xE3o recebido. Informe este c\xF3digo ao entregador quando ele chegar na loja: ${codigo}`);
+      if (trackLojaIdAtual && String(trackLojaIdAtual) === String(rotaId)) {
+        await abrirModalTrackingLoja(rotaId);
+      }
+    } catch (err) {
+      console.warn("Falha ao liberar c\xF3digo de devolu\xE7\xE3o:", err);
+      alert("Pagamento recebido, mas n\xE3o foi poss\xEDvel liberar o c\xF3digo agora. Reabra esta rota para tentar de novo.");
+    }
+  }
+  async function pagarDevolucaoComSaldo() {
+    if (!pixDevolucaoLojistaAtual) return;
+    const { lojistaUid, rotaId, envioId, valor } = pixDevolucaoLojistaAtual;
+    if (!lojistaUid || !Number.isFinite(valor) || valor <= 0) return;
+    const btn = document.getElementById("track-loja-devolucao-saldo-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Pagando...";
+    }
+    try {
+      const resultado = await ajustarSaldoUsuario(lojistaUid, -valor, { permitirNegativo: false });
+      if (!resultado.ok) {
+        if (resultado.saldoInsuficiente) {
+          alert("Saldo insuficiente para pagar o frete de devolu\xE7\xE3o com a carteira. Use o Pix abaixo.");
+        } else {
+          alert("N\xE3o foi poss\xEDvel pagar com saldo agora. Tente novamente ou use o Pix abaixo.");
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "Pagar com saldo";
+        }
+        return;
+      }
+      await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+        tipo: "DEBITO",
+        valor,
+        descricao: `Frete de devolu\xE7\xE3o pago com saldo (pedido #${envioId})`,
+        criadoEm: Date.now()
+      }).catch((err) => console.warn("Falha ao registrar d\xE9bito do frete de devolu\xE7\xE3o:", err));
+      pararPollingPixDevolucaoLojista();
+      pixDevolucaoLojistaAtual = null;
+      await liberarCodigoDevolucaoAposPagamento(lojistaUid, rotaId, envioId);
+    } catch (err) {
+      console.warn("Falha ao pagar devolu\xE7\xE3o com saldo:", err);
+      alert("N\xE3o foi poss\xEDvel pagar com saldo agora. Tente novamente ou use o Pix abaixo.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Pagar com saldo";
+      }
+    }
+  }
+  function copiarCodigoPixDevolucaoLojista() {
+    if (!pixDevolucaoLojistaAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pixDevolucaoLojistaAtual.pixCode).then(() => {
+      const feedback = document.getElementById("track-loja-pix-devolucao-copy-feedback");
+      if (feedback) feedback.innerText = "C\xF3digo copiado!";
+    }).catch(() => {
+    });
   }
   function entSheetPrev() {
     if (rotaEntSheetIndex <= 0) return;
@@ -3928,6 +4482,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const rotaId = rotaEntSheetRotaAtual?.id;
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     if (!rotaId || !pac) return;
+    if (pac.cobrancaEntrega?.ativa && pac.cobrancaEntrega.status === "pendente") {
+      alert("Resolva a cobran\xE7a deste pedido (Pix ou dinheiro) antes de confirmar a entrega.");
+      return;
+    }
     const estado = obterEstadoPacoteRota(rotaId, pac, rotaEntSheetIndex);
     const codigo = (estado.codigoConfirmacao || "").trim();
     if (!codigo) {
@@ -4169,6 +4727,61 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       document.addEventListener("click", window._buscarDropdownOutsideHandler);
     }
   }
+  async function calcularValorCobrancaDinheiroRota(lojistaUid, rotaId) {
+    try {
+      const rotaSnap = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once("value");
+      const rota = rotaSnap.val() || {};
+      const pacoteIds = Array.isArray(rota.pacoteIds) ? rota.pacoteIds : Array.isArray(rota.pacotes) ? rota.pacotes : [];
+      if (!pacoteIds.length) return 0;
+      const pacotesSnap = await db.ref(`usuarios/${lojistaUid}/pacotes`).once("value");
+      const pacotesNo = pacotesSnap.val() || {};
+      let total = 0;
+      pacoteIds.forEach((id) => {
+        const cobranca = pacotesNo[id]?.cobrancaEntrega;
+        if (!cobranca?.ativa || !Array.isArray(cobranca.formasAceitas) || !cobranca.formasAceitas.includes("dinheiro")) return;
+        const v = Number(cobranca.valor);
+        if (Number.isFinite(v) && v > 0) total += v;
+      });
+      return Number(total.toFixed(2));
+    } catch (err) {
+      console.warn("Falha ao calcular valor de cobran\xE7a em dinheiro da rota:", err);
+      return 0;
+    }
+  }
+  async function calcularCapacidadeCobrancaEntregador(uidEntregador) {
+    const [saldoSnap, dividaSnap, rotasSnap] = await Promise.all([
+      db.ref(`usuarios/${uidEntregador}/financeiro/saldo`).once("value"),
+      db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once("value"),
+      db.ref(`usuarios/${uidEntregador}/rotas`).once("value")
+    ]);
+    const saldo = Number(saldoSnap.val() || 0);
+    const divida = Number(dividaSnap.val() || 0);
+    const rotasNo = rotasSnap.val() || {};
+    let aReceberPendente = 0;
+    Object.values(rotasNo).forEach((r) => {
+      const statusNorm = normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || "CRIADA");
+      if (statusNorm !== "EM_ROTA") return;
+      const frete = Number(r?.totalFrete ?? r?.valorTotal ?? 0);
+      if (Number.isFinite(frete) && frete > 0) aReceberPendente += frete;
+    });
+    return Number((saldo + aReceberPendente - divida).toFixed(2));
+  }
+  var CINCO_DIAS_MS = 5 * 24 * 60 * 60 * 1e3;
+  async function entregadorBloqueadoPorDividaAtrasada(uidEntregador) {
+    try {
+      const [dividaSnap, desdeSnap] = await Promise.all([
+        db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once("value"),
+        db.ref(`usuarios/${uidEntregador}/financeiro/dividaDesde`).once("value")
+      ]);
+      const divida = Number(dividaSnap.val() || 0);
+      const desde = Number(desdeSnap.val() || 0);
+      if (divida <= 0 || !desde) return false;
+      return Date.now() - desde > CINCO_DIAS_MS;
+    } catch (err) {
+      console.warn("Falha ao checar bloqueio por d\xEDvida atrasada:", err);
+      return false;
+    }
+  }
   async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) {
     if (!usuarioEhEntregador()) {
       alert("Somente entregador pode aceitar rota.");
@@ -4186,6 +4799,27 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       btn.innerText = "Aceitando...";
     }
     try {
+      const bloqueadoPorDivida = await entregadorBloqueadoPorDividaAtrasada(uidEntregador);
+      if (bloqueadoPorDivida) {
+        alert("Sua conta est\xE1 bloqueada para novos envios: voc\xEA tem uma d\xEDvida em aberto h\xE1 mais de 5 dias. Quite o valor pendente para continuar.");
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = textoOriginal || "Aceitar";
+        }
+        return;
+      }
+      const valorCobrancaDinheiro = await calcularValorCobrancaDinheiroRota(lojistaUid, rotaId);
+      if (valorCobrancaDinheiro > 0) {
+        const capacidade = await calcularCapacidadeCobrancaEntregador(uidEntregador);
+        if (capacidade < valorCobrancaDinheiro) {
+          alert("Voc\xEA n\xE3o pode aceitar essa corrida agora \u2014 seu saldo est\xE1 baixo. Aceite ou conclua mais corridas para liberar.");
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = textoOriginal || "Aceitar";
+          }
+          return;
+        }
+      }
       const rotaRef = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`);
       const metaEntregador = {
         entregadorId: uidEntregador,
@@ -4194,7 +4828,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         aceitoPor: uidEntregador,
         aceitoEm: Date.now(),
         status: "EM_ROTA",
-        atualizadoEm: Date.now()
+        atualizadoEm: Date.now(),
+        // Passo de coleta (ver memoria project-flexa-cobranca-entrega-dinheiro):
+        // rota so libera "Iniciar Corrida" ate o cliente depois que o entregador
+        // confirmar, com este codigo, que retirou os pacotes na loja.
+        coletaConfirmada: false,
+        codigoConfirmacaoColeta: gerarCodigoConfirmacaoEntrega()
       };
       const tx = await rotaRef.transaction((atual) => {
         if (!atual) return atual;
@@ -4248,10 +4887,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         totalFrete: rotaAtualizada?.totalFrete || rotaMarketplaceAtual?.totalFrete || 0
       };
       await db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}`).set(rotaNoEntregador);
+      const codigoColetaNotificacao = String(rotaAtualizada?.codigoConfirmacaoColeta || "").trim();
       criarNotificacao(lojistaUid, {
         tipo: "rota_aceita",
         titulo: "Rota aceita",
-        mensagem: `${window.usuarioLogado?.nome || "Um entregador"} aceitou a rota #${rotaId}.`,
+        mensagem: codigoColetaNotificacao ? `${window.usuarioLogado?.nome || "Um entregador"} aceitou a rota #${rotaId}. C\xF3digo de coleta: ${codigoColetaNotificacao} \u2014 informe ao entregador quando ele for retirar os pacotes.` : `${window.usuarioLogado?.nome || "Um entregador"} aceitou a rota #${rotaId}.`,
         rotaId: String(rotaId)
       });
       rotasMarketplaceEntregadorCache = rotasMarketplaceEntregadorCache.map((r) => {
@@ -4669,6 +5309,34 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
     return { ok: true, saldoAntes, saldoDepois };
   }
+  async function ajustarDividaUsuario(uid, delta) {
+    if (!uid || !Number.isFinite(delta) || delta === 0) {
+      return { ok: false, dividaAntes: 0, dividaDepois: 0 };
+    }
+    const dividaRef = db.ref(`usuarios/${uid}/financeiro/divida`);
+    let dividaAntes = 0;
+    try {
+      const snap = await dividaRef.once("value");
+      dividaAntes = Number(snap.val() || 0);
+    } catch (err) {
+      console.warn("Falha ao ler d\xEDvida atual:", err);
+      return { ok: false, dividaAntes: 0, dividaDepois: 0 };
+    }
+    const dividaDepois = Math.max(0, Number((dividaAntes + delta).toFixed(2)));
+    try {
+      await dividaRef.set(dividaDepois);
+      const dividaDesdeRef = db.ref(`usuarios/${uid}/financeiro/dividaDesde`);
+      if (dividaAntes <= 0 && dividaDepois > 0) {
+        await dividaDesdeRef.set(Date.now());
+      } else if (dividaDepois <= 0) {
+        await dividaDesdeRef.remove();
+      }
+    } catch (err) {
+      console.warn("Falha ao gravar nova d\xEDvida:", err);
+      return { ok: false, dividaAntes, dividaDepois: dividaAntes };
+    }
+    return { ok: true, dividaAntes, dividaDepois };
+  }
   async function creditarSaldoUsuarioAtual(valor, descricao) {
     const uid = getUsuarioIdAtual();
     if (!uid || !Number.isFinite(valor) || valor <= 0) return;
@@ -4796,6 +5464,15 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (statusEl) {
       statusEl.innerText = status.label;
       statusEl.className = `rota-main-status ${status.className}`;
+    }
+    const coletaAvisoEl = document.getElementById("rota-detalhe-coleta-aviso");
+    if (coletaAvisoEl) {
+      const precisaColeta = !usuarioEhEntregador() && rotaDetalheAtual?.coletaConfirmada !== true && rotaDetalheAtual?.codigoConfirmacaoColeta && normalizarStatusRotaFiltro(rotaDetalheAtual?.status || rotaDetalheAtual?.pagamentoStatus || "CRIADA") === "EM_ROTA";
+      coletaAvisoEl.style.display = precisaColeta ? "flex" : "none";
+      if (precisaColeta) {
+        const codigoEl = document.getElementById("rota-detalhe-codigo-coleta");
+        if (codigoEl) codigoEl.innerText = rotaDetalheAtual.codigoConfirmacaoColeta;
+      }
     }
     if (distEl) distEl.innerText = formatarDistancia(distanciaTotal);
     if (durEl) durEl.innerText = formatarDuracao(duracaoTotal);
@@ -5311,7 +5988,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       grupos.get(status).push(id);
     });
     grupos.forEach((ids, status) => setStatusPacotes(ids, status, true));
-    notificarErro("Status atualizado.");
+    notificarSucesso("Status atualizado.");
     adminCarregarPacotes();
   }
   async function atualizarStatusRotaMaster(lojistaUid, rotaId, status = "BUSCANDO") {
@@ -5340,7 +6017,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       return atualizarStatusRotaMaster(lojistaUid, rotaId, status);
     });
     await Promise.all(promessas);
-    notificarErro("Status das rotas atualizado.");
+    notificarSucesso("Status das rotas atualizado.");
     renderDashboardMaster();
   }
   async function restaurarRotaMaster(lojistaUid, rotaId) {
@@ -5739,6 +6416,333 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       status: data?.status || "pending",
       statusDetail: data?.statusDetail || ""
     };
+  }
+  async function criarPagamentoPixCobrancaEntregaTesteLocal(pac, rotaId, valorOverride) {
+    const cobranca = pac?.cobrancaEntrega;
+    const valor = Number.isFinite(Number(valorOverride)) && Number(valorOverride) > 0 ? Number(valorOverride) : Number(cobranca?.valor || 0);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new Error("Valor de cobran\xE7a inv\xE1lido.");
+    }
+    const nomeCliente = (pac?.destinatario || "Cliente Flexa").toString().trim() || "Cliente Flexa";
+    const partes = nomeCliente.split(/\s+/).filter(Boolean);
+    const firstName = partes[0] || "Cliente";
+    const lastName = partes.slice(1).join(" ") || "Flexa";
+    const resp = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + FLEXA_MP_TEST_TOKEN,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": gerarIdempotencyKeyTesteLocal()
+      },
+      body: JSON.stringify({
+        transaction_amount: Number(valor.toFixed(2)),
+        description: "Flexa - cobran\xE7a na entrega (pedido " + (pac?.id || "") + ") [TESTE LOCAL]",
+        payment_method_id: "pix",
+        payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
+        external_reference: rotaId + ":" + (pac?.id || "")
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || "HTTP " + resp.status;
+      throw new Error("Mercado Pago: " + detalhe);
+    }
+    const tx = data?.point_of_interaction?.transaction_data || {};
+    return {
+      paymentId: data?.id ? String(data.id) : "",
+      status: data?.status || "pending",
+      statusDetail: data?.status_detail || "",
+      pixCode: tx.qr_code || "",
+      qrCodeBase64: tx.qr_code_base64 || "",
+      valor
+    };
+  }
+  async function gerarPixCobrancaEntrega(valorOverride) {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const cobranca = pac?.cobrancaEntrega;
+    if (!rotaObj || !cobranca?.ativa || cobranca.status !== "pendente") return;
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    if (!lojistaUid || !envioId) return;
+    const valorPix = Number.isFinite(Number(valorOverride)) && Number(valorOverride) > 0 ? Number(valorOverride) : Number(cobranca.valor || 0);
+    const btn = document.getElementById("ent-sheet-pix-gerar-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Gerando Pix...";
+    }
+    try {
+      let data;
+      if (FLEXA_PAYMENTS_PROXY_URL) {
+        data = await chamarPaymentsProxy("/create-pix-cobranca", { tenantId: lojistaUid, rotaId: rotaObj.id, envioId, valor: valorPix });
+      } else if (FLEXA_MP_TEST_TOKEN) {
+        data = await criarPagamentoPixCobrancaEntregaTesteLocal(pac, rotaObj.id, valorPix);
+      } else {
+        throw new Error("Pagamento n\xE3o configurado: defina FLEXA_PAYMENTS_PROXY_URL (produ\xE7\xE3o) ou FLEXA_MP_TEST_TOKEN (s\xF3 teste local).");
+      }
+      const pixCode = normalizarCodigoPix(data.pixCode || "");
+      if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix.");
+      pixCobrancaEntregaAtual = {
+        paymentId: data.paymentId ? String(data.paymentId) : "",
+        envioId,
+        lojistaUid,
+        rotaId: rotaObj.id,
+        pixCode,
+        qrCodeBase64: data.qrCodeBase64 || "",
+        valor: data.valor || valorPix
+      };
+      renderSheetRotaEntregadorConteudo();
+      iniciarPollingPixCobrancaEntrega();
+    } catch (err) {
+      console.warn("Falha ao gerar Pix de cobran\xE7a na entrega:", err);
+      if (!FLEXA_PAYMENTS_PROXY_URL && mercadoPagoAmbienteAtual === "teste") {
+        const simular = confirm(
+          "N\xE3o foi poss\xEDvel gerar o Pix de cobran\xE7a (ambiente TESTE).\n\nDetalhe: " + (err?.message || "erro desconhecido") + "\n\nDeseja simular esse Pix como pago para continuar testando o fluxo?"
+        );
+        if (simular) {
+          await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valorPix, envioId);
+          await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+            "cobrancaEntrega/status": "pago",
+            "cobrancaEntrega/pagoEm": Date.now()
+          }).catch((e) => console.warn("Falha ao persistir cobran\xE7a simulada como paga:", e));
+          pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: "pago", pagoEm: Date.now() };
+          renderSheetRotaEntregadorConteudo();
+          return;
+        }
+      }
+      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Gerar Pix";
+      }
+    }
+  }
+  function pararPollingPixCobrancaEntrega() {
+    if (pixCobrancaEntregaPollTimer) {
+      clearInterval(pixCobrancaEntregaPollTimer);
+      pixCobrancaEntregaPollTimer = null;
+    }
+  }
+  async function creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId) {
+    if (!lojistaUid || !Number.isFinite(valor) || valor <= 0) return;
+    try {
+      const resultado = await ajustarSaldoUsuario(lojistaUid, valor);
+      if (!resultado.ok) return;
+      await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+        tipo: "CREDITO",
+        valor,
+        descricao: `Cobran\xE7a na entrega recebida via Pix (pedido #${envioId})`,
+        criadoEm: Date.now()
+      });
+    } catch (err) {
+      console.warn("Falha ao creditar lojista pela cobran\xE7a via Pix (teste local):", err);
+    }
+  }
+  function iniciarPollingPixCobrancaEntrega() {
+    pararPollingPixCobrancaEntrega();
+    pixCobrancaEntregaPollTimer = setInterval(async () => {
+      if (!pixCobrancaEntregaAtual?.paymentId) {
+        pararPollingPixCobrancaEntrega();
+        return;
+      }
+      try {
+        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxy("/check-pix-cobranca", { tenantId: pixCobrancaEntregaAtual.lojistaUid, paymentId: pixCobrancaEntregaAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixCobrancaEntregaAtual.paymentId);
+        const statusEl = document.getElementById("ent-sheet-pix-status");
+        if (data?.status === "approved") {
+          pararPollingPixCobrancaEntrega();
+          const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
+          const agora = Date.now();
+          if (!FLEXA_PAYMENTS_PROXY_URL) {
+            await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId);
+            await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+              "cobrancaEntrega/status": "pago",
+              "cobrancaEntrega/pagoEm": agora
+            }).catch((err) => console.warn("Falha ao persistir cobran\xE7a paga via Pix (teste local):", err));
+          }
+          const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
+          if (pac) pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: "pago", pagoEm: agora };
+          pixCobrancaEntregaAtual = null;
+          renderSheetRotaEntregadorConteudo();
+        } else if (statusEl) {
+          statusEl.innerText = "Aguardando pagamento do cliente...";
+        }
+      } catch (err) {
+        console.warn("Falha ao consultar status do Pix de cobran\xE7a:", err);
+      }
+    }, 4e3);
+  }
+  function copiarCodigoPixCobrancaEntrega() {
+    if (!pixCobrancaEntregaAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pixCobrancaEntregaAtual.pixCode).then(() => {
+      const feedback = document.getElementById("ent-sheet-pix-copy-feedback");
+      if (feedback) feedback.innerText = "C\xF3digo copiado!";
+    }).catch(() => {
+    });
+  }
+  async function confirmarRecebimentoDinheiro() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const cobranca = pac?.cobrancaEntrega;
+    if (!rotaObj || !cobranca?.ativa || cobranca.status !== "pendente") return;
+    const valor = Number(cobranca.valor || 0);
+    if (!Number.isFinite(valor) || valor <= 0) return;
+    const confirmado = window.confirm(
+      `Confirmar que recebeu ${precoParaMoeda(valor)} em dinheiro do cliente? Esse valor vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica).`
+    );
+    if (!confirmado) return;
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const uidEntregador = getUsuarioIdAtual();
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+    try {
+      const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valor);
+      if (!resultadoDivida.ok) throw new Error("Falha ao registrar d\xEDvida.");
+      if (lojistaUid && envioId) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+          "cobrancaEntrega/status": "pago",
+          "cobrancaEntrega/valorDinheiro": valor,
+          "cobrancaEntrega/valorPix": 0,
+          "cobrancaEntrega/pagoEm": agora
+        });
+      }
+      pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: valor, valorPix: 0, pagoEm: agora };
+      renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+      console.warn("Falha ao confirmar recebimento em dinheiro:", err);
+      alert("N\xE3o foi poss\xEDvel registrar o recebimento agora. Tente novamente.");
+    }
+  }
+  function atualizarRestantePixCobranca(valorDigitado) {
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const total = Number(pac?.cobrancaEntrega?.valor || 0);
+    let dinheiro = parseMoedaParaNumero(valorDigitado || 0);
+    if (!Number.isFinite(dinheiro) || dinheiro < 0) dinheiro = 0;
+    if (dinheiro > total) dinheiro = total;
+    const restante = Number((total - dinheiro).toFixed(2));
+    const label = document.getElementById("ent-sheet-cobranca-restante-label");
+    if (label) label.innerText = restante > 0 ? `Restante no Pix: ${precoParaMoeda(restante)}` : "Dinheiro cobre o total \u2014 nenhum Pix necess\xE1rio.";
+  }
+  async function confirmarPagamentoMistoCobranca() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const cobranca = pac?.cobrancaEntrega;
+    if (!rotaObj || !cobranca?.ativa || cobranca.status !== "pendente") return;
+    const total = Number(cobranca.valor || 0);
+    const input = document.getElementById("ent-sheet-cobranca-dinheiro-input");
+    let valorDinheiro = parseMoedaParaNumero(input?.value || 0);
+    if (!Number.isFinite(valorDinheiro) || valorDinheiro < 0) valorDinheiro = 0;
+    if (valorDinheiro > total) {
+      alert(`O valor em dinheiro n\xE3o pode ser maior que o total da cobran\xE7a (${precoParaMoeda(total)}).`);
+      return;
+    }
+    const valorPix = Number((total - valorDinheiro).toFixed(2));
+    if (valorDinheiro > 0) {
+      const aviso = valorPix > 0 ? `Confirmar que recebeu ${precoParaMoeda(valorDinheiro)} em dinheiro do cliente? O restante de ${precoParaMoeda(valorPix)} vai ser cobrado via Pix a seguir. O valor em dinheiro vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica).` : `Confirmar que recebeu ${precoParaMoeda(valorDinheiro)} em dinheiro do cliente? Esse valor vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica).`;
+      if (!window.confirm(aviso)) return;
+    } else if (valorPix <= 0) {
+      alert("Digite quanto foi recebido em dinheiro, ou gere o Pix pelo valor cheio.");
+      return;
+    }
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const uidEntregador = getUsuarioIdAtual();
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+    try {
+      if (valorDinheiro > 0) {
+        const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
+        if (!resultadoDivida.ok) throw new Error("Falha ao registrar d\xEDvida.");
+      }
+      if (valorPix <= 0) {
+        if (lojistaUid && envioId) {
+          await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+            "cobrancaEntrega/status": "pago",
+            "cobrancaEntrega/valorDinheiro": valorDinheiro,
+            "cobrancaEntrega/valorPix": 0,
+            "cobrancaEntrega/pagoEm": agora
+          });
+        }
+        pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro, valorPix: 0, pagoEm: agora };
+        renderSheetRotaEntregadorConteudo();
+        return;
+      }
+      if (lojistaUid && envioId) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+          "cobrancaEntrega/valorDinheiro": valorDinheiro,
+          "cobrancaEntrega/valorPix": valorPix
+        });
+      }
+      pac.cobrancaEntrega = { ...cobranca, valorDinheiro, valorPix };
+      await gerarPixCobrancaEntrega(valorPix);
+    } catch (err) {
+      console.warn("Falha ao confirmar pagamento misto da cobran\xE7a:", err);
+      alert("N\xE3o foi poss\xEDvel registrar o recebimento agora. Tente novamente.");
+    }
+  }
+  function renderBlocoCobrancaEntrega(pac) {
+    const cobranca = pac?.cobrancaEntrega;
+    if (!cobranca?.ativa) return "";
+    if (cobranca.status === "pago") {
+      const partes = [];
+      if (Number(cobranca.valorDinheiro) > 0) partes.push(`${precoParaMoeda(cobranca.valorDinheiro)} em dinheiro`);
+      if (Number(cobranca.valorPix) > 0) partes.push(`${precoParaMoeda(cobranca.valorPix)} via Pix`);
+      const texto = partes.length ? `${partes.join(" + ")} recebidos` : `${precoParaMoeda(cobranca.valor)} recebidos`;
+      return `<div class="ent-sheet-cobranca-box ent-sheet-cobranca-ok"><i data-lucide="check-circle-2"></i> ${texto}</div>`;
+    }
+    if (cobranca.status === "pago_pix") {
+      return `<div class="ent-sheet-cobranca-box ent-sheet-cobranca-ok"><i data-lucide="check-circle-2"></i> Pix de ${precoParaMoeda(cobranca.valor)} recebido pela plataforma</div>`;
+    }
+    if (cobranca.status === "pago_dinheiro") {
+      return `<div class="ent-sheet-cobranca-box ent-sheet-cobranca-ok"><i data-lucide="check-circle-2"></i> ${precoParaMoeda(cobranca.valor)} recebidos em dinheiro</div>`;
+    }
+    const formasAceitas = Array.isArray(cobranca.formasAceitas) ? cobranca.formasAceitas : [];
+    const podeGerarPix = formasAceitas.includes("pix");
+    const podeReceberDinheiro = formasAceitas.includes("dinheiro");
+    const envioIdAtual = obterIdPacoteConfirmacao(pac);
+    const pixAtivo = pixCobrancaEntregaAtual && pixCobrancaEntregaAtual.envioId === envioIdAtual;
+    if (pixAtivo) {
+      const valorDinheiroJaRecebido = Number(cobranca.valorDinheiro) > 0 ? Number(cobranca.valorDinheiro) : 0;
+      return `
+        <div class="ent-sheet-cobranca-box">
+            <strong>Cobrar ${precoParaMoeda(pixCobrancaEntregaAtual.valor || cobranca.valor)} do cliente via Pix</strong>
+            ${valorDinheiroJaRecebido > 0 ? `<p class="ent-sheet-pix-status" style="margin-top:2px;">${precoParaMoeda(valorDinheiroJaRecebido)} j\xE1 recebidos em dinheiro</p>` : ""}
+            ${pixCobrancaEntregaAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixCobrancaEntregaAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
+            <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixCobrancaEntregaAtual.pixCode)}</textarea>
+            <div class="ent-sheet-actions-inline">
+                <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixCobrancaEntrega()">Copiar c\xF3digo Pix</button>
+            </div>
+            <div id="ent-sheet-pix-status" class="ent-sheet-pix-status">Aguardando pagamento do cliente...</div>
+            <div id="ent-sheet-pix-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
+        </div>`;
+    }
+    if (podeReceberDinheiro && !podeGerarPix) {
+      return `
+        <div class="ent-sheet-cobranca-box">
+            <strong>Cobrar ${precoParaMoeda(cobranca.valor)} em dinheiro na entrega</strong>
+            <div class="ent-sheet-actions-inline">
+                <button type="button" class="ent-sheet-primary small" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button>
+            </div>
+        </div>`;
+    }
+    if (podeGerarPix && !podeReceberDinheiro) {
+      return `
+        <div class="ent-sheet-cobranca-box">
+            <strong>Cobrar ${precoParaMoeda(cobranca.valor)} do cliente via Pix</strong>
+            <div class="ent-sheet-actions-inline">
+                <button type="button" id="ent-sheet-pix-gerar-btn" class="ent-sheet-btn-ghost" onclick="gerarPixCobrancaEntrega()">Gerar Pix</button>
+            </div>
+        </div>`;
+    }
+    return `
+    <div class="ent-sheet-cobranca-box">
+        <strong>Cobrar ${precoParaMoeda(cobranca.valor)} do cliente na entrega</strong>
+        <label for="ent-sheet-cobranca-dinheiro-input" style="display:block; margin-top:8px; font-size:12px; font-weight:700; color:#475569;">Recebido em dinheiro (deixe 0 se for tudo no Pix)</label>
+        <input id="ent-sheet-cobranca-dinheiro-input" type="text" inputmode="decimal" placeholder="R$ 0,00" oninput="atualizarRestantePixCobranca(this.value)">
+        <p id="ent-sheet-cobranca-restante-label" class="ent-sheet-pix-status">Restante no Pix: ${precoParaMoeda(cobranca.valor)}</p>
+        <div class="ent-sheet-actions-inline">
+            <button type="button" class="ent-sheet-primary small" onclick="confirmarPagamentoMistoCobranca()">Confirmar recebimento</button>
+        </div>
+    </div>`;
   }
   async function irParaPagamentoRota() {
     const selecionados = rotaPendentesCache.filter((item) => rotaSelecaoIds.has(item.id));
@@ -6546,6 +7550,11 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
           pagamentoStatusRaw,
           valor: Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0),
           valorConteudo: Number.isFinite(Number(h.valorConteudo)) ? Number(h.valorConteudo) : null,
+          cobrancaEntrega: h.cobrancaEntrega || null,
+          devolucaoStatus: h.devolucaoStatus || null,
+          motivoDevolucao: h.motivoDevolucao || null,
+          motivoDevolucaoDetalhe: h.motivoDevolucaoDetalhe || null,
+          codigoConfirmacaoDevolucao: h.codigoConfirmacaoDevolucao || null,
           servico: h.servico || "Standard",
           tamanho: h.tamanho || "",
           veiculo: h.veiculo || "Moto",
@@ -6579,6 +7588,11 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
         pagamentoStatusRaw,
         valor: Number.isFinite(Number(p.valorFrete)) ? Number(p.valorFrete) : parseMoedaParaNumero(p.valor || 0),
         valorConteudo: Number.isFinite(Number(p.valorConteudo)) ? Number(p.valorConteudo) : null,
+        cobrancaEntrega: p.cobrancaEntrega || null,
+        devolucaoStatus: p.devolucaoStatus || null,
+        motivoDevolucao: p.motivoDevolucao || null,
+        motivoDevolucaoDetalhe: p.motivoDevolucaoDetalhe || null,
+        codigoConfirmacaoDevolucao: p.codigoConfirmacaoDevolucao || null,
         servico: p.servico || "Standard",
         tamanho: p.tamanho || "",
         veiculo: p.veiculo || "Moto",
@@ -6612,6 +7626,11 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
         pagamentoStatusRaw,
         valor: Number.isFinite(Number(p.valorFrete)) ? Number(p.valorFrete) : parseMoedaParaNumero(p.valor || 0),
         valorConteudo: Number.isFinite(Number(p.valorConteudo)) ? Number(p.valorConteudo) : null,
+        cobrancaEntrega: p.cobrancaEntrega || null,
+        devolucaoStatus: p.devolucaoStatus || null,
+        motivoDevolucao: p.motivoDevolucao || null,
+        motivoDevolucaoDetalhe: p.motivoDevolucaoDetalhe || null,
+        codigoConfirmacaoDevolucao: p.codigoConfirmacaoDevolucao || null,
         servico: p.servico || "Standard",
         tamanho: p.tamanho || "",
         veiculo: p.veiculo || "Moto",
@@ -6716,6 +7735,39 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     if (origem) params.set("origin", origem);
     return "https://www.google.com/maps/dir/?" + params.toString();
   }
+  function rotuloMotivoDevolucao(motivo, detalhe) {
+    const mapa = {
+      cliente_nao_pagou: "Cliente n\xE3o pagou",
+      cliente_ausente: "Cliente n\xE3o est\xE1 em casa",
+      endereco_nao_encontrado: "Endere\xE7o n\xE3o encontrado",
+      cliente_recusou: "Cliente recusou o pedido",
+      outro: detalhe ? `Outro: ${detalhe}` : "Outro motivo"
+    };
+    return mapa[motivo] || "Motivo n\xE3o informado";
+  }
+  async function confirmarDevolucaoComoLojista(envioId) {
+    if (!envioId) return;
+    const uid = getUsuarioIdAtual();
+    if (!uid) return;
+    const rotaId = trackLojaIdAtual;
+    if (!rotaId) return;
+    if (!window.confirm("Confirma que a devolu\xE7\xE3o \xE9 real? Depois disso voc\xEA vai precisar pagar o Pix do frete de volta antes de receber o c\xF3digo para dar ao entregador.")) {
+      return;
+    }
+    const agora = Date.now();
+    try {
+      await sincronizarCamposEnvioLojista(uid, envioId, {
+        devolucaoStatus: "DEVOLUCAO_CONFIRMADA",
+        devolucaoConfirmadaEm: agora
+      });
+      const valorFrete = buscarValorFreteEnvioLojista(envioId);
+      await gerarPixDevolucaoFreteLojista(uid, rotaId, envioId, { id: envioId, valorFrete });
+      await abrirModalTrackingLoja(rotaId);
+    } catch (err) {
+      console.warn("Falha ao confirmar devolu\xE7\xE3o:", err);
+      alert("N\xE3o foi poss\xEDvel confirmar a devolu\xE7\xE3o agora. Tente novamente.");
+    }
+  }
   function abrirModalDetalheEnvio(envioId, event) {
     if (event) event.stopPropagation();
     if (!envioId) return;
@@ -6739,6 +7791,27 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     preencherTextoDetalheEnvio("envio-detalhe-duracao", formatarDuracao(envio.duracaoMin));
     preencherTextoDetalheEnvio("envio-detalhe-valor-frete", precoParaMoeda(envio.valor || 0));
     preencherTextoDetalheEnvio("envio-detalhe-valor-conteudo", Number.isFinite(envio.valorConteudo) ? precoParaMoeda(envio.valorConteudo) : "--");
+    const cobrancaRow = document.getElementById("envio-detalhe-cobranca-row");
+    if (envio.cobrancaEntrega?.ativa) {
+      const formas = (envio.cobrancaEntrega.formasAceitas || []).map((f) => f === "dinheiro" ? "Dinheiro" : "Pix").join(" ou ");
+      if (cobrancaRow) cobrancaRow.style.display = "flex";
+      preencherTextoDetalheEnvio("envio-detalhe-cobranca", `${precoParaMoeda(envio.cobrancaEntrega.valor || 0)} (${formas || "--"})`);
+    } else if (cobrancaRow) {
+      cobrancaRow.style.display = "none";
+    }
+    const devolucaoAvisoEl = document.getElementById("envio-detalhe-devolucao-aviso");
+    const devolucaoCodigoEl = document.getElementById("envio-detalhe-devolucao-codigo");
+    if (devolucaoAvisoEl) {
+      devolucaoAvisoEl.style.display = envio.devolucaoStatus === "DEVOLUCAO_SOLICITADA" ? "flex" : "none";
+      if (envio.devolucaoStatus === "DEVOLUCAO_SOLICITADA") {
+        preencherTextoDetalheEnvio("envio-detalhe-devolucao-motivo", rotuloMotivoDevolucao(envio.motivoDevolucao, envio.motivoDevolucaoDetalhe));
+      }
+    }
+    if (devolucaoCodigoEl) {
+      const mostrarCodigo = envio.devolucaoStatus === "DEVOLUCAO_PIX_PAGO" && envio.codigoConfirmacaoDevolucao;
+      devolucaoCodigoEl.style.display = mostrarCodigo ? "flex" : "none";
+      if (mostrarCodigo) preencherTextoDetalheEnvio("envio-detalhe-codigo-devolucao", envio.codigoConfirmacaoDevolucao);
+    }
     preencherTextoDetalheEnvio("envio-detalhe-descricao", envio.descricao || "--");
     preencherTextoDetalheEnvio("envio-detalhe-observacoes", envio.observacoes || "--");
     preencherTextoDetalheEnvio("envio-detalhe-origem", envio.origemCompleta || "--");
@@ -6910,32 +7983,37 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     if (!ok) return;
     try {
       await excluirEnvioPorId(envioId, { persistir: true });
-      if (entregadorId) {
-        criarNotificacao(entregadorId, {
-          tipo: "envio_removido",
-          titulo: "Pacote removido da rota",
-          mensagem: `O lojista removeu o pedido de ${nomeDestinatario} da rota${rotaId ? ` #${rotaId}` : ""}.`,
-          rotaId: rotaId || ""
-        });
-      }
-      if (podeReembolsar) {
-        await creditarSaldoUsuarioAtual(valorFrete, `Estorno do pedido #${envioId} cancelado${rotaId ? ` (rota #${rotaId})` : ""}`);
-      }
-      if (corridaIniciada) {
-        await cobrarTaxaCancelamentoEnvio(envioId, rotaId);
-      }
-      if (rotaId && entregadorId) {
-        await marcarRotaCanceladaSeVazia(rotaId, entregadorId);
-      }
+    } catch (err) {
+      console.warn("Falha ao excluir envio:", err);
+      alert("N\xE3o foi poss\xEDvel excluir este envio.");
+      return;
+    }
+    if (entregadorId) {
+      await criarNotificacao(entregadorId, {
+        tipo: "envio_removido",
+        titulo: "Pacote removido da rota",
+        mensagem: `O lojista removeu o pedido de ${nomeDestinatario} da rota${rotaId ? ` #${rotaId}` : ""}.`,
+        rotaId: rotaId || ""
+      }).catch((err) => console.warn("Falha ao notificar entregador sobre exclus\xE3o:", err));
+    }
+    if (podeReembolsar) {
+      await creditarSaldoUsuarioAtual(valorFrete, `Estorno do pedido #${envioId} cancelado${rotaId ? ` (rota #${rotaId})` : ""}`).catch((err) => console.warn("Falha ao reembolsar envio exclu\xEDdo:", err));
+    }
+    if (corridaIniciada) {
+      await cobrarTaxaCancelamentoEnvio(envioId, rotaId).catch((err) => console.warn("Falha ao cobrar taxa de cancelamento:", err));
+    }
+    if (rotaId && entregadorId) {
+      await marcarRotaCanceladaSeVazia(rotaId, entregadorId).catch((err) => console.warn("Falha ao atualizar status da rota ap\xF3s exclus\xE3o:", err));
+    }
+    try {
       saveClientes();
       renderEnviosHome();
       atualizarListaEnviosSelector?.();
       if (envioDetalheAtualId === envioId) fecharModalDetalheEnvio();
-      notificarErro(corridaIniciada ? `Envio exclu\xEDdo. Taxa de ${precoParaMoeda(TAXA_CANCELAMENTO_ENVIO)} cobrada.` : "Envio exclu\xEDdo.");
     } catch (err) {
-      console.warn("Falha ao excluir envio:", err);
-      alert("N\xE3o foi poss\xEDvel excluir este envio.");
+      console.warn("Falha ao atualizar a tela ap\xF3s excluir envio:", err);
     }
+    notificarSucesso(corridaIniciada ? `Envio exclu\xEDdo. Taxa de ${precoParaMoeda(TAXA_CANCELAMENTO_ENVIO)} cobrada.` : "Envio exclu\xEDdo.");
   }
   var envioTouchStartX = 0;
   var envioCardAtivo = null;
@@ -8107,6 +9185,27 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     if (!rotaId) return;
     try {
       trackLojaIdAtual = rotaId;
+      const uidLojistaAtual = getUsuarioIdAtual();
+      if (uidLojistaAtual) {
+        try {
+          const [clientesFrescos, pacotesSnap, rotaFrescaSnap] = await Promise.all([
+            loadClientes(),
+            db.ref(`usuarios/${uidLojistaAtual}/pacotes`).once("value"),
+            db.ref(`usuarios/${uidLojistaAtual}/rotas/${rotaId}`).once("value")
+          ]);
+          clientes = clientesFrescos;
+          window.pacotesRaizCache = window.pacotesRaizCache || {};
+          window.pacotesRaizCache[uidLojistaAtual] = pacotesSnap.val() || {};
+          if (rotaFrescaSnap.exists()) {
+            const rotaFresca = { id: rotaId, ...rotaFrescaSnap.val() || {} };
+            const idx = rotasHomeCache.findIndex((r) => String(r.id) === String(rotaId));
+            if (idx >= 0) rotasHomeCache[idx] = rotaFresca;
+            else rotasHomeCache.push(rotaFresca);
+          }
+        } catch (err) {
+          console.warn("Falha ao recarregar dados frescos da rota:", err);
+        }
+      }
       const rota = (rotasHomeCache || []).find((r) => String(r.id) === String(rotaId)) || {};
       const statusStr = rota?.status || rota?.pagamentoStatus || "CRIADA";
       const status = getStatusVisualRota(statusStr);
@@ -8235,6 +9334,54 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
         const parada = await verificarRotaParada(rota);
         banner.style.display = parada ? "block" : "none";
       }
+      const devolucoesEl = document.getElementById("track-loja-devolucoes");
+      if (devolucoesEl) {
+        const pacotesDevolucao = pacotes.filter((p) => p?.devolucaoStatus === "DEVOLUCAO_SOLICITADA" || p?.devolucaoStatus === "DEVOLUCAO_CONFIRMADA" || p?.devolucaoStatus === "DEVOLUCAO_PIX_PAGO");
+        devolucoesEl.innerHTML = pacotesDevolucao.map((p) => {
+          if (p.devolucaoStatus === "DEVOLUCAO_SOLICITADA") {
+            return `
+                    <div class="tracking-stale-banner" style="background:#fef2f2; border-color:#fecaca;">
+                        <p style="color:#991b1b;">O entregador n\xE3o conseguiu entregar o pedido de ${escaparHtmlMarketplace(p.destinatario || "cliente")}: ${escaparHtmlMarketplace(rotuloMotivoDevolucao(p.motivoDevolucao, p.motivoDevolucaoDetalhe))}</p>
+                        <button type="button" class="tracking-btn main full" onclick="confirmarDevolucaoComoLojista('${String(p.id).replace(/'/g, "\\'")}')">Confirmar devolu\xE7\xE3o</button>
+                    </div>`;
+          }
+          if (p.devolucaoStatus === "DEVOLUCAO_CONFIRMADA") {
+            const pixAtivo = pixDevolucaoLojistaAtual && String(pixDevolucaoLojistaAtual.envioId) === String(p.id);
+            if (pixAtivo) {
+              const podePagarComSaldo = Number(pixDevolucaoLojistaAtual.saldoDisponivel || 0) >= Number(pixDevolucaoLojistaAtual.valor || 0);
+              return `
+                        <div class="tracking-stale-banner" style="background:#fffaf5; border-color:#fdba74;">
+                            <p style="color:#0f172a;"><strong>Pague o frete de devolu\xE7\xE3o (${escaparHtmlMarketplace(precoParaMoeda(pixDevolucaoLojistaAtual.valor || 0))}) para liberar o c\xF3digo de confirma\xE7\xE3o.</strong></p>
+                            <div class="rota-pix-card">
+                                <span class="rota-pix-label">Saldo dispon\xEDvel</span>
+                                <p class="rota-flow-help" style="margin:4px 0 10px;">Saldo dispon\xEDvel: <strong>${escaparHtmlMarketplace(precoParaMoeda(pixDevolucaoLojistaAtual.saldoDisponivel || 0))}</strong></p>
+                                <button id="track-loja-devolucao-saldo-btn" type="button" class="btn-main" style="margin-top:0;" ${podePagarComSaldo ? "" : "disabled"} onclick="pagarDevolucaoComSaldo()">Pagar com saldo</button>
+                            </div>
+                            <p class="rota-flow-help">Ou use o Pix Copia e Cola para pagar e liberar o c\xF3digo.</p>
+                            <div class="rota-pix-card">
+                                <span class="rota-pix-label">Pix Copia e Cola</span>
+                                ${pixDevolucaoLojistaAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixDevolucaoLojistaAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
+                                <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixDevolucaoLojistaAtual.pixCode)}</textarea>
+                                <div class="ent-sheet-actions-inline">
+                                    <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixDevolucaoLojista()">Copiar c\xF3digo Pix</button>
+                                </div>
+                                <div class="ent-sheet-pix-status">Aguardando confirma\xE7\xE3o do pagamento...</div>
+                                <div id="track-loja-pix-devolucao-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
+                            </div>
+                        </div>`;
+            }
+            return `
+                    <div class="tracking-stale-banner" style="background:#fffaf5; border-color:#fdba74;">
+                        <p style="color:#0f172a;">Gerando o Pix do frete de devolu\xE7\xE3o...</p>
+                    </div>`;
+          }
+          return `
+                <div class="tracking-stale-banner" style="background:#fffaf5; border-color:#fdba74;">
+                    <p style="color:#0f172a;">Informe este c\xF3digo ao entregador quando ele voltar \xE0 loja com o pedido de ${escaparHtmlMarketplace(p.destinatario || "cliente")}:</p>
+                    <strong style="display:block; text-align:center; font-size:20px; letter-spacing:2px; color:var(--brand-orange);">${escaparHtmlMarketplace(p.codigoConfirmacaoDevolucao || "----")}</strong>
+                </div>`;
+        }).join("");
+      }
       const overlay = document.getElementById("overlay-tracking-loja");
       if (overlay) {
         overlay.style.display = "flex";
@@ -8275,6 +9422,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     if (overlay) overlay.style.display = "none";
     trackLojaIdAtual = null;
     pararListenerGeoTrackingLoja();
+    pararPollingPixDevolucaoLojista();
+    pixDevolucaoLojistaAtual = null;
   }
   var geoTrackingListenerRef = null;
   var geoTrackingListenerCb = null;
@@ -8364,7 +9513,7 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
           rotaId: String(rotaId)
         });
       }
-      notificarErro("Rota liberada para novo entregador.");
+      notificarSucesso("Rota liberada para novo entregador.");
       fecharModalTrackingLoja();
       rotasHomeCache = await carregarRotasDoBanco();
       if (typeof renderRotasTelaPrincipal === "function") renderRotasTelaPrincipal();
