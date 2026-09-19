@@ -150,7 +150,7 @@ h2 { font-size: var(--font-subtitle); font-weight: var(--font-weight-semibold); 
 p  { font-size: var(--font-body); line-height: 1.5; color: var(--color-text); }
 span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
-.container { width: 100%; max-width: 420px; padding: 24px 10px 80px 10px; position: relative; z-index: 1; }
+.container { width: 100%; max-width: 420px; min-height: 100vh; min-height: 100dvh; padding: 24px 10px 80px 10px; position: relative; z-index: 1; }
 .container { background: var(--ui-color-bg, transparent); }
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
@@ -2881,11 +2881,10 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .rota-detalhe-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 10px;
 }
 
-.rota-detalhe-close-btn,
 .rota-detalhe-delete-btn {
     width: 100%;
     border-radius: 12px;
@@ -2893,22 +2892,12 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     font-size: 14px;
     font-weight: 800;
     border: 1px solid transparent;
-}
-
-.rota-detalhe-close-btn {
-    background: #f8fafc;
-    color: #0f172a;
-    border-color: #d9e1ec;
-}
-
-.rota-detalhe-delete-btn {
     margin-top: 0;
     background: #ef4444;
     border-color: #ef4444;
     color: #ffffff;
 }
 
-.rota-detalhe-close-btn:active,
 .rota-detalhe-delete-btn:active {
     transform: translateY(1px);
 }
@@ -4280,6 +4269,26 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     margin-bottom: 8px;
 }
 
+.pagamento-saque-help {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 600;
+    margin: -2px 0 10px;
+    line-height: 1.4;
+}
+
+.pagamento-divida-section {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.pagamento-divida-valor {
+    font-size: 14px;
+    font-weight: 700;
+    color: #991b1b;
+    margin: 4px 0 10px;
+}
+
 .pagamento-creditos-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5385,20 +5394,27 @@ body.usuario-entregador #entregador-rotas-shell {
 #buscar-sheet-overlay { align-items: flex-end; }
 #buscar-sheet-overlay .sheet-buscar { width: 100%; max-width: 520px; background: #fff; border-radius: 22px 22px 0 0; padding: 18px; box-shadow: 0 -10px 30px rgba(0,0,0,0.18); transform: translateY(0); }
 #buscar-sheet-content { display: flex; flex-direction: column; gap: 22px; max-height: 100vh; overflow-y: auto; padding: 0 0 60px 0; }
-.sheet-actions { margin-top: 24px; }
-.sheet-handle { width: 46px; height: 5px; border-radius: 999px; background: #d7dfe9; margin: 0 auto 14px; }
-.sheet-header { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-right: 30px; }
-.sheet-merchant { display: flex; gap: 10px; align-items: center; }
-.sheet-merchant-logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--brand-orange); overflow: hidden; }
-.sheet-merchant-logo img { width: 100%; height: 100%; object-fit: cover; }
-.sheet-merchant-info strong { display: block; font-size: 14px; color: var(--text-main); }
-.sheet-merchant-info small { color: var(--text-sub); font-weight: 700; }
-.sheet-price { font-size: 22px; font-weight: 900; color: #16a34a; text-align: right; margin-top: 14px; }
-.sheet-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: #e8f1ff; color: #225db2; border-radius: 999px; font-weight: 800; font-size: 11px; margin-top: 6px; }
-.sheet-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin: 14px 0; }
-.sheet-meta-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #eef2f6; border-radius: 12px; font-weight: 700; color: var(--text-main); background: #f9fbfe; }
-  .sheet-block { border: 1px solid #eef2f6; border-radius: 14px; padding: 12px; margin-bottom: 10px; background: #fdfefe; }
-  .sheet-block strong { display: block; margin-bottom: 4px; color: var(--text-main); }
+/* CORRIGIDO 2026-09-18: estas regras eram globais (.sheet-header, .sheet-actions
+   etc sem escopo) mas só existem de fato dentro do HTML injetado em
+   #buscar-sheet-content (abrirSheetBuscaRota). Como .sheet-header/.sheet-header-row
+   é o mesmo nome de classe usado no padrão de cabeçalho de TODOS os outros modais
+   (Pagamento, Informações, Histórico, novo envio), o "display:flex" daqui vazava
+   pra eles e desalinhava a barrinha cinza + título + botão fechar. Escopado a
+   #buscar-sheet-content pra não vazar mais. */
+#buscar-sheet-content .sheet-actions { margin-top: 24px; }
+.sheet-buscar .sheet-handle { width: 46px; height: 5px; border-radius: 999px; background: #d7dfe9; margin: 0 auto 14px; }
+#buscar-sheet-content .sheet-header { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-right: 30px; }
+#buscar-sheet-content .sheet-merchant { display: flex; gap: 10px; align-items: center; }
+#buscar-sheet-content .sheet-merchant-logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--brand-orange); overflow: hidden; }
+#buscar-sheet-content .sheet-merchant-logo img { width: 100%; height: 100%; object-fit: cover; }
+#buscar-sheet-content .sheet-merchant-info strong { display: block; font-size: 14px; color: var(--text-main); }
+#buscar-sheet-content .sheet-merchant-info small { color: var(--text-sub); font-weight: 700; }
+#buscar-sheet-content .sheet-price { font-size: 22px; font-weight: 900; color: #16a34a; text-align: right; margin-top: 14px; }
+#buscar-sheet-content .sheet-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: #e8f1ff; color: #225db2; border-radius: 999px; font-weight: 800; font-size: 11px; margin-top: 6px; }
+#buscar-sheet-content .sheet-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin: 14px 0; }
+#buscar-sheet-content .sheet-meta-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #eef2f6; border-radius: 12px; font-weight: 700; color: var(--text-main); background: #f9fbfe; }
+  #buscar-sheet-content .sheet-block { border: 1px solid #eef2f6; border-radius: 14px; padding: 12px; margin-bottom: 10px; background: #fdfefe; }
+  #buscar-sheet-content .sheet-block strong { display: block; margin-bottom: 4px; color: var(--text-main); }
 
 /* Entregador sheet novo */
 .ent-sheet { background: #fff; border-radius: 26px; padding: 18px 18px 22px; box-shadow: 0 20px 55px rgba(0,0,0,0.18); }

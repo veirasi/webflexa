@@ -1,4 +1,4 @@
-﻿const { onRequest } = require('firebase-functions/v2/https');
+const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -123,7 +123,7 @@ async function canAccessTenant(requester, tenantId) {
   return snap.val() === 'admin';
 }
 
-exports.routing = onRequest({ region: ROUTING_REGION, timeoutSeconds: 20 }, async (req, res) => {
+exports.routing = onRequest({ region: ROUTING_REGION, timeoutSeconds: 20, invoker: 'public' }, async (req, res) => {
   setCors(res);
 
   if (req.method === 'OPTIONS') {
@@ -250,7 +250,7 @@ async function consultarPagamentoPixMp(token, paymentId) {
 // O access token do Mercado Pago nunca sai do servidor. O valor cobrado é
 // sempre recalculado aqui a partir dos envios persistidos (nunca confia em
 // total enviado pelo cliente).
-exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secrets: [MP_ACCESS_TOKEN] }, async (req, res) => {
+exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secrets: [MP_ACCESS_TOKEN], invoker: 'public' }, async (req, res) => {
   setCors(res);
 
   if (req.method === 'OPTIONS') {
@@ -261,7 +261,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -308,14 +308,14 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
 
       const usuarioSnap = await db.ref(`usuarios/${tenantId}`).once('value');
       const usuario = usuarioSnap.val() || {};
-      const nomeCompleto = String(usuario?.nome || 'Lojista Flexa').trim() || 'Lojista Flexa';
+      const nomeCompleto = String(usuario?.nome || 'Lojista Flex').trim() || 'Lojista Flex';
       const [firstName, ...restoNome] = nomeCompleto.split(' ');
-      const lastName = restoNome.join(' ') || 'Flexa';
-      const payerEmail = String(usuario?.email || requester.email || 'pagador@flexa.app');
+      const lastName = restoNome.join(' ') || 'Flex';
+      const payerEmail = String(usuario?.email || requester.email || 'pagador@flex.app');
 
       const mpData = await criarPagamentoPixMp(token, {
         valor: total,
-        descricao: `Flexa Rota ${rotaId} (${envioIds.length} pacote(s))`,
+        descricao: `Flex Rota ${rotaId} (${envioIds.length} pacote(s))`,
         payerEmail,
         payerFirstName: firstName || 'Lojista',
         payerLastName: lastName,
@@ -392,14 +392,14 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         ? valorPedido
         : valorTotalCobranca;
 
-      const nomeCliente = String(pacote?.destinatario || 'Cliente Flexa').trim() || 'Cliente Flexa';
+      const nomeCliente = String(pacote?.destinatario || 'Cliente Flex').trim() || 'Cliente Flex';
       const [firstNameCliente, ...restoNomeCliente] = nomeCliente.split(' ');
-      const lastNameCliente = restoNomeCliente.join(' ') || 'Flexa';
+      const lastNameCliente = restoNomeCliente.join(' ') || 'Flex';
 
       const mpData = await criarPagamentoPixMp(token, {
         valor: valorCobranca,
-        descricao: `Flexa - cobrança na entrega (pedido ${envioId})`,
-        payerEmail: `cliente-${envioId}@flexa.app`,
+        descricao: `Flex - cobrança na entrega (pedido ${envioId})`,
+        payerEmail: `cliente-${envioId}@flex.app`,
         payerFirstName: firstNameCliente || 'Cliente',
         payerLastName: lastNameCliente,
         externalReference: `${rotaId}:${envioId}`,
@@ -537,14 +537,14 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
 
       const usuarioSnap = await db.ref(`usuarios/${tenantId}`).once('value');
       const usuario = usuarioSnap.val() || {};
-      const nomeLojista = String(usuario?.nome || 'Lojista Flexa').trim() || 'Lojista Flexa';
+      const nomeLojista = String(usuario?.nome || 'Lojista Flex').trim() || 'Lojista Flex';
       const [firstNameLojista, ...restoNomeLojista] = nomeLojista.split(' ');
-      const lastNameLojista = restoNomeLojista.join(' ') || 'Flexa';
-      const payerEmailLojista = String(usuario?.email || requester.email || 'pagador@flexa.app');
+      const lastNameLojista = restoNomeLojista.join(' ') || 'Flex';
+      const payerEmailLojista = String(usuario?.email || requester.email || 'pagador@flex.app');
 
       const mpData = await criarPagamentoPixMp(token, {
         valor: valorFreteVolta,
-        descricao: `Flexa - frete de devolução (pedido ${envioId})`,
+        descricao: `Flex - frete de devolução (pedido ${envioId})`,
         payerEmail: payerEmailLojista,
         payerFirstName: firstNameLojista || 'Lojista',
         payerLastName: lastNameLojista,
@@ -632,6 +632,113 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
               devolucaoFretePagoEm: Date.now()
             });
           }
+        }
+      }
+
+      return res.status(200).json({
+        paymentId,
+        status: statusPagamento,
+        statusDetail: data?.status_detail || '',
+        ambiente
+      });
+    }
+
+    // Quitação da dívida em dinheiro do entregador (ver financeiro/divida no
+    // frontend, ajustarDividaUsuario) — o entregador paga a própria dívida via
+    // Pix pra sair do bloqueio de 5 dias (entregadorBloqueadoPorDividaAtrasada).
+    // Sem isso não existia NENHUM jeito de sair do bloqueio, já que ele impede
+    // aceitar rota nova — inclusive as que poderiam gerar frete suficiente pra
+    // liquidar automaticamente. Pedido do dono, 2026-09-18.
+    if (path === '/create-pix-quitacao-divida') {
+      const uidEntregador = requester.uid;
+
+      // valor sempre recalculado a partir da dívida persistida, nunca do que o app mandar
+      const dividaSnap = await db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once('value');
+      const divida = Number(dividaSnap.val() || 0);
+      if (!Number.isFinite(divida) || divida <= 0) {
+        return res.status(422).json({ error: 'Nenhuma dívida pendente para quitar' });
+      }
+
+      const usuarioSnap = await db.ref(`usuarios/${uidEntregador}`).once('value');
+      const usuario = usuarioSnap.val() || {};
+      const nomeCompleto = String(usuario?.nome || 'Entregador Flex').trim() || 'Entregador Flex';
+      const [firstName, ...restoNome] = nomeCompleto.split(' ');
+      const lastName = restoNome.join(' ') || 'Flex';
+      const payerEmail = String(usuario?.email || requester.email || 'pagador@flex.app');
+
+      const mpData = await criarPagamentoPixMp(token, {
+        valor: divida,
+        descricao: 'Flex - quitação de dívida em dinheiro',
+        payerEmail,
+        payerFirstName: firstName || 'Entregador',
+        payerLastName: lastName,
+        externalReference: `quitacao:${uidEntregador}`,
+        idempotencyKey: `${uidEntregador}-quitacao-${Date.now()}`
+      });
+
+      const tx = mpData?.point_of_interaction?.transaction_data || {};
+      const pixCode = tx.qr_code || '';
+      if (!pixCode) {
+        return res.status(502).json({ error: 'Mercado Pago não retornou código Pix Copia e Cola' });
+      }
+
+      const paymentId = String(mpData?.id || '');
+      await db.ref(`mp_payments/${paymentId}`).set({
+        entregadorId: uidEntregador,
+        tipo: 'quitacao_divida',
+        total: divida,
+        ambiente,
+        criadoEm: Date.now()
+      });
+
+      return res.status(200).json({
+        paymentId,
+        status: mpData?.status || 'pending',
+        statusDetail: mpData?.status_detail || '',
+        pixCode,
+        ticketUrl: tx.ticket_url || '',
+        qrCodeBase64: tx.qr_code_base64 || '',
+        valor: divida,
+        ambiente
+      });
+    }
+
+    if (path === '/check-pix-quitacao-divida') {
+      const { paymentId } = req.body || {};
+      if (!paymentId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['paymentId'] });
+      }
+
+      const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
+      const registro = registroSnap.val();
+      if (!registro || registro.tipo !== 'quitacao_divida' || registro.entregadorId !== requester.uid) {
+        return res.status(404).json({ error: 'Pagamento não encontrado' });
+      }
+
+      const data = await consultarPagamentoPixMp(token, paymentId);
+      const statusPagamento = data?.status || 'pending';
+
+      if (statusPagamento === 'approved') {
+        // leitura+gravacao (nao .transaction(), mesmo motivo de sempre) protegida
+        // por marcador pra nao abater a divida duas vezes.
+        const marcadorRef = db.ref(`mp_payments/${paymentId}/creditoEfetuadoEm`);
+        const marcadorSnap = await marcadorRef.once('value');
+        if (!marcadorSnap.val()) {
+          const dividaRef = db.ref(`usuarios/${registro.entregadorId}/financeiro/divida`);
+          const dividaSnap = await dividaRef.once('value');
+          const dividaAtual = Number(dividaSnap.val() || 0);
+          const dividaNova = Math.max(0, Number((dividaAtual - registro.total).toFixed(2)));
+          await dividaRef.set(dividaNova);
+          if (dividaNova <= 0) {
+            await db.ref(`usuarios/${registro.entregadorId}/financeiro/dividaDesde`).remove();
+          }
+          await marcadorRef.set(Date.now());
+          await db.ref(`usuarios/${registro.entregadorId}/financeiro/transacoes`).push({
+            tipo: 'DEBITO_DIVIDA',
+            valor: registro.total,
+            descricao: 'Dívida quitada via Pix',
+            criadoEm: Date.now()
+          });
         }
       }
 

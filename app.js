@@ -128,6 +128,7 @@
     consultarPagamentoPixTesteClienteLocal: () => consultarPagamentoPixTesteClienteLocal,
     copiarCodigoPixCobrancaEntrega: () => copiarCodigoPixCobrancaEntrega,
     copiarCodigoPixDevolucaoLojista: () => copiarCodigoPixDevolucaoLojista,
+    copiarCodigoPixQuitacaoDivida: () => copiarCodigoPixQuitacaoDivida,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
     creditarCarteiraEntregadorRotaFinalizada: () => creditarCarteiraEntregadorRotaFinalizada,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
@@ -200,6 +201,7 @@
     gerarIdempotencyKeyTesteLocal: () => gerarIdempotencyKeyTesteLocal,
     gerarIniciais: () => gerarIniciais,
     gerarPixCobrancaEntrega: () => gerarPixCobrancaEntrega,
+    gerarPixQuitacaoDivida: () => gerarPixQuitacaoDivida,
     getChavePacoteRota: () => getChavePacoteRota,
     getClienteById: () => getClienteById,
     getEtapaRastreamento: () => getEtapaRastreamento,
@@ -259,6 +261,7 @@
     marcarEnviosEmRota: () => marcarEnviosEmRota,
     marcarNotificacaoLida: () => marcarNotificacaoLida,
     marcarRotaCanceladaSeVazia: () => marcarRotaCanceladaSeVazia,
+    marcarSaqueComoPago: () => marcarSaqueComoPago,
     marcarTodasNotificacoesLidas: () => marcarTodasNotificacoesLidas,
     montarCardBuscaEntregador: () => montarCardBuscaEntregador,
     montarCardHistoricoRotaEntregador: () => montarCardHistoricoRotaEntregador,
@@ -317,6 +320,7 @@
     pacoteConcluidoOuCanceladoNoSheet: () => pacoteConcluidoOuCanceladoNoSheet,
     pagarComPix: () => pagarComPix,
     pagarDevolucaoComSaldo: () => pagarDevolucaoComSaldo,
+    pagarDividaComSaldo: () => pagarDividaComSaldo,
     pagarRotaComSaldo: () => pagarRotaComSaldo,
     paginaAnteriorDetalheRota: () => paginaAnteriorDetalheRota,
     pararListenerGeoTrackingLoja: () => pararListenerGeoTrackingLoja,
@@ -370,6 +374,7 @@
     rotuloStatusEnvio: () => rotuloStatusEnvio,
     salvarDadosPagamento: () => salvarDadosPagamento,
     salvarEndereco: () => salvarEndereco,
+    salvarMetaDiaEntregador: () => salvarMetaDiaEntregador,
     salvarNovoCliente: () => salvarNovoCliente,
     salvarPerfil: () => salvarPerfil,
     salvarRotaNoBanco: () => salvarRotaNoBanco,
@@ -387,8 +392,12 @@
     setStatusPagamentoPixRota: () => setStatusPagamentoPixRota,
     setTicketPagamentoPixRota: () => setTicketPagamentoPixRota,
     setUltimoErroRota: () => setUltimoErroRota,
+    simularAprovacaoCobrancaEntregaTeste: () => simularAprovacaoCobrancaEntregaTeste,
+    simularAprovacaoDevolucaoTeste: () => simularAprovacaoDevolucaoTeste,
+    simularAprovacaoQuitacaoDividaTeste: () => simularAprovacaoQuitacaoDividaTeste,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
     solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
+    solicitarSaque: () => solicitarSaque,
     switchAdminTab: () => switchAdminTab,
     telaInicialPorTipoUsuario: () => telaInicialPorTipoUsuario,
     telaPerfilPorTipoUsuario: () => telaPerfilPorTipoUsuario,
@@ -1589,7 +1598,7 @@
   var mercadoPagoAmbienteAtual = FLEXA_MP_TEST_TOKEN ? "teste" : "desconhecido";
   var rotaPixCodigoRawAtual = "";
   function normalizarCodigoPix(codigo = "") {
-    return (codigo || "").toString().replace(/\s+/g, "").trim();
+    return (codigo || "").toString().trim();
   }
   function setStatusPagamentoPixRota(texto, tipo = "pending") {
     const statusEl = document.getElementById("rota-pix-status");
@@ -2071,6 +2080,11 @@
   async function irParaVeiculos() {
     const inputDesc = (document.getElementById("input-desc")?.value || "").trim();
     const inputValorConteudo = parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
+    if (!Number.isFinite(inputValorConteudo) || inputValorConteudo <= 0) {
+      alert("Informe o Valor Total do envio.");
+      document.getElementById("input-valor")?.focus();
+      return;
+    }
     resumoRevisaoAtual.descricao = inputDesc;
     resumoRevisaoAtual.valorConteudo = Number.isFinite(inputValorConteudo) ? inputValorConteudo : 0;
     resumoRevisaoAtual.observacoes = (document.getElementById("input-obs-envio")?.value || "").trim();
@@ -2232,7 +2246,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       rotaSelecaoIds = /* @__PURE__ */ new Set();
       filtroRotaEntregadorOrigem = "TODAS";
       filtroRotaEntregadorDestino = "TODAS";
-      localStorage.setItem("flexa_session", JSON.stringify(usuarioLogado));
       const tipo = obterTipoUsuarioAtual();
       aplicarPermissoesPorTipoUsuario();
       navegar(telaInicialPorTipoUsuario(tipo));
@@ -2925,6 +2938,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           const qtdDestinos = destinos.length;
           const destinoPrincipal = qtdDestinos > 1 ? "Multi-cidades" : destinos[0] || "--";
           const totalPacotes = Number(rota?.quantidade || pacotes.length || 0);
+          const enderecosDestino = [...new Set(
+            pacotes.map((p) => (p?.destinoCompleto || p?.destinoEndereco || p?.destino || obterCidadeDestinoPacoteMarketplace(p) || "").toString().trim()).filter(Boolean)
+          )];
+          const totalParadas = enderecosDestino.length || pacotes.length || 1;
           const totalFrete = Number.isFinite(Number(rota?.totalFrete)) ? Number(rota.totalFrete) : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
           const distanciaTotal = pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
           const duracaoTotal = pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
@@ -2943,6 +2960,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             destinoPrincipal,
             destinos,
             totalPacotes,
+            totalParadas,
             totalFrete,
             distanciaTotal,
             duracaoTotal,
@@ -3003,7 +3021,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       return `
             <div class="global-header">
                 <div class="gh-left">
-                    <img src="img/logoflexa.png" alt="Flexa" class="gh-logo">
+                    <img src="img/logoflexa.png" alt="Flex" class="gh-logo">
                 </div>
                 <div class="gh-actions">
                     ${chipHtml}
@@ -3204,13 +3222,13 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       return;
     }
     const destinos = Array.isArray(rota.destinos) ? rota.destinos : [];
-    const qtdDestinos = Math.max(1, destinos.length);
+    const qtdParadas = Number.isFinite(Number(rota.totalParadas)) && Number(rota.totalParadas) > 0 ? Number(rota.totalParadas) : Math.max(1, destinos.length);
     const badgeTxt = rota.servicoLabel || "Padr\xE3o";
     const precoTxt = precoParaMoeda(Number(rota.totalFrete || 0));
     const distanciaTxt = formatarDistancia(Number(rota.distanciaTotal || 0));
     const duracaoTxt = formatarDuracao(Number(rota.duracaoTotal || 0));
     const pacotesTxt = `${Number(rota.totalPacotes || 0)} Pacotes`;
-    const paradasTxt = `${qtdDestinos} Parada${qtdDestinos > 1 ? "s" : ""}`;
+    const paradasTxt = `${qtdParadas} Parada${qtdParadas > 1 ? "s" : ""}`;
     const origemTxt = rota.origemLabel || "Origem n\xE3o informada";
     const destinoTxt = rota.destinoPrincipal || (destinos[0] || "Destino n\xE3o informado");
     const logo = (rota?.lojistaLogo || "").toString().trim();
@@ -3573,7 +3591,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       if (!estado.pacotes[chave]) {
         estado.pacotes[chave] = {
           status: concluido ? "concluido" : "pendente",
-          codigoConfirmacao: codigoPersistido
+          codigoConfirmacao: concluido ? codigoPersistido : ""
         };
       } else if (concluido && estado.pacotes[chave].status !== "concluido") {
         estado.pacotes[chave] = {
@@ -4242,7 +4260,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       },
       body: JSON.stringify({
         transaction_amount: Number(valor.toFixed(2)),
-        description: "Flexa - frete de devolu\xE7\xE3o (pedido " + (pac?.id || "") + ") [TESTE LOCAL]",
+        description: "Flex - frete de devolu\xE7\xE3o (pedido " + (pac?.id || "") + ") [TESTE LOCAL]",
         payment_method_id: "pix",
         payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
         date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
@@ -4323,6 +4341,19 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         }
       }
       alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix de devolu\xE7\xE3o agora.");
+    }
+  }
+  async function simularAprovacaoDevolucaoTeste() {
+    if (!pixDevolucaoLojistaAtual) return;
+    if (!window.confirm("Simular esse Pix do frete de devolu\xE7\xE3o como pago? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
+    const { lojistaUid, rotaId, envioId } = pixDevolucaoLojistaAtual;
+    pararPollingPixDevolucaoLojista();
+    pixDevolucaoLojistaAtual = null;
+    try {
+      await liberarCodigoDevolucaoAposPagamento(lojistaUid, rotaId, envioId);
+    } catch (err) {
+      console.warn("Falha ao simular devolu\xE7\xE3o paga:", err);
+      alert("N\xE3o foi poss\xEDvel simular o pagamento agora. Tente novamente.");
     }
   }
   function iniciarPollingPixDevolucaoLojista() {
@@ -4409,8 +4440,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     navigator.clipboard?.writeText(pixDevolucaoLojistaAtual.pixCode).then(() => {
       const feedback = document.getElementById("track-loja-pix-devolucao-copy-feedback");
       if (feedback) feedback.innerText = "C\xF3digo copiado!";
-    }).catch(() => {
-    });
+      notificarSucesso("C\xF3digo Pix copiado!");
+    }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
   }
   function entSheetPrev() {
     if (rotaEntSheetIndex <= 0) return;
@@ -4452,10 +4483,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (lojistaUidCorrida && pacoteIdCorrida) {
       db.ref(`usuarios/${lojistaUidCorrida}/pacotes/${pacoteIdCorrida}/corridaIniciadaEm`).set(Date.now()).catch(() => {
       });
+      const codigoEntregaAviso = obterCodigoConfirmacaoEsperado(pac);
       criarNotificacao(lojistaUidCorrida, {
         tipo: "corrida_iniciada",
         titulo: "Entrega iniciada",
-        mensagem: `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`,
+        mensagem: codigoEntregaAviso ? `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. C\xF3digo de confirma\xE7\xE3o: ${codigoEntregaAviso} \u2014 repasse ao cliente, ele deve informar ao entregador na entrega.` : `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`,
         rotaId: String(rotaId)
       });
     }
@@ -4801,7 +4833,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     try {
       const bloqueadoPorDivida = await entregadorBloqueadoPorDividaAtrasada(uidEntregador);
       if (bloqueadoPorDivida) {
-        alert("Sua conta est\xE1 bloqueada para novos envios: voc\xEA tem uma d\xEDvida em aberto h\xE1 mais de 5 dias. Quite o valor pendente para continuar.");
+        alert("Sua conta est\xE1 bloqueada para novos envios: voc\xEA tem uma d\xEDvida em aberto h\xE1 mais de 5 dias. V\xE1 em Perfil > Pagamento e paga a d\xEDvida via Pix pra liberar.");
         if (btn) {
           btn.disabled = false;
           btn.innerText = textoOriginal || "Aceitar";
@@ -5449,7 +5481,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const pesoTotal = pacotes.length ? calcularPesoTotalRota(pacotes) : 0;
     const tamanhoTotal = pacotes.length ? formatarTamanhoTotalRota(pacotes) : "--";
     const destinos = Array.isArray(rotaDetalheAtual?.destinos) ? rotaDetalheAtual.destinos : [];
-    const destinoPrincipal = rotaDetalheAtual?.destinoPrincipal || destinos[0] || "--";
     const totalParadas = pacotes.length ? pacotes.length : Math.max(1, destinos.length || 1);
     const status = getStatusVisualRota(rotaDetalheAtual?.status || rotaDetalheAtual?.pagamentoStatus || "CRIADA");
     const idEl = document.getElementById("rota-detalhe-id");
@@ -5480,8 +5511,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (valorEl) valorEl.innerText = precoParaMoeda(valorTotal);
     if (pesoEl) pesoEl.innerText = pacotes.length ? `${pesoTotal.toFixed(1).replace(".", ",")} kg` : "--";
     if (tamEl) tamEl.innerText = tamanhoTotal;
-    const destinoLabel = document.getElementById("rota-detalhe-destino");
-    if (destinoLabel) destinoLabel.innerText = destinoPrincipal;
   }
   async function desistirRotaEntregador(rota) {
     const uidEnt = getUsuarioIdAtual();
@@ -5672,6 +5701,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     setText("adm-pacotes-status", `Em rota ${pacEmRota} \u2022 Entregues ${pacEnt} \u2022 Cancelados ${pacCanc}`);
     setText("adm-rotas-total", rotTotal);
     setText("adm-rotas-status", `Buscando ${rotBus} \u2022 Em rota ${rotEm} \u2022 Conclu\xEDdas ${rotCon} \u2022 Canceladas ${rotCanc}`);
+    renderSaquesPendentesAdmin(usersNo);
     const usersTable = document.getElementById("adm-users-table");
     if (usersTable) {
       const rows = Object.keys(usersNo).map((uid) => {
@@ -6005,6 +6035,52 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
     await db.ref().update(updates);
   }
+  function renderSaquesPendentesAdmin(usersNo = {}) {
+    const container = document.getElementById("adm-saques-lista");
+    if (!container) return;
+    const pendentes = [];
+    Object.keys(usersNo).forEach((uid) => {
+      const saquesNo = usersNo[uid]?.saques || {};
+      Object.keys(saquesNo).forEach((saqueId) => {
+        const s = saquesNo[saqueId] || {};
+        if ((s.status || "solicitado") !== "solicitado") return;
+        pendentes.push({ id: saqueId, uid, nome: usersNo[uid]?.nome || "Usu\xE1rio", ...s });
+      });
+    });
+    pendentes.sort((a, b) => Number(a?.solicitadoEm || 0) - Number(b?.solicitadoEm || 0));
+    if (!pendentes.length) {
+      container.innerHTML = '<div class="pagamento-extrato-empty">Nenhum saque pendente.</div>';
+      return;
+    }
+    container.innerHTML = pendentes.map((s) => `
+        <div class="admin-row">
+            <div>
+                <strong>${escaparHtmlMarketplace(s.nome)}</strong>
+                <div class="admin-badge loja">${precoParaMoeda(Number(s.valor || 0))}</div>
+            </div>
+            <div>${escaparHtmlMarketplace(String(s.pixTipo || "").toUpperCase())}: ${escaparHtmlMarketplace(s.pixChave || "--")}</div>
+            <div>Solicitado: ${escaparHtmlMarketplace(formatarDataExtrato(s.solicitadoEm))}</div>
+            <div class="admin-row-actions">
+                <button class="admin-btn reset" onclick="marcarSaqueComoPago('${escaparHtmlMarketplace(s.uid)}', '${escaparHtmlMarketplace(s.id)}')">Marcar como pago</button>
+            </div>
+        </div>
+    `).join("");
+  }
+  async function marcarSaqueComoPago(lojistaUid, saqueId) {
+    if (!usuarioEhMaster() || !lojistaUid || !saqueId) return;
+    if (!window.confirm("Confirma que j\xE1 pagou este saque via Pix pra fora do app? Isso s\xF3 marca como conclu\xEDdo, n\xE3o envia dinheiro.")) return;
+    try {
+      await db.ref(`usuarios/${lojistaUid}/saques/${saqueId}`).update({
+        status: "pago",
+        pagoEm: Date.now()
+      });
+      notificarSucesso("Saque marcado como pago.");
+      await renderDashboardMaster();
+    } catch (err) {
+      console.warn("Falha ao marcar saque como pago:", err);
+      alert("N\xE3o foi poss\xEDvel marcar o saque como pago agora. Tente novamente.");
+    }
+  }
   async function adminSalvarRotas() {
     const container = document.getElementById("adm-rotas-cards");
     if (!container) return;
@@ -6302,10 +6378,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     return data;
   }
   function obterNomeLojistaSeparadoTesteLocal() {
-    const nomeCompleto = (window.usuarioLogado?.nome || "Lojista Flexa").toString().trim();
+    const nomeCompleto = (window.usuarioLogado?.nome || "Lojista Flex").toString().trim();
     const partes = nomeCompleto.split(/\s+/).filter(Boolean);
     const firstName = partes[0] || "Lojista";
-    const lastName = partes.slice(1).join(" ") || "Flexa";
+    const lastName = partes.slice(1).join(" ") || "Flex";
     return { firstName, lastName };
   }
   function obterEmailPagadorTesteLocal() {
@@ -6333,7 +6409,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       },
       body: JSON.stringify({
         transaction_amount: Number(valor.toFixed(2)),
-        description: "Flexa Rota " + rotaDraft.id + " (" + rotaDraft.qtd + " pacote(s)) [TESTE LOCAL]",
+        description: "Flex Rota " + rotaDraft.id + " (" + rotaDraft.qtd + " pacote(s)) [TESTE LOCAL]",
         payment_method_id: "pix",
         payer: {
           email: obterEmailPagadorTesteLocal(),
@@ -6423,10 +6499,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (!Number.isFinite(valor) || valor <= 0) {
       throw new Error("Valor de cobran\xE7a inv\xE1lido.");
     }
-    const nomeCliente = (pac?.destinatario || "Cliente Flexa").toString().trim() || "Cliente Flexa";
+    const nomeCliente = (pac?.destinatario || "Cliente Flex").toString().trim() || "Cliente Flex";
     const partes = nomeCliente.split(/\s+/).filter(Boolean);
     const firstName = partes[0] || "Cliente";
-    const lastName = partes.slice(1).join(" ") || "Flexa";
+    const lastName = partes.slice(1).join(" ") || "Flex";
     const resp = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
       headers: {
@@ -6436,7 +6512,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       },
       body: JSON.stringify({
         transaction_amount: Number(valor.toFixed(2)),
-        description: "Flexa - cobran\xE7a na entrega (pedido " + (pac?.id || "") + ") [TESTE LOCAL]",
+        description: "Flex - cobran\xE7a na entrega (pedido " + (pac?.id || "") + ") [TESTE LOCAL]",
         payment_method_id: "pix",
         payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
         date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
@@ -6539,6 +6615,20 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       console.warn("Falha ao creditar lojista pela cobran\xE7a via Pix (teste local):", err);
     }
   }
+  async function finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor) {
+    const agora = Date.now();
+    if (!FLEXA_PAYMENTS_PROXY_URL) {
+      await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId);
+      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+        "cobrancaEntrega/status": "pago",
+        "cobrancaEntrega/pagoEm": agora
+      }).catch((err) => console.warn("Falha ao persistir cobran\xE7a paga via Pix (teste local):", err));
+    }
+    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
+    if (pac) pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: "pago", pagoEm: agora };
+    pixCobrancaEntregaAtual = null;
+    renderSheetRotaEntregadorConteudo();
+  }
   function iniciarPollingPixCobrancaEntrega() {
     pararPollingPixCobrancaEntrega();
     pixCobrancaEntregaPollTimer = setInterval(async () => {
@@ -6552,18 +6642,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         if (data?.status === "approved") {
           pararPollingPixCobrancaEntrega();
           const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
-          const agora = Date.now();
-          if (!FLEXA_PAYMENTS_PROXY_URL) {
-            await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId);
-            await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-              "cobrancaEntrega/status": "pago",
-              "cobrancaEntrega/pagoEm": agora
-            }).catch((err) => console.warn("Falha ao persistir cobran\xE7a paga via Pix (teste local):", err));
-          }
-          const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
-          if (pac) pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: "pago", pagoEm: agora };
-          pixCobrancaEntregaAtual = null;
-          renderSheetRotaEntregadorConteudo();
+          await finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor);
         } else if (statusEl) {
           statusEl.innerText = "Aguardando pagamento do cliente...";
         }
@@ -6572,13 +6651,25 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       }
     }, 4e3);
   }
+  async function simularAprovacaoCobrancaEntregaTeste() {
+    if (!pixCobrancaEntregaAtual) return;
+    if (!window.confirm("Simular esse Pix de cobran\xE7a como pago? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
+    const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
+    pararPollingPixCobrancaEntrega();
+    try {
+      await finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor);
+    } catch (err) {
+      console.warn("Falha ao simular cobran\xE7a paga:", err);
+      alert("N\xE3o foi poss\xEDvel simular o pagamento agora. Tente novamente.");
+    }
+  }
   function copiarCodigoPixCobrancaEntrega() {
     if (!pixCobrancaEntregaAtual?.pixCode) return;
     navigator.clipboard?.writeText(pixCobrancaEntregaAtual.pixCode).then(() => {
       const feedback = document.getElementById("ent-sheet-pix-copy-feedback");
       if (feedback) feedback.innerText = "C\xF3digo copiado!";
-    }).catch(() => {
-    });
+      notificarSucesso("C\xF3digo Pix copiado!");
+    }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
   }
   async function confirmarRecebimentoDinheiro() {
     const rotaObj = rotaEntSheetRotaAtual;
@@ -6713,6 +6804,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             </div>
             <div id="ent-sheet-pix-status" class="ent-sheet-pix-status">Aguardando pagamento do cliente...</div>
             <div id="ent-sheet-pix-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
+            ${mercadoPagoAmbienteAtual === "teste" ? `<button type="button" class="ent-sheet-link" onclick="simularAprovacaoCobrancaEntregaTeste()">Simular pagamento aprovado (teste)</button>` : ""}
         </div>`;
     }
     if (podeReceberDinheiro && !podeGerarPix) {
@@ -6829,6 +6921,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       rotaPixCodigoRawAtual = codigoPixLimpo;
       if (pixTxt) pixTxt.textContent = codigoPixLimpo;
       setTicketPagamentoPixRota(pixPagamento.ticketUrl || "");
+      atualizarAvisoAmbientePix();
       if (mercadoPagoAmbienteAtual === "teste") {
         setStatusPagamentoPixRota("Pix de teste gerado. Em banco real ele pode ser recusado.", "warning");
       } else {
@@ -6841,6 +6934,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       rotaPixCodigoRawAtual = "";
       if (pixTxt) pixTxt.textContent = "--";
       setTicketPagamentoPixRota("");
+      atualizarAvisoAmbientePix();
       const detalheErro = erro?.message || "erro desconhecido";
       if (mercadoPagoAmbienteAtual === "teste") {
         const simular = confirm(
@@ -6903,13 +6997,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       }
       document.body.removeChild(inputTemp);
     }
-    if (feedback) {
-      if (copiado && mercadoPagoAmbienteAtual === "teste") {
-        feedback.innerText = "C\xF3digo Pix copiado (ambiente TESTE).";
-      } else {
-        feedback.innerText = copiado ? "C\xF3digo Pix copiado." : "N\xE3o foi poss\xEDvel copiar automaticamente.";
-      }
-    }
+    const mensagem = copiado ? mercadoPagoAmbienteAtual === "teste" ? "C\xF3digo Pix copiado (ambiente TESTE)." : "C\xF3digo Pix copiado." : "N\xE3o foi poss\xEDvel copiar automaticamente.";
+    if (feedback) feedback.innerText = mensagem;
+    if (copiado) notificarSucesso(mensagem);
+    else notificarErro(mensagem);
   }
   async function marcarEnviosEmRota(envioIds, rotaId) {
     if (!Array.isArray(envioIds) || !envioIds.length) return;
@@ -7951,6 +8042,7 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     let corridaIniciada = false;
     let valorFrete = 0;
     let nomeDestinatario = "Destinat\xE1rio";
+    let jaResolvido = false;
     if (uid) {
       try {
         const snap = await db.ref(`usuarios/${uid}/pacotes/${envioId}`).once("value");
@@ -7958,12 +8050,17 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
         corridaIniciada = Boolean(dados.corridaIniciadaEm);
         valorFrete = Number(dados.valorFrete || 0);
         nomeDestinatario = obterNomeDestinatarioPacote(dados, rota || {});
+        const statusResolvido = normalizarStatusEnvioFiltro(dados.statusRaw || dados.status || "");
+        jaResolvido = statusResolvido === "ENTREGUE" || statusResolvido === "CANCELADO";
       } catch (_) {
         corridaIniciada = false;
         valorFrete = 0;
       }
     }
-    const podeReembolsar = Boolean(rota) && rota.pagamento === "APROVADO" && Number.isFinite(valorFrete) && valorFrete > 0;
+    if (jaResolvido) {
+      corridaIniciada = false;
+    }
+    const podeReembolsar = !jaResolvido && Boolean(rota) && rota.pagamento === "APROVADO" && Number.isFinite(valorFrete) && valorFrete > 0;
     let avisoConta = "";
     if (podeReembolsar && corridaIniciada) {
       const liquido = Number((valorFrete - TAXA_CANCELAMENTO_ENVIO).toFixed(2));
@@ -8008,7 +8105,6 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     try {
       saveClientes();
       renderEnviosHome();
-      atualizarListaEnviosSelector?.();
       if (envioDetalheAtualId === envioId) fecharModalDetalheEnvio();
     } catch (err) {
       console.warn("Falha ao atualizar a tela ap\xF3s excluir envio:", err);
@@ -8359,6 +8455,11 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     renderMensagensChat([]);
     iniciarListenerMensagensChat(chatId);
     limparBadgeChat();
+    const uidLeitor = getUsuarioIdAtual();
+    if (uidLeitor) {
+      db.ref(`usuarios/${uidLeitor}/chats/${chatId}/meta`).update({ lidoEm: Date.now() }).catch(() => {
+      });
+    }
   }
   function voltarListaChats() {
     encerrarListenerMensagensChat();
@@ -8378,8 +8479,12 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       navChat.classList.remove("has-unread");
       return;
     }
-    const temMsg = Object.keys(chatsObj).length > 0;
-    if (temMsg) navChat.classList.add("has-unread");
+    const temNaoLida = Object.values(chatsObj || {}).some((chat) => {
+      const meta = chat?.meta || {};
+      if (meta.lidoEm === void 0 || meta.lidoEm === null) return false;
+      return Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
+    });
+    navChat.classList.toggle("has-unread", temNaoLida);
   }
   function abrirSeletorImagemChat() {
     const input = document.getElementById("chat-input-image");
@@ -8471,12 +8576,12 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       atualizadoEm: criadoEm
     };
     await msgRef.set(payload);
-    await metaRef.update(metaPayload);
+    await metaRef.update({ ...metaPayload, lidoEm: criadoEm });
     const destinoUid = String(conversa.participanteId || "").trim();
     if (destinoUid && destinoUid !== uid) {
       const chatRefDestino = db.ref(`usuarios/${destinoUid}/chats/${chatAtualId}`);
       await chatRefDestino.child(`mensagens/${msgId}`).set(payload);
-      await chatRefDestino.child("meta").update(metaPayload);
+      await chatRefDestino.child("meta").update({ ...metaPayload, lidoEm: 0 });
       criarNotificacao(destinoUid, {
         tipo: "chat_mensagem",
         titulo: `Mensagem de ${window.usuarioLogado?.nome || (remetenteTipoAtual === "ENTREGADOR" ? "entregador" : "lojista")}`,
@@ -8540,9 +8645,11 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       const data = snap.val() || {};
       pagamentoPerfilCache = {
         saldo: Number(data?.saldo || 0),
+        divida: Number(data?.divida || 0),
         banco: data?.banco || {},
         pix: data?.pix || {}
       };
+      renderDividaPagamentoUI();
       const banco = pagamentoPerfilCache.banco || {};
       const pix = pagamentoPerfilCache.pix || {};
       const bankName = document.getElementById("pag-bank-name");
@@ -8672,15 +8779,15 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     `);
   }
   function abrirSobre() {
-    abrirModalInfoPerfil("Sobre a Flexa Log", `
+    abrirModalInfoPerfil("Sobre a Flex Log", `
         <div class="info-card">
             <h4>Nossa proposta</h4>
-            <p>A Flexa Log conecta lojistas e entregadores para operacao de envios urbanos com foco em agilidade, transparencia e controle em tempo real.</p>
+            <p>A Flex Log conecta lojistas e entregadores para operacao de envios urbanos com foco em agilidade, transparencia e controle em tempo real.</p>
             <p>O app permite criar envios, montar rotas, rastrear status e organizar pagamentos de forma simples no celular.</p>
         </div>
         <div class="info-card">
             <h4>Versao do app</h4>
-            <p>Flexa Log \u2022 MVP validacao</p>
+            <p>Flex Log \u2022 MVP validacao</p>
             <p>Atualizacao: ${(/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR")}</p>
         </div>
     `);
@@ -8738,10 +8845,331 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       list.innerHTML = '<div class="pagamento-extrato-empty">Nao foi possivel carregar o extrato.</div>';
     }
   }
+  function renderSaquesUsuario(saques = []) {
+    const list = document.getElementById("pag-saque-historico");
+    if (!list) return;
+    if (!Array.isArray(saques) || !saques.length) {
+      list.innerHTML = '<div class="pagamento-extrato-empty">Nenhum saque solicitado ainda.</div>';
+      return;
+    }
+    const rotuloStatus = { solicitado: "Aguardando pagamento", pago: "Pago", cancelado: "Cancelado" };
+    list.innerHTML = saques.map((s) => {
+      const status = s?.status || "solicitado";
+      return `
+            <div class="pagamento-extrato-item">
+                <div class="top">
+                    <span class="tipo">Saque Pix \u2022 ${escaparHtmlMarketplace(rotuloStatus[status] || status)}</span>
+                    <span class="valor debito">- ${precoParaMoeda(Number(s?.valor || 0))}</span>
+                </div>
+                <div class="desc">${escaparHtmlMarketplace(String(s?.pixTipo || "").toUpperCase())}: ${escaparHtmlMarketplace(s?.pixChave || "--")}</div>
+                <div class="data">${formatarDataExtrato(s?.solicitadoEm)}</div>
+            </div>
+        `;
+    }).join("");
+  }
+  async function carregarSaquesUsuario() {
+    const uid = getUsuarioIdAtual();
+    const list = document.getElementById("pag-saque-historico");
+    if (!uid || !list) return;
+    try {
+      const snap = await db.ref(`usuarios/${uid}/saques`).limitToLast(20).once("value");
+      const data = snap.val() || {};
+      const arr = Object.keys(data).map((id) => ({ id, ...data[id] }));
+      arr.sort((a, b) => Number(b?.solicitadoEm || 0) - Number(a?.solicitadoEm || 0));
+      renderSaquesUsuario(arr);
+    } catch (err) {
+      console.warn("Falha ao carregar saques:", err);
+      list.innerHTML = '<div class="pagamento-extrato-empty">N\xE3o foi poss\xEDvel carregar seus saques.</div>';
+    }
+  }
+  async function solicitarSaque() {
+    const uid = getUsuarioIdAtual();
+    if (!uid) return;
+    const pixTipo = document.getElementById("pag-pix-tipo")?.value || "";
+    const pixChave = (document.getElementById("pag-pix-chave")?.value || "").trim();
+    if (!pixTipo || !pixChave) {
+      alert('Cadastre e salve sua chave Pix (se\xE7\xE3o "Pix" abaixo) antes de solicitar o saque.');
+      return;
+    }
+    const input = document.getElementById("pag-saque-valor");
+    const valor = parseMoedaParaNumero(input?.value || 0);
+    const saldoAtual = Number(pagamentoPerfilCache?.saldo || 0);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      alert("Digite um valor v\xE1lido para o saque.");
+      return;
+    }
+    if (valor > saldoAtual) {
+      alert(`Saldo insuficiente. Seu saldo dispon\xEDvel \xE9 ${precoParaMoeda(saldoAtual)}.`);
+      return;
+    }
+    const confirmado = window.confirm(
+      `Confirma a solicita\xE7\xE3o de saque de ${precoParaMoeda(valor)} via Pix (${pixTipo.toUpperCase()}: ${pixChave})?
+
+O valor sai da sua carteira agora. O pagamento \xE9 feito manualmente e pode levar alguns dias \xFAteis.`
+    );
+    if (!confirmado) return;
+    const btn = document.getElementById("pag-saque-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Solicitando...";
+    }
+    try {
+      const resultado = await ajustarSaldoUsuario(uid, -valor, { permitirNegativo: false });
+      if (!resultado.ok) {
+        alert(resultado.saldoInsuficiente ? "Saldo insuficiente para este saque." : "N\xE3o foi poss\xEDvel solicitar o saque agora. Tente novamente.");
+        return;
+      }
+      if (!window.usuarioLogado) window.usuarioLogado = {};
+      window.usuarioLogado.financeiro = { ...window.usuarioLogado.financeiro || {}, saldo: resultado.saldoDepois, atualizadoEm: Date.now() };
+      pagamentoPerfilCache.saldo = resultado.saldoDepois;
+      atualizarSaldoPagamentoUI();
+      const agora = Date.now();
+      const ref = db.ref(`usuarios/${uid}/saques`).push();
+      await ref.set({
+        id: ref.key,
+        valor,
+        pixTipo,
+        pixChave,
+        status: "solicitado",
+        solicitadoEm: agora
+      });
+      await registrarTransacaoFinanceira("DEBITO", valor, `Saque solicitado via Pix (${pixTipo.toUpperCase()}: ${pixChave})`);
+      if (input) input.value = "";
+      notificarSucesso(`Saque de ${precoParaMoeda(valor)} solicitado. Voc\xEA recebe via Pix em breve.`);
+      await carregarSaquesUsuario();
+    } catch (err) {
+      console.warn("Falha ao solicitar saque:", err);
+      alert("N\xE3o foi poss\xEDvel solicitar o saque agora. Tente novamente.");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Solicitar saque";
+      }
+    }
+  }
+  var pixQuitacaoDividaAtual = null;
+  var pixQuitacaoDividaPollTimer = null;
+  function renderDividaPagamentoUI() {
+    const divida = Number(pagamentoPerfilCache?.divida || 0);
+    const saldo = Number(pagamentoPerfilCache?.saldo || 0);
+    const section = document.getElementById("pag-divida-section");
+    const valorEl = document.getElementById("pag-divida-valor");
+    if (valorEl) valorEl.innerText = precoParaMoeda(divida);
+    if (section) section.style.display = divida > 0 ? "block" : "none";
+    const saldoBtn = document.getElementById("pag-divida-saldo-btn");
+    const pixWrap = document.getElementById("pag-divida-pix-wrap");
+    const podePagarComSaldo = saldo >= divida;
+    if (saldoBtn) {
+      saldoBtn.disabled = !podePagarComSaldo;
+      saldoBtn.innerText = podePagarComSaldo ? "Pagar com saldo" : `Pagar com saldo (falta ${precoParaMoeda(divida - saldo)})`;
+    }
+    if (pixWrap) pixWrap.style.display = podePagarComSaldo ? "none" : "block";
+  }
+  async function pagarDividaComSaldo() {
+    const uid = getUsuarioIdAtual();
+    const divida = Number(pagamentoPerfilCache?.divida || 0);
+    const saldo = Number(pagamentoPerfilCache?.saldo || 0);
+    if (!uid || !Number.isFinite(divida) || divida <= 0) return;
+    if (saldo < divida) {
+      alert(`Saldo insuficiente. Seu saldo dispon\xEDvel \xE9 ${precoParaMoeda(saldo)} e a d\xEDvida \xE9 ${precoParaMoeda(divida)}.`);
+      return;
+    }
+    if (!window.confirm(`Confirma pagar ${precoParaMoeda(divida)} de d\xEDvida usando o saldo da sua carteira?`)) return;
+    const btn = document.getElementById("pag-divida-saldo-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Pagando...";
+    }
+    try {
+      const resultadoSaldo = await ajustarSaldoUsuario(uid, -divida, { permitirNegativo: false });
+      if (!resultadoSaldo.ok) {
+        alert(resultadoSaldo.saldoInsuficiente ? "Saldo insuficiente." : "N\xE3o foi poss\xEDvel pagar agora. Tente novamente.");
+        return;
+      }
+      await ajustarDividaUsuario(uid, -divida);
+      await registrarTransacaoFinanceira("DEBITO_DIVIDA", divida, "D\xEDvida quitada com saldo da carteira");
+      await carregarDadosPagamento();
+      notificarSucesso("D\xEDvida quitada com o saldo! Voc\xEA j\xE1 pode aceitar novas rotas.");
+    } catch (err) {
+      console.warn("Falha ao pagar d\xEDvida com saldo:", err);
+      alert("N\xE3o foi poss\xEDvel pagar agora. Tente novamente.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Pagar com saldo";
+      }
+    }
+  }
+  async function criarPagamentoPixQuitacaoDividaTesteLocal(valor) {
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new Error("Valor de d\xEDvida inv\xE1lido.");
+    }
+    const nomeUsuario = (window.usuarioLogado?.nome || "Entregador Flex").toString().trim() || "Entregador Flex";
+    const partes = nomeUsuario.split(/\s+/).filter(Boolean);
+    const firstName = partes[0] || "Entregador";
+    const lastName = partes.slice(1).join(" ") || "Flex";
+    const resp = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + FLEXA_MP_TEST_TOKEN,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": gerarIdempotencyKeyTesteLocal()
+      },
+      body: JSON.stringify({
+        transaction_amount: Number(valor.toFixed(2)),
+        description: "Flex - quita\xE7\xE3o de d\xEDvida em dinheiro [TESTE LOCAL]",
+        payment_method_id: "pix",
+        payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
+        external_reference: "quitacao:" + getUsuarioIdAtual()
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || "HTTP " + resp.status;
+      throw new Error("Mercado Pago: " + detalhe);
+    }
+    const tx = data?.point_of_interaction?.transaction_data || {};
+    return {
+      paymentId: data?.id ? String(data.id) : "",
+      status: data?.status || "pending",
+      pixCode: tx.qr_code || "",
+      qrCodeBase64: tx.qr_code_base64 || "",
+      valor
+    };
+  }
+  async function gerarPixQuitacaoDivida() {
+    const uid = getUsuarioIdAtual();
+    const valor = Number(pagamentoPerfilCache?.divida || 0);
+    if (!uid || !Number.isFinite(valor) || valor <= 0) return;
+    const btn = document.getElementById("pag-divida-gerar-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Gerando Pix...";
+    }
+    try {
+      let data;
+      if (FLEXA_PAYMENTS_PROXY_URL) {
+        data = await chamarPaymentsProxy("/create-pix-quitacao-divida", {});
+      } else if (FLEXA_MP_TEST_TOKEN) {
+        data = await criarPagamentoPixQuitacaoDividaTesteLocal(valor);
+      } else {
+        throw new Error("Pagamento n\xE3o configurado: defina FLEXA_PAYMENTS_PROXY_URL (produ\xE7\xE3o) ou FLEXA_MP_TEST_TOKEN (s\xF3 teste local).");
+      }
+      const pixCode = normalizarCodigoPix(data.pixCode || "");
+      if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix.");
+      pixQuitacaoDividaAtual = {
+        paymentId: data.paymentId ? String(data.paymentId) : "",
+        pixCode,
+        qrCodeBase64: data.qrCodeBase64 || "",
+        valor: data.valor || valor
+      };
+      renderPixQuitacaoDividaUI();
+      iniciarPollingPixQuitacaoDivida();
+    } catch (err) {
+      console.warn("Falha ao gerar Pix de quita\xE7\xE3o de d\xEDvida:", err);
+      if (!FLEXA_PAYMENTS_PROXY_URL && mercadoPagoAmbienteAtual === "teste") {
+        const simular = confirm(
+          "N\xE3o foi poss\xEDvel gerar o Pix de quita\xE7\xE3o (ambiente TESTE).\n\nDetalhe: " + (err?.message || "erro desconhecido") + "\n\nDeseja simular esse pagamento como aprovado para continuar testando o fluxo?"
+        );
+        if (simular) {
+          await finalizarQuitacaoDividaTesteLocal(valor);
+          return;
+        }
+      }
+      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Pagar d\xEDvida via Pix";
+      }
+    }
+  }
+  async function finalizarQuitacaoDividaTesteLocal(valor) {
+    const uid = getUsuarioIdAtual();
+    if (!uid) return;
+    const resultado = await ajustarDividaUsuario(uid, -valor);
+    if (!resultado.ok) {
+      alert("N\xE3o foi poss\xEDvel registrar a quita\xE7\xE3o agora. Tente novamente.");
+      return;
+    }
+    await registrarTransacaoFinanceira("DEBITO_DIVIDA", valor, "D\xEDvida quitada via Pix (TESTE LOCAL)");
+    pixQuitacaoDividaAtual = null;
+    await carregarDadosPagamento();
+    notificarSucesso("D\xEDvida quitada! Voc\xEA j\xE1 pode aceitar novas rotas.");
+  }
+  function pararPollingPixQuitacaoDivida() {
+    if (pixQuitacaoDividaPollTimer) {
+      clearInterval(pixQuitacaoDividaPollTimer);
+      pixQuitacaoDividaPollTimer = null;
+    }
+  }
+  function iniciarPollingPixQuitacaoDivida() {
+    pararPollingPixQuitacaoDivida();
+    pixQuitacaoDividaPollTimer = setInterval(async () => {
+      if (!pixQuitacaoDividaAtual?.paymentId) {
+        pararPollingPixQuitacaoDivida();
+        return;
+      }
+      try {
+        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxy("/check-pix-quitacao-divida", { paymentId: pixQuitacaoDividaAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixQuitacaoDividaAtual.paymentId);
+        const statusEl = document.getElementById("pag-divida-pix-status");
+        if (data?.status === "approved") {
+          pararPollingPixQuitacaoDivida();
+          const valorPago = pixQuitacaoDividaAtual.valor;
+          pixQuitacaoDividaAtual = null;
+          if (!FLEXA_PAYMENTS_PROXY_URL) {
+            const uid = getUsuarioIdAtual();
+            if (uid) {
+              await ajustarDividaUsuario(uid, -valorPago);
+              await registrarTransacaoFinanceira("DEBITO_DIVIDA", valorPago, "D\xEDvida quitada via Pix");
+            }
+          }
+          await carregarDadosPagamento();
+          notificarSucesso("D\xEDvida quitada! Voc\xEA j\xE1 pode aceitar novas rotas.");
+        } else if (statusEl) {
+          statusEl.innerText = "Aguardando confirma\xE7\xE3o do pagamento...";
+        }
+      } catch (err) {
+        console.warn("Falha ao consultar status do Pix de quita\xE7\xE3o:", err);
+      }
+    }, 4e3);
+  }
+  function renderPixQuitacaoDividaUI() {
+    const area = document.getElementById("pag-divida-pix-area");
+    if (!area || !pixQuitacaoDividaAtual) return;
+    area.innerHTML = `
+        <div class="rota-pix-card">
+            ${pixQuitacaoDividaAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixQuitacaoDividaAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
+            <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixQuitacaoDividaAtual.pixCode)}</textarea>
+            <div class="ent-sheet-actions-inline">
+                <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixQuitacaoDivida()">Copiar c\xF3digo Pix</button>
+            </div>
+            <div id="pag-divida-pix-status" class="ent-sheet-pix-status">Aguardando confirma\xE7\xE3o do pagamento...</div>
+            <div id="pag-divida-pix-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
+            ${mercadoPagoAmbienteAtual === "teste" ? `<button type="button" class="ent-sheet-link" onclick="simularAprovacaoQuitacaoDividaTeste()">Simular pagamento aprovado (teste)</button>` : ""}
+        </div>
+    `;
+  }
+  function copiarCodigoPixQuitacaoDivida() {
+    if (!pixQuitacaoDividaAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pixQuitacaoDividaAtual.pixCode).then(() => {
+      const feedback = document.getElementById("pag-divida-pix-copy-feedback");
+      if (feedback) feedback.innerText = "C\xF3digo copiado!";
+      notificarSucesso("C\xF3digo Pix copiado!");
+    }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
+  }
+  async function simularAprovacaoQuitacaoDividaTeste() {
+    if (!pixQuitacaoDividaAtual) return;
+    if (!window.confirm("Simular esse Pix de quita\xE7\xE3o como pago? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
+    const valor = pixQuitacaoDividaAtual.valor;
+    pararPollingPixQuitacaoDivida();
+    pixQuitacaoDividaAtual = null;
+    await finalizarQuitacaoDividaTesteLocal(valor);
+  }
   var _carregarDadosPagamentoOriginal = carregarDadosPagamento;
   carregarDadosPagamento = async function carregarDadosPagamentoComExtrato() {
     await _carregarDadosPagamentoOriginal();
     await carregarExtratoPagamento();
+    await carregarSaquesUsuario();
   };
   var _registrarTransacaoFinanceiraOriginal = registrarTransacaoFinanceira;
   registrarTransacaoFinanceira = async function registrarTransacaoFinanceiraComExtrato(tipo, valor, descricao = "") {
@@ -9020,27 +9448,18 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     const listaRotas = Object.keys(rotasNo).map((id) => ({ id, ...rotasNo[id] || {} })).sort((a, b) => Number(b?.atualizadoEm || b?.criadoEm || 0) - Number(a?.atualizadoEm || a?.criadoEm || 0));
     const resumoRotas = listaRotas.map((rota) => resumirRotaParaEntregador(rota, mapaPacotes, dados));
     const rotasEmRota = resumoRotas.filter((r) => r.statusNorm === "EM_ROTA");
-    const rotasAIniciar = resumoRotas.filter((r) => r.statusNorm === "BUSCANDO");
     const rotasRecentes = resumoRotas.slice(0, 3);
-    const rotaAtual = rotasEmRota[0] || rotasAIniciar[0] || resumoRotas[0] || null;
     const resumoDia = calcularResumoDiaEntregador(resumoRotas, metaDia);
     const resumoAtivo = calcularResumoAtivoEntregador(rotasEmRota, metaDia);
     entregadorMetaDiaCache = { ...resumoDia, ...metaDia };
     const cardsEmRota = rotasEmRota.length ? rotasEmRota.map((r) => montarCardRotaEntregador(r, `${r.totalPacotes} pacote(s) em andamento`)).join("") : '<div class="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-[12px] font-semibold text-slate-400">Nenhuma rota em andamento agora.</div>';
     const cardsRotasRecentes = rotasRecentes.length ? rotasRecentes.map((r) => montarCardRotaEntregador(r, `${r.totalPacotes} pacote(s) \u2022 ${r.statusVisual.label}`)).join("") : '<div class="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-[12px] font-semibold text-slate-400">Nenhuma rota recente para exibir.</div>';
-    const progressoPct = (() => {
-      if (resumoAtivo.totalPacotes > 0) {
-        return Math.max(0, Math.min(100, Math.round(resumoAtivo.entregasConcluidas / resumoAtivo.totalPacotes * 100)));
-      }
-      if (resumoDia.progressoGeral) return Math.max(0, Math.min(100, resumoDia.progressoGeral));
-      if (rotaAtual && Number.isFinite(rotaAtual.progresso)) return Math.max(0, Math.min(100, rotaAtual.progresso));
-      return 0;
-    })();
+    const progressoPct = resumoAtivo.totalPacotes > 0 ? Math.max(0, Math.min(100, Math.round(resumoAtivo.entregasConcluidas / resumoAtivo.totalPacotes * 100))) : Math.max(0, Math.min(100, Number(resumoDia.progressoGeral) || 0));
     container.innerHTML = `
         ${headerHtml}
         <div class="pb-28">
             <div class="mb-3 overflow-hidden rounded-2xl bg-white shadow-sm">
-                <img src="img/banner1.png" alt="Banner Flexa" class="h-auto w-full object-cover" onerror="this.style.display='none'">
+                <img src="img/banner1.png" alt="Banner Flex" class="h-auto w-full object-cover" onerror="this.style.display='none'">
             </div>
 
             <div class="mb-3 rounded-3xl bg-white p-3 shadow-sm entregador-dia-card">
@@ -9105,18 +9524,51 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   function abrirModalMetaDiaEntregador() {
     const meta = entregadorMetaDiaCache || {};
     const inicioDiaTxt = Number(meta.inicioEm) ? new Date(meta.inicioEm).toLocaleString("pt-BR") : "--";
+    const alvoPacotesAtual = Math.max(1, Number(meta.alvoPacotes || 20));
+    const alvoGanhosAtual = Math.max(1, Number(meta.alvoGanhos || 150));
     const html = `
         <div class="info-card">
-            <h4>Meta da jornada</h4>
+            <h4>Sua meta de hoje</h4>
+            <p class="pagamento-saque-help">Defina quantos pacotes e quanto quer ganhar hoje. O % do card inicial passa a ser baseado nessa meta.</p>
+            <div class="form-group">
+                <label>Pacotes que quer entregar</label>
+                <div class="input-wrapper"><input type="number" id="meta-dia-alvo-pacotes" min="1" step="1" inputmode="numeric" value="${alvoPacotesAtual}"></div>
+            </div>
+            <div class="form-group">
+                <label>Ganhos que quer alcancar (R$)</label>
+                <div class="input-wrapper"><input type="number" id="meta-dia-alvo-ganhos" min="1" step="0.01" inputmode="decimal" value="${alvoGanhosAtual}"></div>
+            </div>
+            <button type="button" class="btn-main" style="margin-top:0;" onclick="salvarMetaDiaEntregador()">Salvar meta</button>
+        </div>
+        <div class="info-card">
+            <h4>Progresso de hoje</h4>
             <p><strong>Inicio do expediente:</strong> ${inicioDiaTxt}</p>
-            <p><strong>Ganhos concluidos:</strong> ${precoParaMoeda(Number(meta.ganhosConcluidos || 0))}</p>
-            <p><strong>Pacotes entregues:</strong> ${Number(meta.totalPacotesConcluidos || 0)} / ${Math.max(1, Number(meta.alvoPacotes || 20))}</p>
+            <p><strong>Ganhos concluidos:</strong> ${precoParaMoeda(Number(meta.ganhosConcluidos || 0))} / ${precoParaMoeda(alvoGanhosAtual)}</p>
+            <p><strong>Pacotes entregues:</strong> ${Number(meta.totalPacotesConcluidos || 0)} / ${alvoPacotesAtual}</p>
             <p><strong>Distancia percorrida:</strong> ${formatarDistancia(Number(meta.distanciaConcluida || 0))}</p>
             <p><strong>Tempo em rota:</strong> ${formatarTempoCompacto(Number(meta.tempoConcluido || 0))}</p>
         </div>
-        <button type="button" class="btn-main" style="margin-top: 8px;" onclick="zerarMetaDiaEntregador()">Zerar meta do dia</button>
+        <button type="button" class="btn-outline" style="margin-top: 8px; width:100%;" onclick="zerarMetaDiaEntregador()">Zerar meta do dia</button>
     `;
     abrirModalInfoPerfil("Meta do dia", html);
+  }
+  async function salvarMetaDiaEntregador() {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !usuarioEhEntregador()) return;
+    const alvoPacotes = Math.max(1, Math.round(Number(document.getElementById("meta-dia-alvo-pacotes")?.value || 0)));
+    const alvoGanhos = Math.max(1, Number(document.getElementById("meta-dia-alvo-ganhos")?.value || 0));
+    if (!Number.isFinite(alvoPacotes) || alvoPacotes <= 0 || !Number.isFinite(alvoGanhos) || alvoGanhos <= 0) {
+      notificarErro("Informe valores v\xE1lidos para a meta.");
+      return;
+    }
+    await db.ref(`usuarios/${uid}/entregadorMetaDia`).update({
+      alvoPacotes,
+      alvoGanhos,
+      atualizadoEm: Date.now()
+    });
+    entregadorMetaDiaCache = { ...entregadorMetaDiaCache || {}, alvoPacotes, alvoGanhos };
+    notificarSucesso("Meta do dia atualizada!");
+    fecharModalInfoPerfil();
   }
   async function zerarMetaDiaEntregador() {
     const uid = getUsuarioIdAtual();
@@ -9367,6 +9819,7 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
                                 </div>
                                 <div class="ent-sheet-pix-status">Aguardando confirma\xE7\xE3o do pagamento...</div>
                                 <div id="track-loja-pix-devolucao-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
+                                ${mercadoPagoAmbienteAtual === "teste" ? `<button type="button" class="ent-sheet-link" onclick="simularAprovacaoDevolucaoTeste()">Simular pagamento aprovado (teste)</button>` : ""}
                             </div>
                         </div>`;
             }

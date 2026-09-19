@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Flexa - App</title>
+    <title>Flex - App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
     <script>
@@ -30,7 +30,7 @@
     <template id="ui-global-header-template">
         <div class="global-header">
             <div class="gh-left">
-                <img src="img/logoflexa.png" alt="Flexa" class="gh-logo">
+                <img src="img/logoflexa.png" alt="Flex" class="gh-logo">
             </div>
             <div class="gh-actions">
                 <button type="button" class="entregador-wallet-chip gh-chip">
@@ -45,7 +45,7 @@
     </template>
 
 <div id="splash-screen">
-    <img src="img/logo.svg" alt="Flexa Logo" class="logo-splash">
+    <img src="img/logo.svg" alt="Flex Logo" class="logo-splash">
 
 </div>
 
@@ -56,7 +56,7 @@
 
         <section id="view-inicio" class="view">
             <div class="welcome-text">
-                <h1><img src="img/logoflexa.png" alt="Flexa" class="flexa-brand-logo"></h1>
+                <h1><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo"></h1>
                 <p>O futuro da sua logística está aqui.</p>
             </div>
             <div class="option-card card-loja" onclick="irParaCadastro('loja')">
@@ -83,7 +83,7 @@
 
         <section id="view-auth" class="view">
             <div class="auth-card">
-                <div style="text-align: center; margin-bottom: 30px; cursor: pointer;" onclick="navegar('view-inicio')"><img src="img/logoflexa.png" alt="Flexa" class="flexa-brand-logo auth-logo"></div>
+                <div style="text-align: center; margin-bottom: 30px; cursor: pointer;" onclick="navegar('view-inicio')"><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo auth-logo"></div>
                 <div class="tabs">
                     <div id="tab-entrar" class="tab active" onclick="alternarAuth('entrar')">Entrar</div>
                     <div id="tab-cadastrar" class="tab" onclick="alternarAuth('cadastrar')">Cadastre-se</div>
@@ -92,7 +92,7 @@
                 <form id="form-entrar">
                     <div class="form-group"><label>E-mail</label><div class="input-wrapper"><i data-lucide="mail" size="20"></i><input type="email" id="email-login" placeholder="Login de acesso"></div></div>
                     <div class="form-group"><label>Senha</label><div class="input-wrapper"><i data-lucide="lock" size="20"></i><input type="password" id="pass-login" placeholder="Sua senha"><i data-lucide="eye" size="20" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('pass-login')"></i></div></div>
-                    <button type="button" class="btn-main ui-button primary" onclick="loginReal()">Entrar na Flexa</button>
+                    <button type="button" class="btn-main ui-button primary" onclick="loginReal()">Entrar na Flex</button>
                     <p style="text-align:center; margin-top:20px; font-size:14px; color:var(--brand-orange); font-weight:600; cursor:pointer;" onclick="navegar('view-recuperar')">Esqueci minha senha</p>
                 </form>
 
@@ -110,7 +110,7 @@
 
         <section id="view-recuperar" class="view">
             <div class="auth-card">
-                <div style="text-align: center; margin-bottom: 30px;"><img src="img/logoflexa.png" alt="Flexa" class="flexa-brand-logo auth-logo"></div>
+                <div style="text-align: center; margin-bottom: 30px;"><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo auth-logo"></div>
                 <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 10px; text-align: center;">Recuperar senha</h2>
                 <div class="form-group">
                     <label>E-mail</label>
@@ -274,7 +274,8 @@
             <img src="img/avatar.png" id="perfil-foto-display" alt="Avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:3px solid #fff;">
         </div>
 
-        <h2 class="user-name" id="perfil-nome-display" style="font-size:22px; font-weight:800; color:var(--text-main); margin-bottom:5px;">Nome do Usuário</h2>
+        <span class="perfil-entregador-badge">Lojista</span>
+        <h2 class="user-name" id="perfil-nome-display" style="font-size:22px; font-weight:800; color:var(--text-main); margin:8px 0 5px;">Nome do Usuário</h2>
 
         <div class="perfil-social-row">
             <i data-lucide="instagram" size="16"></i>
@@ -319,7 +320,7 @@
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
                 <div class="menu-item" onclick="abrirSobre()">
-                    <div class="item-left"><i data-lucide="info"></i><span>Sobre a Flexa Log</span></div>
+                    <div class="item-left"><i data-lucide="info"></i><span>Sobre a Flex Log</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
             </div>
@@ -378,7 +379,7 @@
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
                 <div class="menu-item" onclick="abrirSobre()">
-                    <div class="item-left"><i data-lucide="info"></i><span>Sobre a Flexa Log</span></div>
+                    <div class="item-left"><i data-lucide="info"></i><span>Sobre a Flex Log</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
             </div>
@@ -557,7 +558,6 @@
                 <div><span>Valor total</span><strong id="rota-detalhe-valor-total">R$ 0,00</strong></div>
                 <div><span>Peso total</span><strong id="rota-detalhe-peso-total">0 kg</strong></div>
                 <div><span>Tamanho total</span><strong id="rota-detalhe-tamanho-total">--</strong></div>
-                <div><span>Destino principal</span><strong id="rota-detalhe-destino">--</strong></div>
             </div>
         </div>
 
@@ -573,7 +573,6 @@
                 <button id="rota-detalhe-next" type="button" onclick="proximaPaginaDetalheRota()">Próximo</button>
             </div>
             <div class="rota-detalhe-actions">
-                <button id="rota-detalhe-close-btn" class="rota-detalhe-close-btn" type="button" onclick="fecharModalDetalheRota()">Fechar</button>
                 <button id="rota-detalhe-delete-btn" class="rota-detalhe-delete-btn" type="button" onclick="excluirRotaAtualComConfirmacao()">Excluir</button>
             </div>
         </div>
@@ -651,7 +650,11 @@
     <div id="sheet-perfil" class="modal-sheet modal-perfil-sheet profile-account-sheet" style="background:white; width:100%; border-radius:30px 30px 0 0; padding:25px; transform:translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);">
         <div style="width:40px; height:5px; background:#e2e8f0; border-radius:10px; margin:0 auto 20px;"></div>
 
-        <h2 style="font-size:20px; font-weight:800; margin-bottom:20px; text-align:center;">Dados da Conta</h2>
+        <div class="sheet-header-row" style="margin-bottom:20px;">
+            <div style="width: 36px;"></div>
+            <h2 class="sheet-title" style="font-size:20px; font-weight:800;">Dados da Conta</h2>
+            <button type="button" class="rota-flow-icon-btn" onclick="fecharModalPerfil()">×</button>
+        </div>
 
         <div class="profile-account-scroll">
 
@@ -707,9 +710,8 @@
 
         </div>
 
-        <div class="modal-footer-btns profile-account-footer" style="display:flex; gap:10px; margin-top:10px;">
-            <button class="btn-outline" onclick="fecharModalPerfil()" style="flex:1;">Cancelar</button>
-            <button class="btn-main" onclick="salvarPerfil()" style="flex:2; margin-top:0;">Salvar Alterações</button>
+        <div class="modal-footer-btns profile-account-footer" style="margin-top:10px;">
+            <button class="btn-main" onclick="salvarPerfil()" style="width:100%; margin-top:0;">Salvar Alterações</button>
         </div>
     </div>
 </div>
@@ -719,7 +721,11 @@
 
         <div style="flex-shrink: 0;">
             <div style="width: 40px; height: 4px; background: #e2e8f0; border-radius: 10px; margin: 0 auto 15px;"></div>
-            <h2 style="text-align: center; color: #001f3f; font-weight: 900; margin-bottom: 25px;">Meu Endereço</h2>
+            <div class="sheet-header-row">
+                <div style="width: 36px;"></div>
+                <h2 class="sheet-title">Meu Endereço</h2>
+                <button type="button" class="rota-flow-icon-btn" onclick="fecharModalEndereco()">×</button>
+            </div>
         </div>
 
         <div class="modal-perfil-body" style="flex: 1; overflow-y: auto; padding-right: 5px;">
@@ -769,8 +775,7 @@
         </div>
 
         <div class="modal-footer-btns modal-footer-sticky" style="flex-shrink: 0; padding-top: 20px; background: white;">
-            <button class="btn-cancelar" onclick="fecharModalEndereco()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarEndereco()">Salvar Alterações</button>
+            <button class="btn-salvar" style="width: 100%;" onclick="salvarEndereco()">Salvar Alterações</button>
         </div>
     </div>
 </div>
@@ -791,6 +796,32 @@
             <div class="pagamento-saldo-card">
                 <span>Saldo disponivel</span>
                 <strong id="pag-saldo">R$ 0,00</strong>
+            </div>
+
+            <div id="pag-divida-section" class="pagamento-section pagamento-divida-section" style="display:none;">
+                <h4>Dívida em aberto</h4>
+                <p class="pagamento-saque-help">Valor recebido em dinheiro na entrega que ainda não foi repassado à plataforma. Pague pra quitar (e sair do bloqueio de novas rotas, se estiver bloqueado).</p>
+                <p class="pagamento-divida-valor">Você deve <strong id="pag-divida-valor">R$ 0,00</strong></p>
+                <button type="button" id="pag-divida-saldo-btn" class="btn-main" style="margin-top:0;" onclick="pagarDividaComSaldo()">Pagar com saldo</button>
+                <div id="pag-divida-pix-wrap">
+                    <p class="pagamento-saque-help" style="text-align:center; margin:8px 0;">Ou pague via Pix:</p>
+                    <div id="pag-divida-pix-area">
+                        <button type="button" id="pag-divida-gerar-btn" class="btn-main" style="margin-top:0; background:#b91c1c;" onclick="gerarPixQuitacaoDivida()">Pagar dívida via Pix</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pagamento-section">
+                <h4>Solicitar saque</h4>
+                <p class="pagamento-saque-help">O valor é debitado da sua carteira na hora. O pagamento é feito manualmente via Pix, na chave cadastrada abaixo, em até alguns dias úteis.</p>
+                <div class="form-group">
+                    <label>Valor a sacar</label>
+                    <div class="input-wrapper"><input type="text" id="pag-saque-valor" inputmode="decimal" placeholder="R$ 0,00"></div>
+                </div>
+                <button type="button" id="pag-saque-btn" class="btn-main" style="margin-top:0;" onclick="solicitarSaque()">Solicitar saque</button>
+                <div id="pag-saque-historico" class="pagamento-extrato-list" style="margin-top:14px;">
+                    <div class="pagamento-extrato-empty">Nenhum saque solicitado ainda.</div>
+                </div>
             </div>
 
             <div class="pagamento-section">
@@ -850,8 +881,7 @@
         </div>
 
         <div class="modal-footer-btns modal-footer-sticky" style="margin-top:18px;">
-            <button class="btn-cancelar" onclick="fecharModalPagamento()">Cancelar</button>
-            <button class="btn-salvar" onclick="salvarDadosPagamento()">Salvar dados</button>
+            <button class="btn-salvar" style="width:100%;" onclick="salvarDadosPagamento()">Salvar dados</button>
         </div>
     </div>
 </div>
@@ -868,10 +898,6 @@
         </div>
 
         <div id="info-perfil-body" class="modal-perfil-body info-body"></div>
-
-        <div class="modal-footer-btns" style="margin-top:18px;">
-            <button class="btn-salvar" style="flex:1;" onclick="fecharModalInfoPerfil()">Fechar</button>
-        </div>
     </div>
 </div>
 <div id="modal-envio-detalhes" class="modal-perfil-overlay">
@@ -1161,8 +1187,7 @@
         </div>
 
         <div class="modal-footer-btns" style="flex-shrink: 0; padding-top: 20px; background: white;">
-            <button class="btn-cancelar" onclick="fecharModalNovoCliente()">Cancelar</button>
-            <button class="btn-salvar" id="btn-salvar-cliente" onclick="salvarNovoCliente()">Salvar e Continuar</button>
+            <button class="btn-salvar" id="btn-salvar-cliente" style="width: 100%;" onclick="salvarNovoCliente()">Salvar e Continuar</button>
         </div>
     </div>
 </div>
@@ -1254,8 +1279,7 @@
         </div>
 
         <div class="envio-detalhe-footer">
-            <button class="btn-cancelar" type="button" onclick="fecharModalDetalheEnvio()">Fechar</button>
-            <button class="btn-salvar envio-detalhe-btn-excluir" type="button" onclick="excluirEnvioAtualNoModal()">Excluir</button>
+            <button class="btn-salvar envio-detalhe-btn-excluir" type="button" style="width: 100%;" onclick="excluirEnvioAtualNoModal()">Excluir envio</button>
         </div>
     </div>
 </div>
@@ -1266,27 +1290,27 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script>
       window.FLEXA_GOOGLE_MAPS_KEY = "AIzaSyDgO6wu3gbsZYIYb1KxGOpZGZIb2pM-YAk";
-      // Pagamento Pix: preferência é a Cloud Function "payments" (backend/functions) —
-      // o access token do Mercado Pago NUNCA fica no navegador nesse caminho.
-      // TEMPORÁRIO: plano Blaze ainda não ativado, então a Cloud Function não está
-      // deployada — FLEXA_PAYMENTS_PROXY_URL fica vazia por enquanto e o app usa
-      // FLEXA_MP_TEST_TOKEN abaixo (SOMENTE token que comece com "TEST-", nunca
-      // produção). Quando ativar o Blaze e fizer o deploy, preencha a URL de volta
-      // com "https://southamerica-east1-flexa-app-41205.cloudfunctions.net/payments"
-      // e pode deixar FLEXA_MP_TEST_TOKEN vazio — o app volta a priorizar a Cloud
-      // Function automaticamente. Ver backend/README.md.
-      window.FLEXA_PAYMENTS_PROXY_URL = "";
+      // Pagamento Pix: Cloud Function "payments" (backend/functions) deployada
+      // 2026-09-18 (plano Blaze ativo) — o access token do Mercado Pago nunca
+      // fica no navegador nesse caminho, fica só no Secret Manager. URL exata
+      // impressa pelo `firebase deploy --only functions:payments`. O app
+      // prefere esta função automaticamente sempre que a URL não estiver vazia
+      // (ver criarPagamentoPixMercadoPago/gerarPixCobrancaEntrega/etc — todos
+      // checam FLEXA_PAYMENTS_PROXY_URL antes do fallback de teste local).
+      // FLEXA_MP_TEST_TOKEN fica só como fallback se esta função ficar
+      // indisponível — mantém o mesmo token de TESTE de antes, nunca produção.
+      window.FLEXA_PAYMENTS_PROXY_URL = "https://payments-at6nyggd4q-rj.a.run.app";
       window.FLEXA_MP_TEST_TOKEN = "TEST-2697640432267445-061309-cc681e1bce52b21e4cd7fe12bc950d23-454485523";
     </script>
     <!-- LOGIN ADMIN MASTER -->
     <section id="view-admin-login" class="view hidden">
         <div class="admin-login">
-            <img src="img/logoflexa.png" alt="Flexa" class="admin-logo">
+            <img src="img/logoflexa.png" alt="Flex" class="admin-logo">
             <h2>Login Admin</h2>
             <p>Acesso exclusivo do master</p>
             <div class="admin-form">
                 <label for="admin-email">E-mail</label>
-                <input id="admin-email" type="email" placeholder="admin@flexa.com">
+                <input id="admin-email" type="email" placeholder="admin@flex.com">
                 <label for="admin-pass">Senha</label>
                 <input id="admin-pass" type="password" placeholder="Senha">
                 <button type="button" class="btn-main" onclick="loginAdmin()">Entrar</button>
@@ -1301,14 +1325,14 @@
     <!-- CADASTRO ADMIN MASTER -->
     <section id="view-admin-signup" class="view hidden">
         <div class="admin-login">
-            <img src="img/logoflexa.png" alt="Flexa" class="admin-logo">
+            <img src="img/logoflexa.png" alt="Flex" class="admin-logo">
             <h2>Novo Admin</h2>
             <p>Crie sua conta master</p>
             <div class="admin-form">
                 <label for="admin-nome">Nome</label>
                 <input id="admin-nome" type="text" placeholder="Seu nome">
                 <label for="admin-email-cad">E-mail</label>
-                <input id="admin-email-cad" type="email" placeholder="admin@flexa.com">
+                <input id="admin-email-cad" type="email" placeholder="admin@flex.com">
                 <label for="admin-pass-cad">Senha</label>
                 <input id="admin-pass-cad" type="password" placeholder="Senha">
                 <label for="admin-key">Chave de acesso</label>
@@ -1326,7 +1350,7 @@
         <div class="admin-layout">
             <aside class="admin-sidebar">
                 <div class="admin-sidebar-logo">
-                    <img src="img/logoflexa.png" alt="Flexa">
+                    <img src="img/logoflexa.png" alt="Flex">
                     <span>Console</span>
                 </div>
                 <button type="button" class="admin-nav-btn active" data-tab="overview" onclick="switchAdminTab('overview')">Visão geral</button>
@@ -1392,6 +1416,18 @@
                                 <strong>Status das rotas</strong>
                             </div>
                             <canvas id="adm-chart-rotas"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="admin-panel" style="margin-top:16px;">
+                        <div class="admin-panel-head">
+                            <strong>Saques pendentes</strong>
+                            <div class="admin-panel-actions">
+                                <button class="admin-chip" onclick="renderDashboardMaster()">Atualizar</button>
+                            </div>
+                        </div>
+                        <div id="adm-saques-lista" class="admin-table">
+                            <div class="pagamento-extrato-empty">Nenhum saque pendente.</div>
                         </div>
                     </div>
                 </div>
