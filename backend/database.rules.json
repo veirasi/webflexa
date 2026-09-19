@@ -36,13 +36,16 @@
         "status": { ".read": "auth != null" },
         "endereco": { ".read": "auth != null" },
 
-        // Dinheiro é a parte mais sensível do app. Só o próprio dono lê/escreve,
-        // ou um master. Cloud Functions usam o Admin SDK e ignoram estas
-        // regras, então a crédito/débito de saldo via backend continua
-        // funcionando mesmo com isto travado no cliente.
+        // Dinheiro é a parte mais sensível do app. Dono lê/escreve; master/admin
+        // também lê e ESCREVE (necessário: marcarSaqueComoPago debita o saldo
+        // de OUTRO usuário quando o master confirma o pagamento do saque —
+        // sem isso a escrita caía em PERMISSION_DENIED e o saque nunca saía
+        // de "solicitado", mesmo o master confirmando. BUG CORRIGIDO
+        // 2026-09-19, mesma política que 'saques' logo abaixo). Cloud
+        // Functions usam o Admin SDK e ignoram estas regras de qualquer forma.
         "financeiro": {
           ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'",
-          ".write": "$uid === auth.uid"
+          ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'"
         },
 
         // Dados pessoais dos clientes finais do lojista (nome, telefone,

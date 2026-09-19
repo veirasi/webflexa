@@ -82,6 +82,16 @@ function mostrarTelaAdminLogin() {
     if (v) v.classList.add('active');
 }
 
+function atualizarTopoAdmin(nome, email) {
+    const nomeEl = document.getElementById('admin-topbar-nome');
+    const avatarEl = document.getElementById('admin-avatar');
+    const emailEl = document.getElementById('admin-user-email');
+    const nomeExib = (nome || '').trim() || (email || '').split('@')[0] || 'Master';
+    if (nomeEl) nomeEl.innerText = 'Olá, ' + nomeExib;
+    if (avatarEl) avatarEl.innerText = nomeExib.slice(0, 1).toUpperCase();
+    if (emailEl) emailEl.innerText = email || '--';
+}
+
 function mostrarTelaAdminDashboard() {
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     const nav = document.getElementById('main-nav');
@@ -89,6 +99,7 @@ function mostrarTelaAdminDashboard() {
     const v = document.getElementById('view-admin-dashboard');
     if (v) v.classList.add('active');
     switchAdminTab('overview');
+    aplicarTemaAdminSalvo();
 }
 
 function mostrarTelaAdminSignup() {
@@ -144,6 +155,7 @@ function switchAdminTab(tab) {
     const main = document.querySelector('.admin-main');
     if (main) main.scrollTop = 0;
     window.scrollTo({ top: 0, behavior: 'auto' });
+    document.getElementById('admin-sidebar')?.classList.remove('mobile-open');
     if (tab === 'packages') adminCarregarPacotes();
     if (tab === 'routes') renderDashboardMaster();
     if (tab === 'database') adminListTables();
@@ -1913,7 +1925,7 @@ async function loginAdmin() {
         document.body.classList.add('admin-mode');
         usuarioLogado = { id: cred.user.uid, ...dadosUser };
         window.usuarioLogado = usuarioLogado;
-        document.getElementById('admin-user-email').innerText = dadosUser.email || email;
+        atualizarTopoAdmin(dadosUser.nome, dadosUser.email || email);
         mostrarTelaAdminDashboard();
         await renderDashboardMaster();
         const splash = document.getElementById('splash-screen');
@@ -1944,7 +1956,7 @@ async function criarContaMaster() {
         document.body.classList.add('admin-mode');
         usuarioLogado = { id: cred.user.uid, ...payload };
         window.usuarioLogado = usuarioLogado;
-        document.getElementById('admin-user-email').innerText = email;
+        atualizarTopoAdmin(payload.nome, email);
         mostrarTelaAdminDashboard();
         await renderDashboardMaster();
         const splash = document.getElementById('splash-screen');
@@ -2018,7 +2030,7 @@ firebase.auth().onAuthStateChanged((user) => {
                     if (tipo === 'master' || modoAdmin) {
                         modoAdmin = true;
                         document.body.classList.add('admin-mode');
-                        document.getElementById('admin-user-email').innerText = userData.email || user.email || '--';
+                        atualizarTopoAdmin(userData.nome, userData.email || user.email || '--');
                         mostrarTelaAdminDashboard();
                         renderDashboardMaster();
                         if (tabbar) tabbar.style.display = 'none';
@@ -6161,6 +6173,153 @@ async function renderDashboardMaster() {
     };
     initAdminCharts();
     adminListTables();
+    atualizarResumoRelatorioAdmin();
+
+    const lastUpdEl = document.getElementById('admin-last-updated');
+    if (lastUpdEl) lastUpdEl.innerText = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function atualizarResumoRelatorioAdmin() {
+    const el = document.getElementById('admin-report-summary');
+    if (!el || !adminChartsState) return;
+    const { usuarios, pacotes, rotas } = adminChartsState;
+    const totalUsuarios = usuarios.lojas + usuarios.entregadores + usuarios.masters;
+    const taxaEntrega = pacotes.total > 0 ? Math.round((pacotes.entregues / pacotes.total) * 100) : 0;
+    const taxaConclusaoRotas = rotas.total > 0 ? Math.round((rotas.concluidas / rotas.total) * 100) : 0;
+    el.innerText = `${totalUsuarios} usuários na plataforma (${usuarios.lojas} lojistas, ${usuarios.entregadores} entregadores). ` +
+        `${pacotes.total} pacotes registrados, ${taxaEntrega}% já entregues. ` +
+        `${rotas.total} rotas no total, ${taxaConclusaoRotas}% concluídas (${rotas.buscando} buscando, ${rotas.emRota} em rota).`;
+}
+
+function atualizarNotificacoesAdminSaques(pendentes = []) {
+    const countEl = document.getElementById('admin-notif-count');
+    const listEl = document.getElementById('admin-notif-list');
+    if (!countEl || !listEl) return;
+
+    if (!pendentes.length) {
+        countEl.style.display = 'none';
+        listEl.innerHTML = '<div class="pagamento-extrato-empty">Nada pendente.</div>';
+        return;
+    }
+
+    countEl.style.display = 'grid';
+    countEl.innerText = pendentes.length > 9 ? '9+' : String(pendentes.length);
+    listEl.innerHTML = pendentes.slice(0, 8).map((s) => `
+        <div class="admin-notif-item" onclick="switchAdminTab('overview')">
+            <strong>${escaparHtmlMarketplace(s.nome)}</strong> pediu saque de ${precoParaMoeda(Number(s.valor || 0))}
+            <div class="subtle" style="margin-top:2px;">${escaparHtmlMarketplace(formatarDataExtrato(s.solicitadoEm))}</div>
+        </div>
+    `).join('');
+}
+
+function toggleAdminSidebarCompact() {
+    document.getElementById('admin-layout')?.classList.toggle('compact');
+}
+
+function toggleAdminSidebarMobile() {
+    document.getElementById('admin-sidebar')?.classList.toggle('mobile-open');
+}
+
+function toggleAdminNotifPanel() {
+    document.getElementById('admin-notif-panel')?.classList.toggle('show');
+}
+
+function aplicarTemaAdminSalvo() {
+    const secao = document.getElementById('view-admin-dashboard');
+    const btn = document.getElementById('admin-theme-btn');
+    if (!secao) return;
+    const escuro = localStorage.getItem('flexa_admin_tema') === 'dark';
+    secao.classList.toggle('admin-dark', escuro);
+    if (btn) btn.innerHTML = `<i data-lucide="${escuro ? 'sun' : 'moon'}" size="18"></i>`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Tema escuro só desta seção (#view-admin-dashboard.admin-dark, ver styles.css) —
+// nunca mexe em document.body, então não vaza pro app do lojista/entregador.
+function toggleAdminTheme() {
+    const secao = document.getElementById('view-admin-dashboard');
+    if (!secao) return;
+    const escuro = secao.classList.toggle('admin-dark');
+    localStorage.setItem('flexa_admin_tema', escuro ? 'dark' : 'light');
+    const btn = document.getElementById('admin-theme-btn');
+    if (btn) btn.innerHTML = `<i data-lucide="${escuro ? 'sun' : 'moon'}" size="18"></i>`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function filtrarLinhasAdmin(containerId, itemSelector, termo) {
+    const container = document.getElementById(containerId);
+    if (!container) return 0;
+    const q = normalizarTexto((termo || '').trim());
+    let visiveis = 0;
+    container.querySelectorAll(itemSelector).forEach((item) => {
+        const bate = !q || normalizarTexto(item.textContent || '').includes(q);
+        item.style.display = bate ? '' : 'none';
+        if (bate) visiveis += 1;
+    });
+    return visiveis;
+}
+
+function filtrarAdminUsuarios(termo) {
+    filtrarLinhasAdmin('adm-users-table', '.admin-row', termo);
+}
+
+function filtrarAdminPacotes(termo) {
+    filtrarLinhasAdmin('adm-pack-cards', '.adm-card', termo);
+}
+
+function filtrarAdminRotas(termo) {
+    filtrarLinhasAdmin('adm-rotas-cards', '.adm-card', termo);
+}
+
+// Busca global do topbar: aplica o filtro real da aba que estiver aberta no
+// momento (usuários/pacotes/rotas), já que cada uma renderiza sua própria
+// lista — não existe um índice único pra buscar tudo de uma vez sem duplicar
+// leituras do Firebase que renderDashboardMaster já fez.
+function filtrarAdminBuscaAtiva(termo) {
+    const tab = document.querySelector('.admin-tab.active')?.dataset.tab;
+    if (tab === 'users') filtrarAdminUsuarios(termo);
+    else if (tab === 'packages') filtrarAdminPacotes(termo);
+    else if (tab === 'routes') filtrarAdminRotas(termo);
+}
+
+function baixarArquivoTexto(nome, conteudo, tipo = 'text/csv;charset=utf-8;') {
+    const blob = new Blob(['﻿' + conteudo], { type: tipo });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function exportarRelatorioCsvAdmin() {
+    if (!adminChartsState) {
+        alert('Atualize o painel (aba Visão geral) antes de exportar.');
+        return;
+    }
+    const { usuarios, pacotes, rotas } = adminChartsState;
+    const linhas = [
+        ['metrica', 'valor'],
+        ['lojistas', usuarios.lojas],
+        ['lojistas_ativos_agora', usuarios.ativosL],
+        ['entregadores', usuarios.entregadores],
+        ['entregadores_ativos_agora', usuarios.ativosE],
+        ['pacotes_total', pacotes.total],
+        ['pacotes_em_rota', pacotes.emRota],
+        ['pacotes_entregues', pacotes.entregues],
+        ['pacotes_cancelados', pacotes.cancelados],
+        ['rotas_total', rotas.total],
+        ['rotas_buscando', rotas.buscando],
+        ['rotas_em_rota', rotas.emRota],
+        ['rotas_concluidas', rotas.concluidas],
+        ['rotas_canceladas', rotas.canceladas]
+    ];
+    const csv = linhas.map((l) => l.join(',')).join('\n');
+    baixarArquivoTexto(`flex-relatorio-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    notificarSucesso('Relatório exportado.');
 }
 
 async function enviarResetSenhaMaster(email) {
@@ -6487,6 +6646,7 @@ function renderSaquesPendentesAdmin(usersNo = {}) {
         });
     });
     pendentes.sort((a, b) => Number(a?.solicitadoEm || 0) - Number(b?.solicitadoEm || 0));
+    atualizarNotificacoesAdminSaques(pendentes);
 
     if (!pendentes.length) {
         container.innerHTML = '<div class="pagamento-extrato-empty">Nenhum saque pendente.</div>';
@@ -6510,14 +6670,44 @@ function renderSaquesPendentesAdmin(usersNo = {}) {
 
 async function marcarSaqueComoPago(lojistaUid, saqueId) {
     if (!usuarioEhMaster() || !lojistaUid || !saqueId) return;
-    if (!window.confirm('Confirma que já pagou este saque via Pix pra fora do app? Isso só marca como concluído, não envia dinheiro.')) return;
+
+    const saqueRef = db.ref(`usuarios/${lojistaUid}/saques/${saqueId}`);
+    const snap = await saqueRef.once('value').catch(() => null);
+    const saque = snap?.val();
+    if (!saque || (saque.status || 'solicitado') !== 'solicitado') {
+        alert('Este saque não está mais pendente.');
+        return;
+    }
+    const valor = Number(saque.valor || 0);
+
+    if (!window.confirm(`Confirma que já pagou ${precoParaMoeda(valor)} via Pix pra fora do app? O valor será debitado da carteira do usuário agora.`)) return;
 
     try {
-        await db.ref(`usuarios/${lojistaUid}/saques/${saqueId}`).update({
+        // CORRIGIDO 2026-09-19: o débito só acontece aqui, na confirmação real
+        // do pagamento pelo master — não mais no momento em que o usuário só
+        // solicita o saque (ver solicitarSaque).
+        const resultado = await ajustarSaldoUsuario(lojistaUid, -valor, { permitirNegativo: false });
+        if (!resultado.ok) {
+            alert(resultado.saldoInsuficiente
+                ? 'O usuário não tem mais saldo suficiente pra cobrir esse saque (pode já ter gastado). Não foi marcado como pago.'
+                : 'Não foi possível debitar o saldo agora. Tente novamente.');
+            return;
+        }
+
+        const transRef = db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push();
+        await transRef.set({
+            id: transRef.key,
+            tipo: 'DEBITO',
+            valor,
+            descricao: `Saque pago via Pix (${String(saque.pixTipo || '').toUpperCase()}: ${saque.pixChave || '--'})`,
+            criadoEm: Date.now()
+        });
+
+        await saqueRef.update({
             status: 'pago',
             pagoEm: Date.now()
         });
-        notificarSucesso('Saque marcado como pago.');
+        notificarSucesso('Saque marcado como pago e valor debitado da carteira do usuário.');
         await renderDashboardMaster();
     } catch (err) {
         console.warn('Falha ao marcar saque como pago:', err);
@@ -9954,6 +10144,9 @@ async function carregarSaquesUsuario() {
         const data = snap.val() || {};
         const arr = Object.keys(data).map((id) => ({ id, ...data[id] }));
         arr.sort((a, b) => Number(b?.solicitadoEm || 0) - Number(a?.solicitadoEm || 0));
+        pagamentoPerfilCache.saquesPendentesTotal = arr
+            .filter((s) => (s?.status || 'solicitado') === 'solicitado')
+            .reduce((acc, s) => acc + Number(s?.valor || 0), 0);
         renderSaquesUsuario(arr);
     } catch (err) {
         console.warn('Falha ao carregar saques:', err);
@@ -9975,18 +10168,27 @@ async function solicitarSaque() {
     const input = document.getElementById('pag-saque-valor');
     const valor = parseMoedaParaNumero(input?.value || 0);
     const saldoAtual = Number(pagamentoPerfilCache?.saldo || 0);
+    // CORRIGIDO 2026-09-19: o valor não sai mais da carteira aqui — só quando
+    // o master de fato confirma o pagamento (marcarSaqueComoPago). Pra não
+    // deixar o usuário pedir mais do que realmente tem disponível (ex: pedir
+    // R$300 duas vezes tendo só R$300), o "disponível pra novo saque" desconta
+    // os saques já solicitados e ainda não pagos (pendentes).
+    const pendentes = Number(pagamentoPerfilCache?.saquesPendentesTotal || 0);
+    const disponivelParaSaque = Math.max(0, saldoAtual - pendentes);
     if (!Number.isFinite(valor) || valor <= 0) {
         alert('Digite um valor válido para o saque.');
         return;
     }
-    if (valor > saldoAtual) {
-        alert(`Saldo insuficiente. Seu saldo disponível é ${precoParaMoeda(saldoAtual)}.`);
+    if (valor > disponivelParaSaque) {
+        alert(pendentes > 0
+            ? `Saldo insuficiente. Você já tem ${precoParaMoeda(pendentes)} em saques pendentes — disponível pra novo saque: ${precoParaMoeda(disponivelParaSaque)}.`
+            : `Saldo insuficiente. Seu saldo disponível é ${precoParaMoeda(disponivelParaSaque)}.`);
         return;
     }
 
     const confirmado = window.confirm(
         `Confirma a solicitação de saque de ${precoParaMoeda(valor)} via Pix (${pixTipo.toUpperCase()}: ${pixChave})?\n\n` +
-        'O valor sai da sua carteira agora. O pagamento é feito manualmente e pode levar alguns dias úteis.'
+        'O valor continua na sua carteira até a plataforma confirmar o pagamento manualmente (pode levar alguns dias úteis).'
     );
     if (!confirmado) return;
 
@@ -9994,17 +10196,6 @@ async function solicitarSaque() {
     if (btn) { btn.disabled = true; btn.innerText = 'Solicitando...'; }
 
     try {
-        const resultado = await ajustarSaldoUsuario(uid, -valor, { permitirNegativo: false });
-        if (!resultado.ok) {
-            alert(resultado.saldoInsuficiente ? 'Saldo insuficiente para este saque.' : 'Não foi possível solicitar o saque agora. Tente novamente.');
-            return;
-        }
-
-        if (!window.usuarioLogado) window.usuarioLogado = {};
-        window.usuarioLogado.financeiro = { ...(window.usuarioLogado.financeiro || {}), saldo: resultado.saldoDepois, atualizadoEm: Date.now() };
-        pagamentoPerfilCache.saldo = resultado.saldoDepois;
-        atualizarSaldoPagamentoUI();
-
         const agora = Date.now();
         const ref = db.ref(`usuarios/${uid}/saques`).push();
         await ref.set({
@@ -10016,10 +10207,8 @@ async function solicitarSaque() {
             solicitadoEm: agora
         });
 
-        await registrarTransacaoFinanceira('DEBITO', valor, `Saque solicitado via Pix (${pixTipo.toUpperCase()}: ${pixChave})`);
-
         if (input) input.value = '';
-        notificarSucesso(`Saque de ${precoParaMoeda(valor)} solicitado. Você recebe via Pix em breve.`);
+        notificarSucesso(`Saque de ${precoParaMoeda(valor)} solicitado. O valor sai da carteira quando a plataforma confirmar o pagamento.`);
         await carregarSaquesUsuario();
     } catch (err) {
         console.warn('Falha ao solicitar saque:', err);
@@ -11524,6 +11713,7 @@ export {
   excluirEnvioPorId,
   excluirRotaAtualComConfirmacao,
   excluirRotaPorId,
+  exportarRelatorioCsvAdmin,
   extrairCidadeEnderecoSimples,
   fecharModalAcoesCliente,
   fecharModalDetalheEnvio,
@@ -11546,6 +11736,9 @@ export {
   fecharSwipesEnvio,
   fecharSwipesRota,
   fecharToastSuave,
+  filtrarAdminBuscaAtiva,
+  filtrarAdminPacotes,
+  filtrarAdminUsuarios,
   finalizarSplash,
   finalizarSwipeEntSheet,
   finalizarSwipePaginaRota,
@@ -11768,6 +11961,10 @@ export {
   switchAdminTab,
   telaInicialPorTipoUsuario,
   telaPerfilPorTipoUsuario,
+  toggleAdminNotifPanel,
+  toggleAdminSidebarCompact,
+  toggleAdminSidebarMobile,
+  toggleAdminTheme,
   togglePacoteRota,
   togglePass,
   usuarioEhEntregador,

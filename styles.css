@@ -5506,7 +5506,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .admin-header-left { display: flex; align-items: center; gap: 10px; }
 .admin-logo-sm { width: 90px; }
 .admin-header-actions { display: flex; gap: 8px; }
-.admin-chip { padding: 8px 12px; border-radius: 999px; border: 1px solid #e5e7eb; background: #fff; font-weight: 700; cursor: pointer; }
+.admin-chip { padding: 8px 12px; border-radius: 999px; border: 1px solid #e5e7eb; background: #fff; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
 .admin-chip.danger { border-color: #fecdd3; color: #dc2626; }
 .admin-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 0 16px; }
 .admin-card { background: #fff; border: 1px solid #eef2f6; border-radius: 14px; padding: 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 4px; }
@@ -5562,6 +5562,107 @@ body.admin-mode { overflow: auto; }
 .admin-db-forms { position: sticky; top: 12px; }
 .admin-db-forms .admin-form { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; }
 .admin-db-forms .btn-main { width: 100%; }
+
+/* ===== Admin Master — modernização 2026-09-19 (topbar, KPIs, notif, tema escuro) =====
+   Tudo prefixado com .admin- / .adm- de propósito: esse arquivo já teve um vazamento
+   de classe genérica em outro componente (.sheet-header) que quebrou vários modais
+   sem relação nenhuma. Nomes específicos aqui evitam repetir o problema. */
+.admin-nav-list { display: flex; flex-direction: column; gap: 3px; }
+.admin-nav-btn { display: flex; align-items: center; gap: 12px; }
+.admin-layout.compact { grid-template-columns: 76px 1fr; }
+.admin-layout.compact .admin-sidebar { width: 76px; padding-left: 10px; padding-right: 10px; align-items: center; }
+.admin-layout.compact .admin-nav-copy,
+.admin-layout.compact .admin-sidebar-footer small,
+.admin-layout.compact .admin-sidebar-logo span { display: none; }
+.admin-layout.compact .admin-nav-btn { justify-content: center; padding: 12px; width: 100%; }
+.admin-layout.compact .admin-sidebar-footer { align-items: center; }
+
+.admin-topbar { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: #fff; border-bottom: 1px solid #eef1f6; position: sticky; top: 0; z-index: 15; }
+.admin-topbar-left { display: flex; align-items: center; gap: 10px; }
+.admin-topbar-greeting { display: flex; flex-direction: column; line-height: 1.25; }
+.admin-topbar-greeting strong { font-size: 14px; color: #0f172a; }
+.admin-topbar-greeting span { font-size: 12px; color: #64748b; }
+.admin-icon-btn { position: relative; border: 1px solid #e5e7eb; background: #fff; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; color: #475569; cursor: pointer; flex-shrink: 0; }
+.admin-icon-btn:hover { background: #f8fafc; }
+.admin-mobile-menu-btn { display: none; }
+.admin-topbar-search { flex: 1; max-width: 420px; position: relative; display: flex; align-items: center; }
+.admin-topbar-search i { position: absolute; left: 12px; color: #94a3b8; pointer-events: none; }
+.admin-topbar-search input { width: 100%; border: 1px solid #e5e7eb; background: #f8fafc; border-radius: 10px; padding: 9px 12px 9px 36px; font-size: 13px; color: #0f172a; box-sizing: border-box; }
+.admin-topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.admin-badge-count { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; }
+.admin-avatar { width: 36px; height: 36px; border-radius: 50%; background: #e0e7ff; color: #243b8f; display: grid; place-items: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.admin-notif-wrap { position: relative; }
+.admin-notif-panel { display: none; position: absolute; right: 0; top: 46px; width: 300px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 18px 40px rgba(15,23,42,0.16); padding: 10px; z-index: 40; }
+.admin-notif-panel.show { display: block; }
+.admin-notif-panel strong { display: block; padding: 6px 8px 10px; font-size: 14px; color: #0f172a; }
+.admin-notif-item { padding: 10px 8px; border-radius: 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+.admin-notif-item:last-child { border-bottom: none; }
+.admin-notif-item:hover { background: #f8fafc; }
+
+.admin-content-wrap { padding: 22px 26px 60px; }
+.admin-section-heading { margin-bottom: 16px; }
+.admin-section-heading .admin-kicker { margin-bottom: 4px; }
+.admin-section-heading h1 { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0 0 6px; letter-spacing: -0.03em; }
+.admin-subtle { color: #64748b; font-size: 13px; margin: 0; }
+.admin-overview-actions { margin-bottom: 14px; }
+
+.admin-kpi { position: relative; padding-top: 16px; }
+.admin-kpi-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 10px; }
+.admin-kpi-icon-orange { background: #fff4e8; color: #ea580c; }
+.admin-kpi-icon-blue { background: #e0e7ff; color: #4338ca; }
+.admin-kpi-icon-purple { background: #f3e8ff; color: #7e22ce; }
+.admin-kpi-icon-green { background: #dcfce7; color: #15803d; }
+.admin-kpi span { font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.admin-kpi strong { display: block; font-size: 26px; margin-top: 4px; }
+
+.admin-filter-row { padding: 12px 14px 0; }
+.admin-filter-row input { width: 100%; border: 1px solid #e5e7eb; border-radius: 9px; padding: 9px 12px; font-size: 13px; background: #f8fafc; color: #0f172a; box-sizing: border-box; }
+.admin-report-panel { padding: 22px; }
+.admin-report-panel h3 { margin: 0 0 6px; font-size: 16px; }
+.admin-report-panel .btn-main { margin-top: 14px; display: inline-flex; align-items: center; gap: 8px; }
+
+/* Tema escuro — escopado só dentro de #view-admin-dashboard, nunca toca o resto do app */
+#view-admin-dashboard.admin-dark { --admin-bg:#0b1526; --admin-panel:#131f36; --admin-line:#243250; --admin-ink:#e7edf7; --admin-sub:#93a3bd; }
+#view-admin-dashboard.admin-dark .admin-layout { background: var(--admin-bg); }
+#view-admin-dashboard.admin-dark .admin-main,
+#view-admin-dashboard.admin-dark .admin-topbar,
+#view-admin-dashboard.admin-dark .admin-card,
+#view-admin-dashboard.admin-dark .admin-panel,
+#view-admin-dashboard.admin-dark .admin-notif-panel,
+#view-admin-dashboard.admin-dark .admin-icon-btn,
+#view-admin-dashboard.admin-dark .adm-card { background: var(--admin-panel); border-color: var(--admin-line); color: var(--admin-ink); }
+#view-admin-dashboard.admin-dark .admin-section-heading h1,
+#view-admin-dashboard.admin-dark .admin-row strong,
+#view-admin-dashboard.admin-dark .admin-row span,
+#view-admin-dashboard.admin-dark .admin-topbar-greeting strong,
+#view-admin-dashboard.admin-dark .admin-notif-panel strong { color: var(--admin-ink); }
+#view-admin-dashboard.admin-dark .admin-subtle,
+#view-admin-dashboard.admin-dark .admin-topbar-greeting span { color: var(--admin-sub); }
+#view-admin-dashboard.admin-dark .admin-topbar-search input,
+#view-admin-dashboard.admin-dark .admin-filter-row input,
+#view-admin-dashboard.admin-dark .adm-card-select,
+#view-admin-dashboard.admin-dark .admin-form input { background: #0e1930; border-color: var(--admin-line); color: var(--admin-ink); }
+#view-admin-dashboard.admin-dark .admin-row { background: #0e1930; }
+#view-admin-dashboard.admin-dark .admin-panel-head { border-bottom-color: var(--admin-line); }
+#view-admin-dashboard.admin-dark .admin-notif-item { border-bottom-color: var(--admin-line); }
+#view-admin-dashboard.admin-dark .admin-db-forms .admin-form { background: var(--admin-panel); border-color: var(--admin-line); }
+#view-admin-dashboard.admin-dark .admin-db-forms .admin-form label { color: var(--admin-ink); }
+#view-admin-dashboard.admin-dark .admin-kicker { color: var(--admin-sub); }
+
+@media (max-width: 980px) {
+    #view-admin-dashboard .admin-layout { grid-template-columns: 1fr !important; }
+    #view-admin-dashboard .admin-sidebar { position: fixed; inset: 0 auto 0 0; width: 254px; transform: translateX(-100%); transition: transform .25s ease; z-index: 100; }
+    #view-admin-dashboard .admin-sidebar.mobile-open { transform: translateX(0); box-shadow: 12px 0 35px rgba(0,0,0,0.3); }
+    #view-admin-dashboard .admin-mobile-menu-btn { display: grid; }
+    #view-admin-dashboard .admin-collapse-btn { display: none; }
+    #view-admin-dashboard .admin-topbar-greeting { display: none; }
+    #view-admin-dashboard .admin-topbar-search { max-width: none; }
+    #view-admin-dashboard .admin-avatar,
+    #view-admin-dashboard #admin-theme-btn { display: none; }
+    #view-admin-dashboard .admin-topbar { padding: 12px 14px; gap: 10px; }
+    #view-admin-dashboard .admin-content-wrap { padding: 16px; }
+    #view-admin-dashboard .admin-cards-grid { grid-template-columns: 1fr 1fr; }
+}
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
