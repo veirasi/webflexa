@@ -1350,7 +1350,7 @@
         <div class="admin-layout" id="admin-layout">
             <aside class="admin-sidebar" id="admin-sidebar">
                 <div class="admin-sidebar-logo">
-                    <img src="img/logoflexa.png" alt="Flex">
+                    <span class="admin-logo-badge"><img src="img/logoflexa.png" alt="Flex"></span>
                     <span class="admin-nav-copy">Console</span>
                 </div>
                 <nav class="admin-nav-list">
@@ -1435,6 +1435,70 @@
                                 <small id="adm-rotas-status">Buscando / Em rota / Concluídas</small>
                             </div>
                         </div>
+                        <div class="admin-panel" style="margin-bottom:16px;">
+                            <div class="admin-panel-head">
+                                <div>
+                                    <strong>Entregas nos últimos 7 dias</strong>
+                                    <p class="admin-subtle" style="margin:2px 0 0;">Acompanhe o ritmo da operação diária.</p>
+                                </div>
+                                <div class="admin-chart-tabs">
+                                    <button type="button" class="admin-chart-tab active" data-serie="entregues" onclick="renderSerieEntregasAdmin('entregues')">Entregues</button>
+                                    <button type="button" class="admin-chart-tab" data-serie="criados" onclick="renderSerieEntregasAdmin('criados')">Envios criados</button>
+                                </div>
+                            </div>
+                            <div class="admin-line-chart-box">
+                                <canvas id="adm-chart-entregas-dias"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="admin-cards-grid-2">
+                            <div class="admin-panel">
+                                <div class="admin-panel-head">
+                                    <div>
+                                        <strong>Rotas em andamento</strong>
+                                        <p class="admin-subtle" style="margin:2px 0 0;">Monitoramento ao vivo das rotas prioritárias.</p>
+                                    </div>
+                                    <button type="button" class="admin-link-btn" onclick="switchAdminTab('routes')">Ver todas</button>
+                                </div>
+                                <div id="adm-rotas-andamento-mini" class="admin-mini-list"></div>
+                            </div>
+                            <div class="admin-panel">
+                                <div class="admin-panel-head">
+                                    <strong>Alertas importantes</strong>
+                                    <i data-lucide="siren" size="18" style="color:#f97316;"></i>
+                                </div>
+                                <div id="adm-alertas-lista" class="admin-mini-list"></div>
+                            </div>
+                        </div>
+
+                        <div class="admin-panel" style="margin:16px 0;">
+                            <div class="admin-panel-head">
+                                <div>
+                                    <strong>Pacotes recentes</strong>
+                                    <p class="admin-subtle" style="margin:2px 0 0;">Últimas movimentações de pacotes na rede.</p>
+                                </div>
+                                <button type="button" class="admin-link-btn" onclick="switchAdminTab('packages')">Ver todos</button>
+                            </div>
+                            <div id="adm-pacotes-recentes-mini" class="admin-mini-list"></div>
+                        </div>
+
+                        <div class="admin-cards-grid-2" style="margin-bottom:16px;">
+                            <div class="admin-panel">
+                                <div class="admin-panel-head">
+                                    <strong>Lojistas que mais entregam</strong>
+                                    <i data-lucide="store" size="18" style="color:#ea580c;"></i>
+                                </div>
+                                <ul id="adm-ranking-lojistas" class="admin-rank-list"></ul>
+                            </div>
+                            <div class="admin-panel">
+                                <div class="admin-panel-head">
+                                    <strong>Entregadores mais ativos</strong>
+                                    <i data-lucide="truck" size="18" style="color:#2563eb;"></i>
+                                </div>
+                                <ul id="adm-ranking-entregadores" class="admin-rank-list"></ul>
+                            </div>
+                        </div>
+
                         <div class="admin-charts">
                             <div class="admin-panel glass">
                                 <div class="admin-panel-head">
@@ -1444,9 +1508,19 @@
                             </div>
                             <div class="admin-panel glass">
                                 <div class="admin-panel-head">
-                                    <strong>Status dos pacotes</strong>
+                                    <strong>Pacotes por status</strong>
+                                    <p class="admin-subtle" style="margin:0;">Visão consolidada da operação.</p>
                                 </div>
-                                <canvas id="adm-chart-pacotes"></canvas>
+                                <div class="admin-donut-wrap">
+                                    <div class="admin-donut-canvas">
+                                        <canvas id="adm-chart-pacotes"></canvas>
+                                        <div class="admin-donut-center">
+                                            <strong id="adm-pacotes-donut-total">--</strong>
+                                            <span>pacotes</span>
+                                        </div>
+                                    </div>
+                                    <ul class="admin-legend" id="adm-pacotes-legend"></ul>
+                                </div>
                             </div>
                             <div class="admin-panel glass">
                                 <div class="admin-panel-head">

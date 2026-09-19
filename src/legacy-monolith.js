@@ -62,6 +62,7 @@ let modoAdmin = false;
 let presencaRef = null;
 let presencaInterval = null;
 let adminChartsState = null;
+let saquesPendentesAdminCache = [];
 let entregadorHomeListenerRef = null;
 let entregadorHomeListenerCb = null;
 let entregadorHomeListenerUid = null;
@@ -6007,16 +6008,34 @@ async function renderDashboardMaster() {
 
     // Pacotes
     let pacTotal = 0; let pacEmRota = 0; let pacEnt = 0; let pacCanc = 0;
+    const pacotesListaAdmin = [];
+    const rankingLojistasMap = new Map(); // uid -> { nome, entregues }
     Object.keys(usersNo).forEach((uid) => {
+        const nomeLojista = usersNo[uid]?.nome || 'Lojista';
         const clientesNo = usersNo[uid]?.clientes || {};
         Object.keys(clientesNo).forEach((cid) => {
             const hist = Array.isArray(clientesNo[cid]?.historico) ? clientesNo[cid].historico : [];
-            hist.forEach((h) => {
+            hist.forEach((h, idx) => {
                 const st = normalizarStatusEnvioFiltro(h.status || h.statusRaw || 'PACOTE_NOVO');
                 pacTotal += 1;
                 if (st === 'EM_ROTA') pacEmRota += 1;
                 else if (st === 'ENTREGUE') pacEnt += 1;
                 else if (st === 'CANCELADO') pacCanc += 1;
+
+                pacotesListaAdmin.push({
+                    id: h.id || `${cid}-${idx}`,
+                    destinatario: clientesNo[cid]?.nome || h.destinatario || 'Cliente',
+                    lojistaNome: nomeLojista,
+                    status: st,
+                    criadoEm: Number(h.criadoEm || 0),
+                    entregueEm: Number(h.entregueEm || 0)
+                });
+
+                if (st === 'ENTREGUE') {
+                    const atual = rankingLojistasMap.get(uid) || { nome: nomeLojista, entregues: 0 };
+                    atual.entregues += 1;
+                    rankingLojistasMap.set(uid, atual);
+                }
             });
         });
     });
@@ -6041,7 +6060,8 @@ async function renderDashboardMaster() {
                     cidade: (h.cidadeDestino || h.cidade || extrairCamposEnderecoCliente(clientesNo[cid] || {}).cidade || '').toString().trim(),
                     destino: h.destinoEndereco || '',
                     distanciaKm: Number.isFinite(Number(h.distanciaKm)) ? Number(h.distanciaKm) : 0,
-                    duracaoMin: Number.isFinite(Number(h.duracaoMin)) ? Number(h.duracaoMin) : 0
+                    duracaoMin: Number.isFinite(Number(h.duracaoMin)) ? Number(h.duracaoMin) : 0,
+                    status: normalizarStatusEnvioFiltro(h.status || h.statusRaw || 'PACOTE_NOVO')
                 });
             });
         });
@@ -6053,7 +6073,8 @@ async function renderDashboardMaster() {
                 cidade: (p.cidadeDestino || p.cidade || extrairCidadeEnderecoSimples(p.destinoEndereco || p.destino || '')).toString().trim(),
                 destino: p.destinoEndereco || p.destino || '',
                 distanciaKm: Number.isFinite(Number(p.distanciaKm)) ? Number(p.distanciaKm) : 0,
-                duracaoMin: Number.isFinite(Number(p.duracaoMin)) ? Number(p.duracaoMin) : 0
+                duracaoMin: Number.isFinite(Number(p.duracaoMin)) ? Number(p.duracaoMin) : 0,
+                status: normalizarStatusEnvioFiltro(p.status || p.statusRaw || 'PACOTE_NOVO')
             });
         });
         const mapaPacotes = new Map(pacotesLojista.map((p) => [p.id, p]));
@@ -6075,17 +6096,68 @@ async function renderDashboardMaster() {
             const destinoPrincipal = resumoCidades.display || resumoCidades.principal || r.destinoPrincipal || '--';
             const distSoma = pacotesDaRota.reduce((acc, p) => acc + (Number.isFinite(p?.distanciaKm) ? Number(p.distanciaKm) : 0), 0);
             const durSoma = pacotesDaRota.reduce((acc, p) => acc + (Number.isFinite(p?.duracaoMin) ? Number(p.duracaoMin) : 0), 0);
+            const totalParadas = pacIds.length || pacotesDaRota.length;
+            const paradasConcluidas = pacotesDaRota.filter((p) => p.status === 'ENTREGUE' || p.status === 'CANCELADO').length;
 
             rotasRecuperaveis.push({
                 ...r,
                 id: rid,
                 lojistaUid: uid,
+                lojistaNome: usersNo[uid]?.nome || 'Lojista',
+                entregadorNome: usersNo[String(r.entregadorId || r.aceitoPor || '')]?.nome || '',
                 statusNorm,
                 destinoPrincipal,
                 distanciaTotal: r.distanciaTotal || distSoma,
-                duracaoTotal: r.duracaoTotal || durSoma
+                duracaoTotal: r.duracaoTotal || durSoma,
+                totalParadas,
+                paradasConcluidas
             });
         });
+    });
+
+    // Ranking de entregadores: quem mais concluiu / mais cancelou rota. Usa
+    // rota.entregadorId (ou o antigo aceitoPor) — dado real, já gravado por
+    // aceitarRotaMarketplaceEntregador, não é aproximação.
+    const rankingEntregadoresMap = new Map(); // uid -> { nome, concluidas, canceladas }
+    rotasRecuperaveis.forEach((r) => {
+        const entId = String(r.entregadorId || r.aceitoPor || '').trim();
+        if (!entId || (r.statusNorm !== 'CONCLUIDO' && r.statusNorm !== 'CANCELADO')) return;
+        const atual = rankingEntregadoresMap.get(entId) || { nome: usersNo[entId]?.nome || 'Entregador', concluidas: 0, canceladas: 0 };
+        if (r.statusNorm === 'CONCLUIDO') atual.concluidas += 1;
+        else atual.canceladas += 1;
+        rankingEntregadoresMap.set(entId, atual);
+    });
+
+    // Série real dos últimos 7 dias: entregas por dia (pacote.entregueEm) e
+    // envios criados por dia (pacote.criadoEm). Não existe "atrasada" nem
+    // "cancelado em X" gravado no app hoje — nada de inventar essas séries,
+    // só o que dá pra contar de verdade.
+    const DIAS_SEMANA_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const hojeInicio = obterInicioDiaLocal(Date.now());
+    const diasSerie = [];
+    for (let i = 6; i >= 0; i--) {
+        const inicioDia = hojeInicio - i * 86400000;
+        diasSerie.push({ inicioDia, fimDia: inicioDia + 86400000, label: DIAS_SEMANA_CURTO[new Date(inicioDia).getDay()], entregues: 0, criados: 0 });
+    }
+    pacotesListaAdmin.forEach((p) => {
+        if (p.entregueEm) {
+            const dia = diasSerie.find((d) => p.entregueEm >= d.inicioDia && p.entregueEm < d.fimDia);
+            if (dia) dia.entregues += 1;
+        }
+        if (p.criadoEm) {
+            const dia = diasSerie.find((d) => p.criadoEm >= d.inicioDia && p.criadoEm < d.fimDia);
+            if (dia) dia.criados += 1;
+        }
+    });
+
+    // Rotas "buscando" há muito tempo sem ninguém aceitar — sinal real de
+    // alerta (não é "atraso de entrega" inventado, é literalmente rota parada
+    // no marketplace há mais de 2h).
+    const agoraAlerta = Date.now();
+    const rotasPresasAdmin = rotasRecuperaveis.filter((r) => {
+        if (r.statusNorm !== 'BUSCANDO') return false;
+        const desde = Number(r.criadoEm || r.atualizadoEm || 0);
+        return desde > 0 && (agoraAlerta - desde) > 2 * 60 * 60 * 1000;
     });
 
     // Atualiza cards
@@ -6130,7 +6202,8 @@ async function renderDashboardMaster() {
         usersTable.innerHTML = rows.length ? rows.join('') : '<div class="admin-row">Nenhum usuário cadastrado.</div>';
     }
 
-    // Cards de rotas
+    // Tabela de rotas — reconstruída 2026-09-19 (era cards simples, virou
+    // tabela de verdade com progresso real de paradas e botão de excluir).
     const rotasTable = document.getElementById('adm-rotas-cards');
     if (rotasTable) {
         const statusOpsRota = [
@@ -6139,41 +6212,67 @@ async function renderDashboardMaster() {
             { value: 'CONCLUIDO', label: 'Concluída' },
             { value: 'CANCELADO', label: 'Cancelada' }
         ];
-        const cards = rotasRecuperaveis.slice(0, 150).map((r) => {
-            const lojistaNome = usersNo[r.lojistaUid]?.nome || 'Lojista';
+        const linhas = rotasRecuperaveis.slice(0, 150).map((r) => {
             const idEsc = escaparHtmlMarketplace(r.id);
+            const lojistaUidEsc = escaparHtmlMarketplace(r.lojistaUid);
             const select = statusOpsRota.map((op) => {
                 const sel = op.value === r.statusNorm ? 'selected' : '';
                 return `<option value="${op.value}" ${sel}>${op.label}</option>`;
             }).join('');
             const destinoTxt = escaparHtmlMarketplace(r.destinoPrincipal || r.destino || r.destinoPrincipalCalculado || '--');
+            const pct = r.totalParadas > 0 ? Math.round((r.paradasConcluidas / r.totalParadas) * 100) : 0;
+            const statusVisual = getStatusVisualRota(r.statusNorm);
             return `
-                <div class="adm-card" data-rota-id="${idEsc}" data-lojista-uid="${escaparHtmlMarketplace(r.lojistaUid)}">
-                    <div class="adm-card-line">
-                        <div class="adm-card-meta"><span class="adm-card-label">Id:</span><strong>${idEsc}</strong></div>
-                        <div class="adm-card-meta"><span class="adm-card-label">User:</span><strong>${escaparHtmlMarketplace(lojistaNome)}</strong></div>
-                        <div class="adm-card-meta"><span class="adm-card-label">Destino:</span><strong>${destinoTxt}</strong></div>
-                        <div class="adm-card-status">
-                            <label>Status:</label>
-                            <select class="adm-card-select" data-rota-id="${idEsc}" data-lojista-uid="${escaparHtmlMarketplace(r.lojistaUid)}">
+                <tr data-rota-id="${idEsc}" data-lojista-uid="${lojistaUidEsc}">
+                    <td>
+                        <strong class="admin-td-title">${destinoTxt}</strong>
+                        <span class="admin-mini-sub">${idEsc}</span>
+                    </td>
+                    <td>${escaparHtmlMarketplace(r.lojistaNome || 'Lojista')}</td>
+                    <td>${escaparHtmlMarketplace(r.entregadorNome || '--')}</td>
+                    <td>
+                        <div class="admin-progress-row">
+                            <div class="admin-progress-track"><div class="admin-progress-fill" style="width:${pct}%"></div></div>
+                            <span class="admin-mini-sub">${r.paradasConcluidas}/${r.totalParadas}</span>
+                        </div>
+                    </td>
+                    <td><span class="status-chip status-${(r.statusNorm || '').toLowerCase()}">${escaparHtmlMarketplace(statusVisual?.label || r.statusNorm || '--')}</span></td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <select class="adm-card-select" data-rota-id="${idEsc}" data-lojista-uid="${lojistaUidEsc}">
                                 ${select}
                             </select>
+                            <button type="button" class="admin-btn suspend" onclick="adminExcluirRota('${lojistaUidEsc}', '${idEsc}')">Excluir</button>
                         </div>
-                    </div>
-                </div>
+                    </td>
+                </tr>
             `;
         });
-        rotasTable.innerHTML = cards.length ? cards.join('') : '<div class="admin-row">Nenhuma rota encontrada.</div>';
+        rotasTable.innerHTML = linhas.length
+            ? `<table class="admin-data-table"><thead><tr><th>Rota</th><th>Lojista</th><th>Entregador</th><th>Paradas</th><th>Status</th><th>Ações</th></tr></thead><tbody>${linhas.join('')}</tbody></table>`
+            : '<div class="admin-row">Nenhuma rota encontrada.</div>';
     }
 
     adminChartsState = {
         usuarios: { lojas, entregadores, masters, ativosL, ativosE },
         pacotes: { total: pacTotal, emRota: pacEmRota, entregues: pacEnt, cancelados: pacCanc },
-        rotas: { total: rotTotal, buscando: rotBus, emRota: rotEm, concluidas: rotCon, canceladas: rotCanc }
+        rotas: { total: rotTotal, buscando: rotBus, emRota: rotEm, concluidas: rotCon, canceladas: rotCanc },
+        diasSerie,
+        rankingLojistas: [...rankingLojistasMap.values()].sort((a, b) => b.entregues - a.entregues).slice(0, 5),
+        rankingEntregadores: [...rankingEntregadoresMap.values()].sort((a, b) => b.concluidas - a.concluidas).slice(0, 5),
+        pacotesRecentes: pacotesListaAdmin.filter((p) => p.criadoEm > 0).sort((a, b) => b.criadoEm - a.criadoEm).slice(0, 6),
+        rotasAndamento: rotasRecuperaveis.filter((r) => r.statusNorm === 'EM_ROTA' || r.statusNorm === 'BUSCANDO')
+            .sort((a, b) => Number(b.atualizadoEm || b.criadoEm || 0) - Number(a.atualizadoEm || a.criadoEm || 0)).slice(0, 4),
+        rotasPresas: rotasPresasAdmin
     };
     initAdminCharts();
     adminListTables();
     atualizarResumoRelatorioAdmin();
+    renderSerieEntregasAdmin('entregues');
+    renderRotasAndamentoAdmin();
+    renderPacotesRecentesAdmin();
+    renderRankingAdmin();
+    renderAlertasAdmin();
 
     const lastUpdEl = document.getElementById('admin-last-updated');
     if (lastUpdEl) lastUpdEl.innerText = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -6193,6 +6292,7 @@ function atualizarResumoRelatorioAdmin() {
 }
 
 function atualizarNotificacoesAdminSaques(pendentes = []) {
+    saquesPendentesAdminCache = pendentes;
     const countEl = document.getElementById('admin-notif-count');
     const listEl = document.getElementById('admin-notif-list');
     if (!countEl || !listEl) return;
@@ -6346,30 +6446,44 @@ function initAdminCharts() {
         adminCharts[id] = new Chart(ctx, cfg);
     };
 
+    // Master não entra aqui de propósito: só existe 1 (o dono), não é uma
+    // categoria de usuário relevante pra "distribuição" (pedido do dono
+    // 2026-09-19).
     makeChart('adm-chart-usuarios', {
         type: 'doughnut',
         data: {
-            labels: ['Lojistas', 'Entregadores', 'Master'],
+            labels: ['Lojistas', 'Entregadores'],
             datasets: [{
-                data: [adminChartsState.usuarios.lojas, adminChartsState.usuarios.entregadores, adminChartsState.usuarios.masters],
-                backgroundColor: ['#fb923c', '#38bdf8', '#c084fc']
+                data: [adminChartsState.usuarios.lojas, adminChartsState.usuarios.entregadores],
+                backgroundColor: ['#fb923c', '#38bdf8']
             }]
         },
         options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
     });
 
+    // "Pacotes por status": donut + legenda própria (não a legenda padrão do
+    // Chart.js) pra bater com o layout pedido pelo dono — número central e
+    // legenda lado a lado, ver populaDonutPacotesAdmin logo abaixo.
+    const pctPac = adminChartsState.pacotes;
+    const pendentesPac = Math.max(0, pctPac.total - pctPac.emRota - pctPac.entregues - pctPac.cancelados);
     makeChart('adm-chart-pacotes', {
-        type: 'bar',
+        type: 'doughnut',
         data: {
-            labels: ['Total', 'Em rota', 'Entregues', 'Cancelados'],
+            labels: ['Em trânsito', 'Entregues', 'Aguardando', 'Cancelados'],
             datasets: [{
-                label: 'Pacotes',
-                data: [adminChartsState.pacotes.total, adminChartsState.pacotes.emRota, adminChartsState.pacotes.entregues, adminChartsState.pacotes.cancelados],
-                backgroundColor: ['#0ea5e9', '#fb923c', '#22c55e', '#ef4444']
+                data: [pctPac.emRota, pctPac.entregues, pendentesPac, pctPac.cancelados],
+                backgroundColor: ['#2563eb', '#16a34a', '#f59e0b', '#ef4444'],
+                borderWidth: 0
             }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } } }
+        options: { responsive: true, cutout: '72%', plugins: { legend: { display: false }, tooltip: { enabled: true } } }
     });
+    populaDonutPacotesAdmin(pctPac.total, [
+        { label: 'Em trânsito', valor: pctPac.emRota, cor: '#2563eb' },
+        { label: 'Entregues', valor: pctPac.entregues, cor: '#16a34a' },
+        { label: 'Aguardando', valor: pendentesPac, cor: '#f59e0b' },
+        { label: 'Cancelados', valor: pctPac.cancelados, cor: '#ef4444' }
+    ]);
 
     makeChart('adm-chart-rotas', {
         type: 'polarArea',
@@ -6382,6 +6496,150 @@ function initAdminCharts() {
         },
         options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
     });
+}
+
+function populaDonutPacotesAdmin(total, itens) {
+    const totalEl = document.getElementById('adm-pacotes-donut-total');
+    const legendEl = document.getElementById('adm-pacotes-legend');
+    if (totalEl) totalEl.innerText = String(total);
+    if (legendEl) {
+        legendEl.innerHTML = itens.map((it) => `
+            <li><span><i class="dot" style="background:${it.cor}"></i>${escaparHtmlMarketplace(it.label)}</span><b>${it.valor}</b></li>
+        `).join('');
+    }
+}
+
+let adminChartEntregasDias = null;
+function renderSerieEntregasAdmin(serieAtiva = 'entregues') {
+    document.querySelectorAll('.admin-chart-tab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.serie === serieAtiva);
+    });
+    if (!adminChartsState || typeof Chart === 'undefined') return;
+    const dias = adminChartsState.diasSerie || [];
+    const cor = serieAtiva === 'criados' ? '#7c3aed' : '#2563eb';
+    const dados = dias.map((d) => serieAtiva === 'criados' ? d.criados : d.entregues);
+    const cfg = {
+        type: 'line',
+        data: {
+            labels: dias.map((d) => d.label),
+            datasets: [{
+                label: serieAtiva === 'criados' ? 'Envios criados' : 'Entregas',
+                data: dados,
+                borderColor: cor,
+                backgroundColor: cor + '22',
+                fill: true,
+                tension: 0.35,
+                pointRadius: 4,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: cor,
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    };
+    const ctx = document.getElementById('adm-chart-entregas-dias');
+    if (!ctx) return;
+    if (adminChartEntregasDias) { adminChartEntregasDias.destroy(); }
+    adminChartEntregasDias = new Chart(ctx, cfg);
+}
+
+function renderRotasAndamentoAdmin() {
+    const container = document.getElementById('adm-rotas-andamento-mini');
+    if (!container || !adminChartsState) return;
+    const lista = adminChartsState.rotasAndamento || [];
+    if (!lista.length) {
+        container.innerHTML = '<div class="pagamento-extrato-empty">Nenhuma rota em andamento agora.</div>';
+        return;
+    }
+    container.innerHTML = lista.map((r) => `
+        <div class="admin-mini-row">
+            <div>
+                <strong>${escaparHtmlMarketplace(r.destinoPrincipal || r.destino || '--')}</strong>
+                <span class="admin-mini-sub">${escaparHtmlMarketplace(r.id || '')}</span>
+            </div>
+            <span class="status-chip status-${(r.statusNorm || '').toLowerCase()}">${escaparHtmlMarketplace(getStatusVisualRota(r.statusNorm)?.label || r.statusNorm || '--')}</span>
+        </div>
+    `).join('');
+}
+
+function renderPacotesRecentesAdmin() {
+    const container = document.getElementById('adm-pacotes-recentes-mini');
+    if (!container || !adminChartsState) return;
+    const lista = adminChartsState.pacotesRecentes || [];
+    if (!lista.length) {
+        container.innerHTML = '<div class="pagamento-extrato-empty">Nenhum pacote registrado ainda.</div>';
+        return;
+    }
+    container.innerHTML = lista.map((p) => `
+        <div class="admin-mini-row">
+            <div>
+                <strong>${escaparHtmlMarketplace(p.destinatario || 'Cliente')}</strong>
+                <span class="admin-mini-sub">${escaparHtmlMarketplace(p.lojistaNome || '--')} • ${escaparHtmlMarketplace(formatarDataExtrato(p.criadoEm))}</span>
+            </div>
+            <span class="status-chip status-${(p.status || '').toLowerCase()}">${escaparHtmlMarketplace(rotuloStatusEnvio(p.status) || p.status || '--')}</span>
+        </div>
+    `).join('');
+}
+
+function renderRankingAdmin() {
+    const lojistasEl = document.getElementById('adm-ranking-lojistas');
+    const entregadoresEl = document.getElementById('adm-ranking-entregadores');
+    if (!adminChartsState) return;
+
+    if (lojistasEl) {
+        const lista = adminChartsState.rankingLojistas || [];
+        lojistasEl.innerHTML = lista.length
+            ? lista.map((l, i) => `<li><span>${i + 1}. ${escaparHtmlMarketplace(l.nome)}</span><b>${l.entregues} entregas</b></li>`).join('')
+            : '<li class="admin-rank-empty">Sem entregas registradas ainda.</li>';
+    }
+    if (entregadoresEl) {
+        const lista = adminChartsState.rankingEntregadores || [];
+        entregadoresEl.innerHTML = lista.length
+            ? lista.map((e, i) => `<li><span>${i + 1}. ${escaparHtmlMarketplace(e.nome)}</span><b>${e.concluidas} concluídas${e.canceladas ? ` • ${e.canceladas} canceladas` : ''}</b></li>`).join('')
+            : '<li class="admin-rank-empty">Sem rotas concluídas ainda.</li>';
+    }
+}
+
+function renderAlertasAdmin() {
+    const container = document.getElementById('adm-alertas-lista');
+    if (!container || !adminChartsState) return;
+
+    const alertas = [];
+    saquesPendentesAdminCache.forEach((s) => {
+        alertas.push({
+            cor: '#f59e0b',
+            titulo: `Saque pendente: ${s.nome}`,
+            sub: `${precoParaMoeda(Number(s.valor || 0))} • ${formatarDataExtrato(s.solicitadoEm)}`,
+            tab: 'overview'
+        });
+    });
+    (adminChartsState.rotasPresas || []).forEach((r) => {
+        alertas.push({
+            cor: '#ef4444',
+            titulo: `Rota ${r.id} parada há mais de 2h`,
+            sub: 'Buscando entregador no marketplace, ninguém aceitou ainda.',
+            tab: 'routes'
+        });
+    });
+
+    if (!alertas.length) {
+        container.innerHTML = '<div class="pagamento-extrato-empty">Nenhum alerta no momento.</div>';
+        return;
+    }
+    container.innerHTML = alertas.slice(0, 8).map((a) => `
+        <div class="admin-alert-item">
+            <span class="admin-alert-bar" style="background:${a.cor}"></span>
+            <div>
+                <strong>${escaparHtmlMarketplace(a.titulo)}</strong>
+                <div class="admin-mini-sub">${escaparHtmlMarketplace(a.sub)}</div>
+            </div>
+            <button type="button" class="admin-link-btn" onclick="switchAdminTab('${a.tab}')">Ver</button>
+        </div>
+    `).join('');
 }
 
 async function adminListTables() {
@@ -6488,8 +6746,10 @@ async function adminCarregarPacotes() {
                         id: envioId,
                         status: normalizarStatusEnvioFiltro(h.status || 'PACOTE_NOVO'),
                         cliente: cliente.nome || '',
+                        lojistaUid: u,
                         lojista: dataUsers[u].nome || u,
-                        cidade: h.cidade || cliente.cidade || ''
+                        cidade: h.cidade || cliente.cidade || '',
+                        criadoEm: Number(h.criadoEm || 0)
                     });
                 });
             });
@@ -6510,14 +6770,17 @@ async function adminCarregarPacotes() {
                     id: pid,
                     status: normalizarStatusEnvioFiltro(p.status || p.statusRaw || 'PACOTE_NOVO'),
                     cliente: (p.destinatario || p.cliente || '').toString(),
+                    lojistaUid: uid,
                     lojista: dataUsers?.[uid]?.nome || uid,
-                    cidade: p.cidadeDestino || p.cidade || extrairCidadeEnderecoSimples(p.destinoEndereco || p.destino || '')
+                    cidade: p.cidadeDestino || p.cidade || extrairCidadeEnderecoSimples(p.destinoEndereco || p.destino || ''),
+                    criadoEm: Number(p.criadoEm || 0)
                 });
             });
         });
 
         // fallback local se nada retornou (ex.: regras de leitura)
         if (!linhas.length && Array.isArray(clientes)) {
+            const meuUid = getUsuarioIdAtual() || '';
             clientes.forEach((cliente) => {
                 const histArr = Array.isArray(cliente.historico)
                     ? cliente.historico
@@ -6530,8 +6793,10 @@ async function adminCarregarPacotes() {
                         id: envioId,
                         status: normalizarStatusEnvioFiltro(h.status || 'PACOTE_NOVO'),
                         cliente: cliente.nome || '',
-                        lojista: usuarioLogado?.nome || getUsuarioIdAtual() || '',
-                        cidade: h.cidade || cliente.cidade || ''
+                        lojistaUid: meuUid,
+                        lojista: usuarioLogado?.nome || meuUid,
+                        cidade: h.cidade || cliente.cidade || '',
+                        criadoEm: Number(h.criadoEm || 0)
                     });
                 });
             });
@@ -6550,33 +6815,36 @@ async function adminCarregarPacotes() {
             { value: 'CANCELADO', label: 'Cancelado' }
         ];
 
-        linhas.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-        const html = linhas.slice(0, 150).map((l) => {
+        linhas.sort((a, b) => b.criadoEm - a.criadoEm || (a.id || '').localeCompare(b.id || ''));
+        const linhasHtml = linhas.slice(0, 150).map((l) => {
             const idEsc = escaparHtmlMarketplace(l.id);
+            const lojistaUidEsc = escaparHtmlMarketplace(l.lojistaUid || '');
             const select = statusOps.map((op) => {
                 const sel = op.value === l.status ? 'selected' : '';
                 return `<option value="${op.value}" ${sel}>${op.label}</option>`;
             }).join('');
             return `
-                <div class="adm-card" data-pack-id="${idEsc}">
-                    <div class="adm-card-line">
-                        <div class="adm-card-meta"><span class="adm-card-label">Id:</span><strong>${idEsc}</strong></div>
-                        <div class="adm-card-meta"><span class="adm-card-label">User:</span><strong>${escaparHtmlMarketplace(l.lojista || '--')}</strong></div>
-                        <div class="adm-card-meta"><span class="adm-card-label">Cliente:</span><strong>${escaparHtmlMarketplace(l.cliente || '--')}</strong></div>
-                        <div class="adm-card-status">
-                            <label>Status:</label>
-                            <select class="adm-card-select" data-pack-id="${idEsc}">
+                <tr data-pack-id="${idEsc}" data-lojista-uid="${lojistaUidEsc}">
+                    <td>
+                        <strong class="admin-td-title">${idEsc}</strong>
+                        <span class="admin-mini-sub">${escaparHtmlMarketplace(l.cidade || '')}</span>
+                    </td>
+                    <td>${escaparHtmlMarketplace(l.cliente || '--')}</td>
+                    <td>${escaparHtmlMarketplace(l.lojista || '--')}</td>
+                    <td>${l.criadoEm ? escaparHtmlMarketplace(formatarDataExtrato(l.criadoEm)) : '--'}</td>
+                    <td><span class="status-chip status-${(l.status || '').toLowerCase()}">${escaparHtmlMarketplace(rotuloStatusEnvio(l.status) || l.status || '--')}</span></td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <select class="adm-card-select" data-pack-id="${idEsc}" data-lojista-uid="${lojistaUidEsc}">
                                 ${select}
                             </select>
+                            <button type="button" class="admin-btn suspend" onclick="adminExcluirPacote('${lojistaUidEsc}', '${idEsc}')">Excluir</button>
                         </div>
-                    </div>
-                </div>`;
+                    </td>
+                </tr>`;
         }).join('');
 
-        container.innerHTML = html;
-        if (!linhas.length) {
-            container.innerHTML = '<div class="admin-row">Nenhum pacote encontrado.</div>';
-        }
+        container.innerHTML = `<table class="admin-data-table"><thead><tr><th>Código</th><th>Destinatário</th><th>Lojista</th><th>Criado em</th><th>Status</th><th>Ações</th></tr></thead><tbody>${linhasHtml}</tbody></table>`;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch (err) {
         console.error('Erro ao carregar pacotes', err);
@@ -6592,24 +6860,71 @@ function adminAlterarStatusPacotes() {
     adminSalvarPacotes();
 }
 
-function adminSalvarPacotes() {
+// CORRIGIDO 2026-09-19: isto chamava setStatusPacotes(), que só mexe no
+// array `clientes` (dados do usuário LOGADO — o master, que não tem
+// clientes/pacotes próprios) e grava em `pacotes/{uid do master}/...`. Ou
+// seja, mudar o status de um pacote aqui não fazia NADA no pacote real do
+// lojista — silenciosamente. Trocado por sincronizarCamposEnvioLojista, que
+// já existe no app pra esse exato cenário (escrever no pacote de OUTRO
+// usuário, usado hoje pelo fluxo de devolução/cobrança do entregador) e
+// aceita o lojistaUid certo, gravando nos dois modelos (histórico antigo e
+// /pacotes novo).
+async function adminSalvarPacotes() {
+    if (!usuarioEhMaster()) return;
     const container = document.getElementById('adm-pack-cards');
     if (!container) return;
     const selects = Array.from(container.querySelectorAll('select.adm-card-select'));
     if (!selects.length) return;
 
-    const grupos = new Map();
-    selects.forEach((sel) => {
-        const id = sel.dataset.packId || sel.closest('[data-pack-id]')?.dataset.packId;
+    const agora = Date.now();
+    const promessas = selects.map((sel) => {
+        const envioId = sel.dataset.packId;
+        const lojistaUid = sel.dataset.lojistaUid;
         const status = (sel.value || 'PACOTE_NOVO').toUpperCase();
-        if (!id) return;
-        if (!grupos.has(status)) grupos.set(status, []);
-        grupos.get(status).push(id);
+        if (!envioId || !lojistaUid) return Promise.resolve();
+        return sincronizarCamposEnvioLojista(lojistaUid, envioId, { status, atualizadoEm: agora });
     });
 
-    grupos.forEach((ids, status) => setStatusPacotes(ids, status, true));
-    notificarSucesso('Status atualizado.');
-    adminCarregarPacotes();
+    await Promise.all(promessas);
+    notificarSucesso('Status dos pacotes atualizado.');
+    await adminCarregarPacotes();
+}
+
+async function adminExcluirPacote(lojistaUid, envioId) {
+    if (!usuarioEhMaster() || !lojistaUid || !envioId) return;
+    if (!window.confirm(`Excluir o pacote ${envioId} definitivamente? Essa ação não pode ser desfeita.`)) return;
+
+    try {
+        const updates = {};
+        updates[`usuarios/${lojistaUid}/pacotes/${envioId}`] = null;
+
+        const clientesSnap = await db.ref(`usuarios/${lojistaUid}/clientes`).once('value');
+        const clientesNo = clientesSnap.val() || {};
+        Object.keys(clientesNo).forEach((clienteId) => {
+            const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
+            historico.forEach((h, idx) => {
+                const idAtual = String(h?.id || (`envio-${clienteId}-${idx}`));
+                if (idAtual === envioId) updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}`] = null;
+            });
+        });
+
+        const rotasSnap = await db.ref(`usuarios/${lojistaUid}/rotas`).once('value');
+        const rotasNo = rotasSnap.val() || {};
+        Object.keys(rotasNo).forEach((rid) => {
+            const r = rotasNo[rid] || {};
+            const lista = Array.isArray(r.pacoteIds) ? r.pacoteIds : (Array.isArray(r.pacotes) ? r.pacotes : []);
+            if (lista.includes(envioId)) {
+                updates[`usuarios/${lojistaUid}/rotas/${rid}/pacoteIds`] = lista.filter((id) => id !== envioId);
+            }
+        });
+
+        await db.ref().update(updates);
+        notificarSucesso('Pacote excluído.');
+        await adminCarregarPacotes();
+    } catch (err) {
+        console.warn('Falha ao excluir pacote (admin):', err);
+        alert('Não foi possível excluir o pacote agora. Tente novamente.');
+    }
 }
 
 async function atualizarStatusRotaMaster(lojistaUid, rotaId, status = 'BUSCANDO') {
@@ -6625,6 +6940,20 @@ async function atualizarStatusRotaMaster(lojistaUid, rotaId, status = 'BUSCANDO'
         updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoEm`] = null;
     }
     await db.ref().update(updates);
+}
+
+async function adminExcluirRota(lojistaUid, rotaId) {
+    if (!usuarioEhMaster() || !lojistaUid || !rotaId) return;
+    if (!window.confirm(`Excluir a rota ${rotaId} definitivamente? Isso não apaga os pacotes dela, só a rota em si — os pacotes voltam a aparecer como disponíveis pra entrar em outra rota.`)) return;
+
+    try {
+        await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).remove();
+        notificarSucesso('Rota excluída.');
+        await renderDashboardMaster();
+    } catch (err) {
+        console.warn('Falha ao excluir rota (admin):', err);
+        alert('Não foi possível excluir a rota agora. Tente novamente.');
+    }
 }
 
 // Painel master de saques pendentes (ver solicitarSaque) — usersNo já vem da
@@ -11605,6 +11934,8 @@ export {
   adminCreateField,
   adminCreateTable,
   adminDeleteField,
+  adminExcluirPacote,
+  adminExcluirRota,
   adminListTables,
   adminSalvarPacotes,
   adminSalvarRotas,
@@ -11919,6 +12250,7 @@ export {
   renderRotaDetalhePagina,
   renderRotasMarketplaceEntregador,
   renderRotasTelaPrincipal,
+  renderSerieEntregasAdmin,
   renderSheetRotaEntregadorConteudo,
   renderTelaBuscarEntregador,
   renderizarDashboard,
