@@ -1,0 +1,140 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    // CORRIGIDO 2026-09-18: o app sempre leu o nó inteiro de um usuário de
+    // uma vez só (`usuarios/{uid}`, ex: no login) e também a coleção
+    // `usuarios` inteira de uma vez (ex: o marketplace do entregador,
+    // montando a lista de fretes disponíveis de TODOS os lojistas). O
+    // Firebase NÃO devolve um resultado "podado" nesses casos — se o
+    // caminho exato pedido não tiver sua própria permissão de leitura, ele
+    // nega tudo, mesmo que campos mais profundos tenham regra própria. Por
+    // isso a leitura em `usuarios` ficou liberada pra qualquer usuário
+    // autenticado de novo (nível abaixo é o mesmo comportamento de antes das
+    // regras, no que diz respeito a LEITURA). A ESCRITA continua travada
+    // como antes — ninguém além do dono (ou um master) consegue alterar
+    // saldo/dívida/clientes/saques de outra pessoa. Isso já é uma proteção
+    // real. Privacidade de leitura de financeiro/clientes entre usuários
+    // fica pendente pra uma segunda etapa (criar um índice separado só com
+    // os campos públicos do marketplace, em vez de ler tudo de uma vez).
+    "usuarios": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "$uid === auth.uid",
+
+        // Perfil "público" do app: nome/loja/foto/tipo/status/endereço
+        // precisam ser legíveis por qualquer usuário autenticado porque o
+        // marketplace, o chat e o cálculo de rota dependem de ver o perfil de
+        // OUTRO usuário. Não inclui financeiro nem clientes. (Redundante com
+        // o ".read" acima por enquanto, mas fica pronto pra quando o item
+        // acima for apertado de novo.)
+        "nome": { ".read": "auth != null" },
+        "loja": { ".read": "auth != null" },
+        "foto": { ".read": "auth != null" },
+        "tipo": { ".read": "auth != null" },
+        "status": { ".read": "auth != null" },
+        "endereco": { ".read": "auth != null" },
+
+        // Dinheiro é a parte mais sensível do app. Dono lê/escreve; master/admin
+        // também lê e ESCREVE (necessário: marcarSaqueComoPago debita o saldo
+        // de OUTRO usuário quando o master confirma o pagamento do saque —
+        // sem isso a escrita caía em PERMISSION_DENIED e o saque nunca saía
+        // de "solicitado", mesmo o master confirmando. BUG CORRIGIDO
+        // 2026-09-19, mesma política que 'saques' logo abaixo). Cloud
+        // Functions usam o Admin SDK e ignoram estas regras de qualquer forma.
+        "financeiro": {
+          ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'",
+          ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'"
+        },
+
+        // Dados pessoais dos clientes finais do lojista (nome, telefone,
+        // endereço) — nunca devem ser legíveis por outro usuário além do
+        // próprio lojista ou um master.
+        "clientes": {
+          ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'",
+          ".write": "$uid === auth.uid",
+
+          // BUG CORRIGIDO 2026-09-18: `historico[]` guarda o ENVIO no modelo
+          // antigo (status, rotaId, etc — mesma função de usuarios/*/pacotes),
+          // não é dado de perfil do cliente. Aceitar rota, confirmar entrega,
+          // devolução e cobrança na entrega TODOS escrevem aqui a partir da
+          // sessão do ENTREGADOR (outro uid) — com a regra de cima (dono
+          // apenas) isso negava a escrita e travava a função no meio,
+          // deixando a rota dessincronizada entre lojista e entregador
+          // (a cópia do lojista virava EM_ROTA, a do entregador nunca era
+          // criada). Mesma política de auth!=null que já vale pra
+          // usuarios/*/pacotes.
+          "$clienteId": {
+            "historico": {
+              ".write": "auth != null"
+            }
+          }
+        },
+
+        // Escrito por OUTRO usuário (lojista notifica entregador e vice-versa),
+        // por isso a escrita não pode ser só do dono.
+        "notificacoes": {
+          ".read": "$uid === auth.uid",
+          ".write": "auth != null"
+        },
+
+        // Ainda não valida se quem escreve é de fato um dos dois participantes
+        // da rota daquele chat (exigiria consultar a rota dentro da regra) —
+        // aceitável por agora, mensagem de chat não é dado financeiro, mas é a
+        // próxima coisa a apertar.
+        "chats": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+
+        // Entregador precisa gravar aqui no pacote de OUTRO usuário (confirmar
+        // entrega, devolução, cobrança na entrega) — autenticado é o mínimo
+        // aceitável agora; checar vínculo real com a rota é o próximo passo.
+        "pacotes": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+
+        // Entregador aceita/atualiza rota de OUTRO usuário; marketplace lê
+        // rotas de todo mundo pra montar a lista de fretes disponíveis.
+        "rotas": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+
+        "metaDiaHistorico": { ".read": "$uid === auth.uid", ".write": "$uid === auth.uid" },
+        "entregadorMetaDia": { ".read": "$uid === auth.uid", ".write": "$uid === auth.uid" },
+
+        // Pedidos de saque (solicitação manual via Pix, ver solicitarSaque no
+        // app). O dono cria/lê os próprios; um master também precisa poder ler
+        // e ATUALIZAR (marcar como pago) o saque de OUTRO usuário — por isso a
+        // escrita não é só do dono aqui, ao contrário do resto do node.
+        "saques": {
+          ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'",
+          ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'"
+        }
+      }
+    },
+
+    // Coleção legada duplicada fora de /usuarios (modelo antigo). Mesma
+    // política de "autenticado apenas" até ser migrada/removida — ver memória
+    // project-flexa-cobranca-entrega-dinheiro sobre o modelo duplicado.
+    "pacotes": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    // Só os Cloud Functions tocam aqui via Admin SDK, que ignora estas regras
+    // — isto bloqueia qualquer acesso direto do cliente, inclusive leitura.
+    "mp_payments": {
+      ".read": false,
+      ".write": false
+    },
+
+    "presence": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
