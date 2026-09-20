@@ -26,6 +26,16 @@ let envioStepAtual = 1;
 let clientes = [];
 let clienteEmEdicaoId = null;
 let clienteSelecionadoId = null;
+// BUG CORRIGIDO 2026-09-19: nunca era declarada (só recebia valor dentro de
+// selecionarVeiculo), então LER veiculoSelecionado antes do usuário clicar
+// em algum card de veículo lançava "ReferenceError: veiculoSelecionado is
+// not defined" — e isso é exatamente o que atualizarPrecoEstimadoAtual faz
+// automaticamente assim que a distância chega do Google Maps. O erro
+// interrompia a função ANTES de atualizarPrecosCardsVeiculo rodar, por isso
+// os cards ficavam presos nos preços estáticos de fallback do HTML até o
+// clique no card forçar selecionarVeiculo (que aí sim "criava" a variável).
+let veiculoSelecionado = 'Moto';
+let veiculoPrecoSelecionado = null;
 let cepLojaDebounceTimer = null;
 let cepClienteDebounceTimer = null;
 let ultimoCepLojaConsultado = '';

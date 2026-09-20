@@ -691,6 +691,8 @@
   var clientes = [];
   var clienteEmEdicaoId = null;
   var clienteSelecionadoId = null;
+  var veiculoSelecionado = "Moto";
+  var veiculoPrecoSelecionado = null;
   var cepLojaDebounceTimer = null;
   var cepClienteDebounceTimer = null;
   var ultimoCepLojaConsultado = "";
