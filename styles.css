@@ -373,6 +373,61 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
         .select-box strong { display: block; font-size: 15px; font-weight: 800; color: #0f172a; }
         .select-box span { font-size: 11px; color: #94a3b8; font-weight: 600; }
 
+        /* Itens de lista (faixas horizontais empilhadas) — usado em Cobrar na
+           entrega e Tipo de Serviço: mais minimalista/direto que os cards em
+           grid, com destaque assertivo (texto escuro só quando ativo). */
+        .radio-row-group { display: flex; flex-direction: column; gap: 10px; }
+        .radio-row {
+            display: flex; align-items: center; gap: 10px; background: white;
+            border: 2px solid #f1f5f9; border-radius: 16px; padding: 12px 14px;
+            cursor: pointer; transition: var(--transition);
+        }
+        .radio-row-icon { display: flex; flex-shrink: 0; color: #cbd5e1; }
+        .radio-row-label { font-size: 14px; font-weight: 800; color: #94a3b8; }
+        .radio-row-sub { font-size: 12px; font-weight: 600; color: #cbd5e1; margin-left: auto; padding-right: 10px; }
+        .radio-row-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #e2e8f0; flex-shrink: 0; transition: var(--transition); }
+        .radio-row.active { border-color: var(--brand-orange); background: #fffaf5; }
+        .radio-row.active .radio-row-icon { color: #0f172a; }
+        .radio-row.active .radio-row-label { color: #0f172a; }
+        .radio-row.active .radio-row-sub { color: #64748b; }
+        .radio-row.active .radio-row-dot { border-color: var(--brand-orange); background: var(--brand-orange); }
+
+        /* Formas de cobrança (Dinheiro/Pix) — multi-seleção de verdade (dá pra
+           aceitar as duas), por isso vira checkbox e não radio/box exclusivo. */
+        .cobranca-formas-row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+        .checkbox-pill { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: #94a3b8; cursor: pointer; }
+        .checkbox-pill-box {
+            width: 16px; height: 16px; border-radius: 5px; border: 2px solid #cbd5e1;
+            display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;
+        }
+        .checkbox-pill-box i, .checkbox-pill-box svg { display: none; }
+        .checkbox-pill.active { color: #0f172a; }
+        .checkbox-pill.active .checkbox-pill-box { background: #0f172a; border-color: #0f172a; }
+        .checkbox-pill.active .checkbox-pill-box i, .checkbox-pill.active .checkbox-pill-box svg { display: block; }
+
+        /* Tamanho do Volume — grade 2x2 de faixas compactas (dot à esquerda,
+           subtítulo à direita), mesma lógica visual do .radio-row. */
+        .mini-radio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .mini-radio-row {
+            display: flex; align-items: center; gap: 8px; background: white;
+            border: 2px solid #f1f5f9; border-radius: 14px; padding: 10px 12px;
+            cursor: pointer; transition: var(--transition);
+        }
+        .mini-radio-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #e2e8f0; flex-shrink: 0; transition: var(--transition); }
+        .mini-radio-label { font-size: 13px; font-weight: 800; color: #94a3b8; }
+        .mini-radio-sub { font-size: 11px; font-weight: 600; color: #cbd5e1; margin-left: auto; }
+        .mini-radio-row.active { border-color: var(--brand-orange); background: #fffaf5; }
+        .mini-radio-row.active .mini-radio-dot { border-color: var(--brand-orange); background: var(--brand-orange); }
+        .mini-radio-row.active .mini-radio-label { color: #0f172a; }
+        .mini-radio-row.active .mini-radio-sub { color: #64748b; }
+
+        /* Tipo de Embalagem — radio simples em linha, sem card/borda. */
+        .radio-pill-row { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-bottom: 25px; }
+        .radio-pill { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #94a3b8; cursor: pointer; }
+        .radio-pill-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #cbd5e1; flex-shrink: 0; transition: var(--transition); }
+        .radio-pill.active { color: #0f172a; }
+        .radio-pill.active .radio-pill-dot { border-color: var(--brand-orange); background: var(--brand-orange); }
+
         .info-row { display: flex; gap: 10px; background: #f8fafc; padding: 15px; border-radius: 18px; margin-bottom: 25px; }
         .info-item { flex: 1; text-align: center; }
         .info-item label { display: block; font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }
@@ -678,6 +733,29 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     font-size: 16px;
     font-weight: 800;
     color: var(--text-main);
+}
+
+/* Skeleton de carregamento — cobre o delay real entre abrir "Escolha o
+   transporte" e a distância/preço chegarem do Google Maps (antes disso o
+   card mostrava o preço estático de fallback do HTML, tipo "R$ 6,50" fixo,
+   até o usuário clicar em algo e forçar o recálculo). Bug relatado
+   2026-09-19. */
+.veiculo-item.skeleton { pointer-events: none; cursor: default; }
+.veiculo-item.skeleton .veiculo-icon { background: #eceef1; }
+.veiculo-item.skeleton .veiculo-emoji { opacity: 0; }
+.veiculo-item.skeleton .veiculo-info strong,
+.veiculo-item.skeleton .veiculo-info span,
+.veiculo-item.skeleton .veiculo-preco {
+    display: inline-block;
+    color: transparent;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #eceef1 25%, #dde1e6 37%, #eceef1 63%);
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
 }
 
 .checkbox-envio {
@@ -5367,13 +5445,17 @@ body.usuario-entregador #entregador-rotas-shell {
 .buscar-dropdown-option:hover { background: rgba(255,149,58,0.12); }
 .buscar-dropdown-option.is-active { background: rgba(255,149,58,0.16); color: var(--brand-orange); }
 .buscar-rota-list { display: flex; flex-direction: column; gap: 10px; padding: 0; }
-.buscar-rota-card { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 12px 14px; box-shadow: 0 10px 24px rgba(0,0,0,0.04); width: 100%; }
+.buscar-rota-card { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 9px 14px; box-shadow: 0 10px 24px rgba(0,0,0,0.04); width: 100%; }
 .buscar-rota-left { display: flex; align-items: center; gap: 10px; }
-.buscar-rota-avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.buscar-rota-avatar { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
 .buscar-rota-avatar-img { width: 100%; height: 100%; object-fit: cover; }
 .buscar-rota-avatar-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--brand-orange); }
-.buscar-rota-title { font-size: 14px; font-weight: 800; color: var(--text-main); }
-.buscar-rota-meta { font-size: 11px; font-weight: 700; color: var(--text-sub); }
+.buscar-rota-title { font-size: 14px; font-weight: 800; color: var(--text-main); line-height: 1.3; }
+.buscar-rota-tags { display: flex; align-items: center; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.buscar-rota-tag { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.02em; text-transform: uppercase; }
+.buscar-rota-tag.tag-standard { background: #e0f2fe; color: #0369a1; }
+.buscar-rota-tag.tag-flash { background: #fff1e0; color: #c2410c; }
+.buscar-rota-meta { font-size: 11px; font-weight: 700; color: var(--text-sub); margin-left: 2px; }
 .buscar-rota-price { font-size: 18px; font-weight: 900; color: #16a34a; }
 .buscar-empty { text-align: center; padding: 18px; border: 1px dashed var(--border-color); border-radius: 16px; background: #fff; font-weight: 700; color: var(--text-sub); }
 
@@ -5410,7 +5492,7 @@ body.usuario-entregador #entregador-rotas-shell {
 #buscar-sheet-content .sheet-merchant-info strong { display: block; font-size: 14px; color: var(--text-main); }
 #buscar-sheet-content .sheet-merchant-info small { color: var(--text-sub); font-weight: 700; }
 #buscar-sheet-content .sheet-price { font-size: 22px; font-weight: 900; color: #16a34a; text-align: right; margin-top: 14px; }
-#buscar-sheet-content .sheet-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: #e8f1ff; color: #225db2; border-radius: 999px; font-weight: 800; font-size: 11px; margin-top: 6px; }
+#buscar-sheet-content .sheet-badge-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
 #buscar-sheet-content .sheet-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin: 14px 0; }
 #buscar-sheet-content .sheet-meta-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #eef2f6; border-radius: 12px; font-weight: 700; color: var(--text-main); background: #f9fbfe; }
   #buscar-sheet-content .sheet-block { border: 1px solid #eef2f6; border-radius: 14px; padding: 12px; margin-bottom: 10px; background: #fdfefe; }

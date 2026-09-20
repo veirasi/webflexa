@@ -538,12 +538,17 @@ function selecionarServico(tipo) {
 }
 
 function selecionarTamanho(tam) {
-    ['p', 'm', 'g'].forEach((k) => {
+    ['pp', 'm', 'g', 'gg'].forEach((k) => {
         const el = document.getElementById('sz-' + k);
         if (el) el.classList.remove('active');
     });
     const alvo = document.getElementById('sz-' + String(tam || '').toLowerCase());
     if (alvo) alvo.classList.add('active');
+}
+
+function selecionarEmbalagem(tipo, el) {
+    document.querySelectorAll('#grupo-tipo-embalagem .radio-pill').forEach((item) => item.classList.remove('active'));
+    if (el) el.classList.add('active');
 }
 
 function togglePass(id) {
@@ -592,7 +597,8 @@ function confirmarEnvioFinal() {
             const historico = Array.isArray(clientes[idx].historico) ? clientes[idx].historico : [];
             const desc = (resumoRevisaoAtual.descricao || document.getElementById('input-desc')?.value || '').trim();
             const servico = resumoRevisaoAtual.servico || getServicoSelecionadoAtual();
-            const tamanho = document.querySelector('#modal-envio-detalhes .selection-grid-3 .select-box.active strong')?.innerText || '';
+            const tamanho = getTamanhoSelecionadoAtual();
+            const embalagem = getEmbalagemSelecionadaAtual();
             const totalFrete = Number.isFinite(resumoRevisaoAtual.totalFrete)
                 ? resumoRevisaoAtual.totalFrete
                 : parseMoedaParaNumero(document.getElementById('input-valor')?.value || 0);
@@ -613,6 +619,7 @@ function confirmarEnvioFinal() {
                 valorFrete: Number(totalFrete.toFixed(2)),
                 servico,
                 tamanho,
+                embalagem,
                 veiculo: resumoRevisaoAtual.veiculo || veiculoSelecionado,
                 distanciaKm: Number.isFinite(resumoRevisaoAtual.distanciaKm) ? Number(resumoRevisaoAtual.distanciaKm.toFixed(2)) : null,
                 duracaoMin: Number.isFinite(resumoRevisaoAtual.duracaoMin) ? Math.round(resumoRevisaoAtual.duracaoMin) : null,
@@ -1083,7 +1090,16 @@ const DISTANCIA_MAX_CURTA = 3;
 const VEICULOS_CURTOS = ['Patinete', 'Bicicleta'];
 
 function getServicoSelecionadoAtual() {
-    return document.querySelector('#modal-envio-detalhes .selection-grid .select-box.active strong')?.innerText || 'Standard';
+    return document.querySelector('#modal-envio-detalhes #grupo-tipo-servico .radio-row.active .radio-row-label')?.innerText || 'Standard';
+}
+
+function getTamanhoSelecionadoAtual() {
+    return document.querySelector('#modal-envio-detalhes #grupo-tamanho-volume .mini-radio-row.active .mini-radio-label')?.innerText || 'PP/P';
+}
+
+function getEmbalagemSelecionadaAtual() {
+    const texto = document.querySelector('#modal-envio-detalhes #grupo-tipo-embalagem .radio-pill.active')?.innerText || 'Caixa';
+    return texto.trim();
 }
 
 function obterFreteTesteDasObservacoes(texto = '') {
@@ -1261,6 +1277,57 @@ function calcularFreteEstimado({ servico, veiculo, distanciaKm }) {
     const ajuste = mapaAjusteServico?.[veiculo] || 0;
     const minimoServico = TAXA_MINIMA[servico] || TAXA_MINIMA.Standard;
     return Number(Math.max(0, minimoServico, base + ajuste).toFixed(2));
+}
+
+// ===================== [COMISSÃO DA PLATAFORMA] =====================
+// Retida sem elemento visual novo, por pedido do dono (2026-09-19): o lojista
+// sempre vê/paga o valor cheio (totalFrete, sem mudança nenhuma nas telas
+// dele); o entregador só enxerga o valor líquido (valorFrete - taxa) em
+// qualquer lugar que hoje mostra o valor da rota pra ele — marketplace,
+// cards de rota, "a receber", e é esse valor líquido que realmente cai na
+// carteira dele quando a rota conclui. Nenhum dos dois vê o valor do outro
+// nem quanto a plataforma retém.
+//
+// Faixas definidas pelo dono (valor da corrida → taxa fixa):
+//   até R$5 → R$1,00 | R$5–15 → R$1,50 | R$15–25 → R$2,00 | acima de R$25 → R$2,50
+// Proteção de piso por cima das faixas: o entregador nunca deve ficar abaixo
+// de R$1,00/km depois do corte — testamos com o dono que uma faixa fixa
+// sozinha sempre tem um "começo de faixa" que fura esse piso, então a taxa
+// alvo da faixa é reduzida automaticamente (nunca aumentada) sempre que
+// aplicá-la inteira derrubaria o entregador abaixo do piso.
+const TAXA_PLATAFORMA_FAIXAS = [
+    { ate: 5, taxa: 1.00 },
+    { ate: 15, taxa: 1.50 },
+    { ate: 25, taxa: 2.00 },
+    { ate: Infinity, taxa: 2.50 }
+];
+const PISO_KM_ENTREGADOR = 1.00;
+
+function calcularTaxaPlataformaAlvo(valorFrete) {
+    const v = Number(valorFrete || 0);
+    const faixa = TAXA_PLATAFORMA_FAIXAS.find((f) => v <= f.ate) || TAXA_PLATAFORMA_FAIXAS[TAXA_PLATAFORMA_FAIXAS.length - 1];
+    return faixa.taxa;
+}
+
+// distanciaKm é opcional de propósito: em telas que ainda não têm a
+// distância à mão, a proteção de piso simplesmente não se aplica ali (fica
+// só a faixa alvo) — mas o crédito real na carteira (calcularValorCreditoRota)
+// sempre passa a distância, que é onde o piso realmente importa.
+function calcularTaxaPlataformaRota(valorFrete, distanciaKm) {
+    const v = Number(valorFrete || 0);
+    if (v <= 0) return 0;
+    const alvo = calcularTaxaPlataformaAlvo(v);
+    const km = Number(distanciaKm);
+    if (!Number.isFinite(km) || km <= 0) return Number(alvo.toFixed(2));
+    const taxaMaxSemFurarPiso = Math.max(0, v - km * PISO_KM_ENTREGADOR);
+    return Number(Math.min(alvo, taxaMaxSemFurarPiso).toFixed(2));
+}
+
+function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
+    const v = Number(valorFrete || 0);
+    if (v <= 0) return 0;
+    const taxa = calcularTaxaPlataformaRota(v, distanciaKm);
+    return Number(Math.max(0, v - taxa).toFixed(2));
 }
 
 // cidadeEsperada/ufEsperada são opcionais — quando informados, o resultado é
@@ -1583,6 +1650,14 @@ function atualizarPrecoEstimadoAtual() {
     atualizarDisponibilidadeVeiculos(distanciaKm);
 }
 
+function exibirSkeletonVeiculos() {
+    document.querySelectorAll('#modal-envio-step-2 .veiculo-item').forEach((card) => card.classList.add('skeleton'));
+}
+
+function ocultarSkeletonVeiculos() {
+    document.querySelectorAll('#modal-envio-step-2 .veiculo-item').forEach((card) => card.classList.remove('skeleton'));
+}
+
 function atualizarPrecosCardsVeiculo(servico, distanciaKm) {
     const mapa = {
         Patinete: 'v-patinete',
@@ -1646,7 +1721,7 @@ function definirCobrancaEntregaAtiva(ativa) {
     const grupoFormas = document.getElementById('grupo-cobranca-entrega-formas');
     if (boxNao) boxNao.classList.toggle('active', !ativa);
     if (boxSim) boxSim.classList.toggle('active', ativa);
-    if (grupoFormas) grupoFormas.style.display = ativa ? 'grid' : 'none';
+    if (grupoFormas) grupoFormas.style.display = ativa ? 'flex' : 'none';
 }
 
 function alternarFormaCobrancaEntrega(forma, el) {
@@ -1696,8 +1771,13 @@ async function irParaVeiculos() {
     resumoRevisaoAtual.cobrancaEntrega = lerCobrancaEntregaDoFormulario();
 
     setModalEnvioStep(2);
-    await garantirEstimativaAtual();
-    atualizarPrecoEstimadoAtual();
+    exibirSkeletonVeiculos();
+    try {
+        await garantirEstimativaAtual();
+        atualizarPrecoEstimadoAtual();
+    } finally {
+        ocultarSkeletonVeiculos();
+    }
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1709,8 +1789,8 @@ function voltarParaDetalhes() {
 async function irParaRevisao() {
     const nome = document.getElementById('card-nome').innerText;
     const enderecoDestinoExibicao = document.getElementById('card-endereco').innerText;
-    const servico = document.querySelector('#modal-envio-detalhes .selection-grid .select-box.active strong')?.innerText || 'Standard';
-    const tamanho = document.querySelector('#modal-envio-detalhes .selection-grid-3 .select-box.active strong')?.innerText || 'P';
+    const servico = getServicoSelecionadoAtual();
+    const tamanho = getTamanhoSelecionadoAtual();
     const estimativa = await garantirEstimativaAtual();
     const enderecoOrigem = resumoRevisaoAtual.origem || '';
     const enderecoDestino = (resumoRevisaoAtual.destino || enderecoDestinoExibicao || '').trim();
@@ -2725,6 +2805,10 @@ async function carregarMarketplaceRotasEntregador() {
                     const serv = normalizarTexto(p?.servico || '');
                     return serv.includes('flash') || serv.includes('expresso');
                 });
+                const temStandard = pacotes.some((p) => {
+                    const serv = normalizarTexto(p?.servico || '');
+                    return !(serv.includes('flash') || serv.includes('expresso'));
+                }) || !pacotes.length;
                 const servicoLabel = temFlash ? 'Expresso' : 'Padrao';
 
                 lista.push({
@@ -2744,6 +2828,8 @@ async function carregarMarketplaceRotasEntregador() {
                     statusNorm,
                     statusVisual,
                     servicoLabel,
+                    temStandard,
+                    temFlash,
                     entregadorId: String(rota?.entregadorId || rota?.aceitoPor || ''),
                     pacoteIds,
                     criadoEm: Number(rota?.criadoEm || 0)
@@ -3015,28 +3101,47 @@ function aplicarHeaderGlobalEmViewEstatica(viewId, tipoUsuario = '') {
 }
 
 function montarCardBuscaEntregador(rota) {
-    const destinos = Array.isArray(rota?.destinos) ? rota.destinos : [];
-    const qtdDestinos = Math.max(1, destinos.length);
-    const badgeTxt = `${rota.servicoLabel || "Servico"} • ${qtdDestinos} destino${qtdDestinos > 1 ? "s" : ""}`;
-    const precoTxt = precoParaMoeda(Number(rota?.totalFrete || 0));
+    // Km total em vez da contagem de paradas: o entregador consegue comparar
+    // valor x distância direto no card, sem abrir o detalhe (pedido do dono
+    // 2026-09-19).
+    const kmTxt = formatarDistancia(Number(rota?.distanciaTotal || 0));
+    // Tags de serviço com cor: Flash é entrega urgente, precisa se destacar.
+    // Rota mista (tem pacote Start E Flash) mostra as duas tags juntas.
+    const tags = montarTagsServicoMarketplace(rota);
+    // Entregador só vê o valor líquido aqui também — ver [COMISSÃO DA PLATAFORMA].
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const rotaIdEsc = escaparHtmlMarketplace(String(rota?.id || ''));
     const lojistaUidEsc = escaparHtmlMarketplace(String(rota?.lojistaUid || ''));
     const avatar = logo
         ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" class="buscar-rota-avatar-img">`
         : `<div class="buscar-rota-avatar-fallback">${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</div>`;
+    // Card com altura mínima: tags de serviço e km na MESMA linha (pedido do
+    // dono 2026-09-19), em vez de 3 linhas empilhadas (título/tags/km).
     return `
         <article class="buscar-rota-card" onclick="abrirSheetBuscaRota('${rotaIdEsc}', '${lojistaUidEsc}')">
             <div class="buscar-rota-left">
                 <div class="buscar-rota-avatar">${avatar}</div>
                 <div>
                     <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
-                    <div class="buscar-rota-meta">${escaparHtmlMarketplace(badgeTxt)}</div>
+                    <div class="buscar-rota-tags">${tags.join('')}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
                 </div>
             </div>
             <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
         </article>
     `;
+}
+
+// Compartilhado entre o card da lista e o sheet de detalhes pra sempre
+// mostrarem a mesma tag (bug corrigido 2026-09-19: o sheet usava um
+// `servicoLabel` à parte ('Padrao'/'Expresso') que ficava incoerente com as
+// tags 'Start'/'Flash' da lista).
+function montarTagsServicoMarketplace(rota) {
+    const tags = [];
+    if (rota?.temStandard) tags.push('<span class="buscar-rota-tag tag-standard">Start</span>');
+    if (rota?.temFlash) tags.push('<span class="buscar-rota-tag tag-flash">⚡ Flash</span>');
+    if (!tags.length) tags.push('<span class="buscar-rota-tag tag-standard">Start</span>');
+    return tags;
 }
 
 function abrirSheetBuscaRota(rotaId, lojistaUid) {
@@ -3057,8 +3162,10 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
     const qtdParadas = Number.isFinite(Number(rota.totalParadas)) && Number(rota.totalParadas) > 0
         ? Number(rota.totalParadas)
         : Math.max(1, destinos.length);
-    const badgeTxt = rota.servicoLabel || 'Padrão';
-    const precoTxt = precoParaMoeda(Number(rota.totalFrete || 0));
+    const badgeHtml = montarTagsServicoMarketplace(rota).join('');
+    // Entregador só vê o valor líquido (já descontada a taxa da plataforma) —
+    // ver [COMISSÃO DA PLATAFORMA].
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota.totalFrete || 0), Number(rota.distanciaTotal || 0)));
     const distanciaTxt = formatarDistancia(Number(rota.distanciaTotal || 0));
     const duracaoTxt = formatarDuracao(Number(rota.duracaoTotal || 0));
     const pacotesTxt = `${Number(rota.totalPacotes || 0)} Pacotes`;
@@ -3077,7 +3184,7 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
             <div class="sheet-merchant-info">
                 <strong>${escaparHtmlMarketplace(rota?.lojistaNome || 'Lojista')}</strong>
                 <small>Rota #${escaparHtmlMarketplace(String(rota.id || ''))}</small>
-                <div class="sheet-badge"><i data-lucide="badge-check" size="14"></i>${escaparHtmlMarketplace(badgeTxt)}</div>
+                <div class="sheet-badge-row">${badgeHtml}</div>
             </div>
         </div>
         <div class="sheet-price">
@@ -3148,7 +3255,7 @@ function montarDropdownFiltroMarketplace(id, tipo, cidades, valorAtual, labelPad
 function montarCardMarketplaceRotaEntregador(rota) {
     const qtdDestinos = Math.max(1, Number(rota?.destinos?.length || 0));
     const badgeTxt = `${rota.servicoLabel} • ${qtdDestinos} destino${qtdDestinos > 1 ? 's' : ''}`;
-    const precoTxt = precoParaMoeda(Number(rota?.totalFrete || 0));
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
     const statusClass = String(rota?.statusVisual?.className || '').replace('rota-main-status ', '');
 
     const idEsc = String(rota?.id || '').replace(/'/g, "\\'");
@@ -3181,7 +3288,7 @@ function montarCardHistoricoRotaEntregador(rota) {
         : `<span>${escaparHtmlMarketplace((rota?.lojistaNome || 'L').slice(0,1).toUpperCase())}</span>`;
     const statusClass = rota?.statusVisual?.className || '';
     const statusLabel = rota?.statusVisual?.label || rota?.statusNorm || '';
-    const precoTxt = precoParaMoeda(Number(rota?.totalFrete || 0));
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
     const dataTxt = rota?.atualizadoEm
         ? new Date(rota.atualizadoEm).toLocaleDateString('pt-BR')
         : (rota?.criadoEm ? new Date(rota.criadoEm).toLocaleDateString('pt-BR') : '--');
@@ -3610,7 +3717,10 @@ function obterEntregadorUidDaRota(rotaObj = {}) {
     ).trim();
 }
 
-function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
+// Devolve o valor BRUTO da rota (o que o lojista pagou) — usado internamente
+// por calcularValorCreditoRota antes de descontar a taxa da plataforma, e
+// por qualquer outro lugar que precise do valor cheio de verdade.
+function calcularValorBrutoRota(rotaObj = {}, pacotes = []) {
     const candidatos = [
         rotaObj?.totalFrete,
         rotaObj?.valorTotal,
@@ -3631,6 +3741,16 @@ function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
         return acc + (Number.isFinite(freteMoeda) ? freteMoeda : 0);
     }, 0);
     return Number(somaPacotes.toFixed(2));
+}
+
+// Valor que realmente cai na carteira do entregador: valor bruto menos a
+// taxa da plataforma (ver [COMISSÃO DA PLATAFORMA] acima). O entregador
+// nunca vê o valor bruto, só este.
+function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
+    const bruto = calcularValorBrutoRota(rotaObj, pacotes);
+    if (bruto <= 0) return 0;
+    const distanciaKm = Number(rotaObj?.distanciaTotal) || pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
+    return calcularValorRepasseEntregador(bruto, distanciaKm);
 }
 
 function atualizarWalletChipEntregadorUI(saldo = 0) {
@@ -7276,7 +7396,7 @@ function renderListaPendentesRota() {
     container.innerHTML = rotaPendentesCache.map((pacote) => {
         const selecionado = rotaSelecaoIds.has(pacote.id);
         const badgeClass = pacote.flash ? 'rota-badge-flash' : 'rota-badge-standard';
-        const badgeText = pacote.flash ? 'FLASH' : 'STANDARD';
+        const badgeText = pacote.flash ? 'FLASH' : 'START';
         const cityText = pacote.cidade || 'Sem cidade';
 
         return `
@@ -11052,9 +11172,12 @@ function resumirRotaParaEntregador(rota, mapaPacotes, usuarioData = {}) {
     const totalDurPacotes = pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
     const totalDist = Number.isFinite(Number(rota?.distanciaTotal)) ? Number(rota.distanciaTotal) : totalDistPacotes;
     const totalDur = Number.isFinite(Number(rota?.duracaoTotal)) ? Number(rota.duracaoTotal) : totalDurPacotes;
-    const totalValor = Number.isFinite(Number(rota?.totalFrete))
+    const totalValorBruto = Number.isFinite(Number(rota?.totalFrete))
         ? Number(rota.totalFrete)
         : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
+    // Entregador só enxerga o valor líquido (ver [COMISSÃO DA PLATAFORMA]) —
+    // totalValor/valorRestante abaixo já saem descontados, não o bruto.
+    const totalValor = calcularValorRepasseEntregador(totalValorBruto, totalDist);
 
     const concluidos = pacotes.filter((p) => p.status === 'CONCLUIDO');
     const cancelados = pacotes.filter((p) => p.status === 'CANCELADO');
@@ -11073,8 +11196,12 @@ function resumirRotaParaEntregador(rota, mapaPacotes, usuarioData = {}) {
     const restanteDur = pacotes.length
         ? restantes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0)
         : (statusNorm === 'CONCLUIDO' ? 0 : totalDur);
+    // Proporção líquido/bruto aplicada aqui também — sem isso, somar
+    // valorFrete cru dos pacotes restantes voltaria a mostrar o valor bruto
+    // (sem o corte da plataforma) só nessa conta parcial.
+    const proporcaoLiquida = totalValorBruto > 0 ? (totalValor / totalValorBruto) : 1;
     const valorRestante = pacotes.length
-        ? restantes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0)
+        ? Number((restantes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0) * proporcaoLiquida).toFixed(2))
         : (statusNorm === 'CONCLUIDO' ? 0 : totalValor);
 
     const destinosPacotes = [...new Set(pacotes.map((p) => (p?.cidade || '').trim()).filter(Boolean))];
@@ -12272,6 +12399,7 @@ export {
   salvarRotaNoBanco,
   saveClientes,
   selecionarClienteNoSheet,
+  selecionarEmbalagem,
   selecionarFiltroEnvios,
   selecionarFiltroRotas,
   selecionarImagemChat,

@@ -387,6 +387,7 @@
     salvarRotaNoBanco: () => salvarRotaNoBanco,
     saveClientes: () => saveClientes,
     selecionarClienteNoSheet: () => selecionarClienteNoSheet,
+    selecionarEmbalagem: () => selecionarEmbalagem,
     selecionarFiltroEnvios: () => selecionarFiltroEnvios,
     selecionarFiltroRotas: () => selecionarFiltroRotas,
     selecionarImagemChat: () => selecionarImagemChat,
@@ -1137,12 +1138,16 @@
     atualizarPrecoEstimadoAtual();
   }
   function selecionarTamanho(tam) {
-    ["p", "m", "g"].forEach((k) => {
+    ["pp", "m", "g", "gg"].forEach((k) => {
       const el = document.getElementById("sz-" + k);
       if (el) el.classList.remove("active");
     });
     const alvo = document.getElementById("sz-" + String(tam || "").toLowerCase());
     if (alvo) alvo.classList.add("active");
+  }
+  function selecionarEmbalagem(tipo, el) {
+    document.querySelectorAll("#grupo-tipo-embalagem .radio-pill").forEach((item) => item.classList.remove("active"));
+    if (el) el.classList.add("active");
   }
   function togglePass(id) {
     const input = document.getElementById(id);
@@ -1184,7 +1189,8 @@
         const historico = Array.isArray(clientes[idx].historico) ? clientes[idx].historico : [];
         const desc = (resumoRevisaoAtual.descricao || document.getElementById("input-desc")?.value || "").trim();
         const servico = resumoRevisaoAtual.servico || getServicoSelecionadoAtual();
-        const tamanho = document.querySelector("#modal-envio-detalhes .selection-grid-3 .select-box.active strong")?.innerText || "";
+        const tamanho = getTamanhoSelecionadoAtual();
+        const embalagem = getEmbalagemSelecionadaAtual();
         const totalFrete = Number.isFinite(resumoRevisaoAtual.totalFrete) ? resumoRevisaoAtual.totalFrete : parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
         const valorConteudo = Number.isFinite(resumoRevisaoAtual.valorConteudo) ? resumoRevisaoAtual.valorConteudo : parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
         const observacoes = (resumoRevisaoAtual.observacoes || document.getElementById("input-obs-envio")?.value || clientes[idx].obs || "").trim();
@@ -1200,6 +1206,7 @@
           valorFrete: Number(totalFrete.toFixed(2)),
           servico,
           tamanho,
+          embalagem,
           veiculo: resumoRevisaoAtual.veiculo || veiculoSelecionado,
           distanciaKm: Number.isFinite(resumoRevisaoAtual.distanciaKm) ? Number(resumoRevisaoAtual.distanciaKm.toFixed(2)) : null,
           duracaoMin: Number.isFinite(resumoRevisaoAtual.duracaoMin) ? Math.round(resumoRevisaoAtual.duracaoMin) : null,
@@ -1592,7 +1599,14 @@
   var DISTANCIA_MAX_CURTA = 3;
   var VEICULOS_CURTOS = ["Patinete", "Bicicleta"];
   function getServicoSelecionadoAtual() {
-    return document.querySelector("#modal-envio-detalhes .selection-grid .select-box.active strong")?.innerText || "Standard";
+    return document.querySelector("#modal-envio-detalhes #grupo-tipo-servico .radio-row.active .radio-row-label")?.innerText || "Standard";
+  }
+  function getTamanhoSelecionadoAtual() {
+    return document.querySelector("#modal-envio-detalhes #grupo-tamanho-volume .mini-radio-row.active .mini-radio-label")?.innerText || "PP/P";
+  }
+  function getEmbalagemSelecionadaAtual() {
+    const texto = document.querySelector("#modal-envio-detalhes #grupo-tipo-embalagem .radio-pill.active")?.innerText || "Caixa";
+    return texto.trim();
   }
   function obterFreteTesteDasObservacoes(texto = "") {
     const t = (texto || "").toString();
@@ -1729,6 +1743,33 @@
     const ajuste = mapaAjusteServico?.[veiculo] || 0;
     const minimoServico = TAXA_MINIMA[servico] || TAXA_MINIMA.Standard;
     return Number(Math.max(0, minimoServico, base + ajuste).toFixed(2));
+  }
+  var TAXA_PLATAFORMA_FAIXAS = [
+    { ate: 5, taxa: 1 },
+    { ate: 15, taxa: 1.5 },
+    { ate: 25, taxa: 2 },
+    { ate: Infinity, taxa: 2.5 }
+  ];
+  var PISO_KM_ENTREGADOR = 1;
+  function calcularTaxaPlataformaAlvo(valorFrete) {
+    const v = Number(valorFrete || 0);
+    const faixa = TAXA_PLATAFORMA_FAIXAS.find((f) => v <= f.ate) || TAXA_PLATAFORMA_FAIXAS[TAXA_PLATAFORMA_FAIXAS.length - 1];
+    return faixa.taxa;
+  }
+  function calcularTaxaPlataformaRota(valorFrete, distanciaKm) {
+    const v = Number(valorFrete || 0);
+    if (v <= 0) return 0;
+    const alvo = calcularTaxaPlataformaAlvo(v);
+    const km = Number(distanciaKm);
+    if (!Number.isFinite(km) || km <= 0) return Number(alvo.toFixed(2));
+    const taxaMaxSemFurarPiso = Math.max(0, v - km * PISO_KM_ENTREGADOR);
+    return Number(Math.min(alvo, taxaMaxSemFurarPiso).toFixed(2));
+  }
+  function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
+    const v = Number(valorFrete || 0);
+    if (v <= 0) return 0;
+    const taxa = calcularTaxaPlataformaRota(v, distanciaKm);
+    return Number(Math.max(0, v - taxa).toFixed(2));
   }
   async function geocodificarEndereco(endereco, cidadeEsperada = "", ufEsperada = "") {
     if (!endereco) return null;
@@ -2018,6 +2059,12 @@
     atualizarPrecosCardsVeiculo(servico, distanciaKm);
     atualizarDisponibilidadeVeiculos(distanciaKm);
   }
+  function exibirSkeletonVeiculos() {
+    document.querySelectorAll("#modal-envio-step-2 .veiculo-item").forEach((card) => card.classList.add("skeleton"));
+  }
+  function ocultarSkeletonVeiculos() {
+    document.querySelectorAll("#modal-envio-step-2 .veiculo-item").forEach((card) => card.classList.remove("skeleton"));
+  }
   function atualizarPrecosCardsVeiculo(servico, distanciaKm) {
     const mapa = {
       Patinete: "v-patinete",
@@ -2071,7 +2118,7 @@
     const grupoFormas = document.getElementById("grupo-cobranca-entrega-formas");
     if (boxNao) boxNao.classList.toggle("active", !ativa);
     if (boxSim) boxSim.classList.toggle("active", ativa);
-    if (grupoFormas) grupoFormas.style.display = ativa ? "grid" : "none";
+    if (grupoFormas) grupoFormas.style.display = ativa ? "flex" : "none";
   }
   function alternarFormaCobrancaEntrega(forma, el) {
     if (!el) return;
@@ -2113,8 +2160,13 @@
     resumoRevisaoAtual.observacoes = (document.getElementById("input-obs-envio")?.value || "").trim();
     resumoRevisaoAtual.cobrancaEntrega = lerCobrancaEntregaDoFormulario();
     setModalEnvioStep(2);
-    await garantirEstimativaAtual();
-    atualizarPrecoEstimadoAtual();
+    exibirSkeletonVeiculos();
+    try {
+      await garantirEstimativaAtual();
+      atualizarPrecoEstimadoAtual();
+    } finally {
+      ocultarSkeletonVeiculos();
+    }
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
   function voltarParaDetalhes() {
@@ -2123,8 +2175,8 @@
   async function irParaRevisao() {
     const nome = document.getElementById("card-nome").innerText;
     const enderecoDestinoExibicao = document.getElementById("card-endereco").innerText;
-    const servico = document.querySelector("#modal-envio-detalhes .selection-grid .select-box.active strong")?.innerText || "Standard";
-    const tamanho = document.querySelector("#modal-envio-detalhes .selection-grid-3 .select-box.active strong")?.innerText || "P";
+    const servico = getServicoSelecionadoAtual();
+    const tamanho = getTamanhoSelecionadoAtual();
     const estimativa = await garantirEstimativaAtual();
     const enderecoOrigem = resumoRevisaoAtual.origem || "";
     const enderecoDestino = (resumoRevisaoAtual.destino || enderecoDestinoExibicao || "").trim();
@@ -2972,6 +3024,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             const serv = normalizarTexto(p?.servico || "");
             return serv.includes("flash") || serv.includes("expresso");
           });
+          const temStandard = pacotes.some((p) => {
+            const serv = normalizarTexto(p?.servico || "");
+            return !(serv.includes("flash") || serv.includes("expresso"));
+          }) || !pacotes.length;
           const servicoLabel = temFlash ? "Expresso" : "Padrao";
           lista.push({
             id: rota.id,
@@ -2990,6 +3046,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             statusNorm,
             statusVisual,
             servicoLabel,
+            temStandard,
+            temFlash,
             entregadorId: String(rota?.entregadorId || rota?.aceitoPor || ""),
             pacoteIds,
             criadoEm: Number(rota?.criadoEm || 0)
@@ -3213,10 +3271,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (header) header.classList.add("global-header-live");
   }
   function montarCardBuscaEntregador(rota) {
-    const destinos = Array.isArray(rota?.destinos) ? rota.destinos : [];
-    const qtdDestinos = Math.max(1, destinos.length);
-    const badgeTxt = `${rota.servicoLabel || "Servico"} \u2022 ${qtdDestinos} destino${qtdDestinos > 1 ? "s" : ""}`;
-    const precoTxt = precoParaMoeda(Number(rota?.totalFrete || 0));
+    const kmTxt = formatarDistancia(Number(rota?.distanciaTotal || 0));
+    const tags = montarTagsServicoMarketplace(rota);
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const rotaIdEsc = escaparHtmlMarketplace(String(rota?.id || ""));
     const lojistaUidEsc = escaparHtmlMarketplace(String(rota?.lojistaUid || ""));
@@ -3227,12 +3284,19 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                 <div class="buscar-rota-avatar">${avatar}</div>
                 <div>
                     <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
-                    <div class="buscar-rota-meta">${escaparHtmlMarketplace(badgeTxt)}</div>
+                    <div class="buscar-rota-tags">${tags.join("")}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
                 </div>
             </div>
             <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
         </article>
     `;
+  }
+  function montarTagsServicoMarketplace(rota) {
+    const tags = [];
+    if (rota?.temStandard) tags.push('<span class="buscar-rota-tag tag-standard">Start</span>');
+    if (rota?.temFlash) tags.push('<span class="buscar-rota-tag tag-flash">\u26A1 Flash</span>');
+    if (!tags.length) tags.push('<span class="buscar-rota-tag tag-standard">Start</span>');
+    return tags;
   }
   function abrirSheetBuscaRota(rotaId, lojistaUid) {
     const overlay = document.getElementById("buscar-sheet-overlay");
@@ -3246,8 +3310,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
     const destinos = Array.isArray(rota.destinos) ? rota.destinos : [];
     const qtdParadas = Number.isFinite(Number(rota.totalParadas)) && Number(rota.totalParadas) > 0 ? Number(rota.totalParadas) : Math.max(1, destinos.length);
-    const badgeTxt = rota.servicoLabel || "Padr\xE3o";
-    const precoTxt = precoParaMoeda(Number(rota.totalFrete || 0));
+    const badgeHtml = montarTagsServicoMarketplace(rota).join("");
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota.totalFrete || 0), Number(rota.distanciaTotal || 0)));
     const distanciaTxt = formatarDistancia(Number(rota.distanciaTotal || 0));
     const duracaoTxt = formatarDuracao(Number(rota.duracaoTotal || 0));
     const pacotesTxt = `${Number(rota.totalPacotes || 0)} Pacotes`;
@@ -3263,7 +3327,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             <div class="sheet-merchant-info">
                 <strong>${escaparHtmlMarketplace(rota?.lojistaNome || "Lojista")}</strong>
                 <small>Rota #${escaparHtmlMarketplace(String(rota.id || ""))}</small>
-                <div class="sheet-badge"><i data-lucide="badge-check" size="14"></i>${escaparHtmlMarketplace(badgeTxt)}</div>
+                <div class="sheet-badge-row">${badgeHtml}</div>
             </div>
         </div>
         <div class="sheet-price">
@@ -3329,7 +3393,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function montarCardMarketplaceRotaEntregador(rota) {
     const qtdDestinos = Math.max(1, Number(rota?.destinos?.length || 0));
     const badgeTxt = `${rota.servicoLabel} \u2022 ${qtdDestinos} destino${qtdDestinos > 1 ? "s" : ""}`;
-    const precoTxt = precoParaMoeda(Number(rota?.totalFrete || 0));
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
     const statusClass = String(rota?.statusVisual?.className || "").replace("rota-main-status ", "");
     const idEsc = String(rota?.id || "").replace(/'/g, "\\'");
     const lojistaUidEsc = String(rota?.lojistaUid || "").replace(/'/g, "\\'");
@@ -3357,7 +3421,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" />` : `<span>${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</span>`;
     const statusClass = rota?.statusVisual?.className || "";
     const statusLabel = rota?.statusVisual?.label || rota?.statusNorm || "";
-    const precoTxt = precoParaMoeda(Number(rota?.totalFrete || 0));
+    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
     const dataTxt = rota?.atualizadoEm ? new Date(rota.atualizadoEm).toLocaleDateString("pt-BR") : rota?.criadoEm ? new Date(rota.criadoEm).toLocaleDateString("pt-BR") : "--";
     const rotaIdEsc = escaparHtmlMarketplace(String(rota.id || ""));
     return `
@@ -3684,7 +3748,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       getUsuarioIdAtual() || rotaObj?.entregadorId || rotaObj?.aceitoPor || rotaObj?.entregadorUid || ""
     ).trim();
   }
-  function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
+  function calcularValorBrutoRota(rotaObj = {}, pacotes = []) {
     const candidatos = [
       rotaObj?.totalFrete,
       rotaObj?.valorTotal,
@@ -3704,6 +3768,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       return acc + (Number.isFinite(freteMoeda) ? freteMoeda : 0);
     }, 0);
     return Number(somaPacotes.toFixed(2));
+  }
+  function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
+    const bruto = calcularValorBrutoRota(rotaObj, pacotes);
+    if (bruto <= 0) return 0;
+    const distanciaKm = Number(rotaObj?.distanciaTotal) || pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
+    return calcularValorRepasseEntregador(bruto, distanciaKm);
   }
   function atualizarWalletChipEntregadorUI(saldo = 0) {
     document.querySelectorAll(".entregador-wallet-chip span").forEach((el) => {
@@ -6720,7 +6790,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     container.innerHTML = rotaPendentesCache.map((pacote) => {
       const selecionado = rotaSelecaoIds.has(pacote.id);
       const badgeClass = pacote.flash ? "rota-badge-flash" : "rota-badge-standard";
-      const badgeText = pacote.flash ? "FLASH" : "STANDARD";
+      const badgeText = pacote.flash ? "FLASH" : "START";
       const cityText = pacote.cidade || "Sem cidade";
       return `
             <button type="button" class="rota-pending-item ${selecionado ? "selected" : ""}" onclick="togglePacoteRota('${pacote.id}')">
@@ -9797,7 +9867,8 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     const totalDurPacotes = pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
     const totalDist = Number.isFinite(Number(rota?.distanciaTotal)) ? Number(rota.distanciaTotal) : totalDistPacotes;
     const totalDur = Number.isFinite(Number(rota?.duracaoTotal)) ? Number(rota.duracaoTotal) : totalDurPacotes;
-    const totalValor = Number.isFinite(Number(rota?.totalFrete)) ? Number(rota.totalFrete) : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
+    const totalValorBruto = Number.isFinite(Number(rota?.totalFrete)) ? Number(rota.totalFrete) : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
+    const totalValor = calcularValorRepasseEntregador(totalValorBruto, totalDist);
     const concluidos = pacotes.filter((p) => p.status === "CONCLUIDO");
     const cancelados = pacotes.filter((p) => p.status === "CANCELADO");
     const restantes = pacotes.filter((p) => p.status !== "CONCLUIDO" && p.status !== "CANCELADO");
@@ -9807,7 +9878,8 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     const restantesCount = Math.max(0, totalPacotesRota - concluidosCount - cancelados.length);
     const restanteDist = pacotes.length ? restantes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0) : statusNorm === "CONCLUIDO" ? 0 : totalDist;
     const restanteDur = pacotes.length ? restantes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0) : statusNorm === "CONCLUIDO" ? 0 : totalDur;
-    const valorRestante = pacotes.length ? restantes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0) : statusNorm === "CONCLUIDO" ? 0 : totalValor;
+    const proporcaoLiquida = totalValorBruto > 0 ? totalValor / totalValorBruto : 1;
+    const valorRestante = pacotes.length ? Number((restantes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0) * proporcaoLiquida).toFixed(2)) : statusNorm === "CONCLUIDO" ? 0 : totalValor;
     const destinosPacotes = [...new Set(pacotes.map((p) => (p?.cidade || "").trim()).filter(Boolean))];
     const destinosFallback = Array.isArray(rota?.destinos) ? rota.destinos : [];
     const destinos = destinosPacotes.length ? destinosPacotes : destinosFallback.length ? destinosFallback : rota?.destinoPrincipal ? [rota.destinoPrincipal] : [];

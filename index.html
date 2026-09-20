@@ -946,24 +946,26 @@
 
             <div class="form-group" id="grupo-cobranca-entrega">
                 <span class="section-title">Cobrar do cliente na entrega?</span>
-                <div class="cobranca-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="select-box active" id="cobranca-entrega-nao" onclick="definirCobrancaEntregaAtiva(false)">
-                        <strong>Não</strong>
-                        <span>Já foi pago</span>
+                <div class="radio-row-group">
+                    <div class="radio-row active" id="cobranca-entrega-nao" onclick="definirCobrancaEntregaAtiva(false)">
+                        <div class="radio-row-icon"><i data-lucide="wallet" size="18"></i></div>
+                        <div class="radio-row-label">Não</div>
+                        <div class="radio-row-sub">Já foi pago</div>
+                        <div class="radio-row-dot"></div>
                     </div>
-                    <div class="select-box" id="cobranca-entrega-sim" onclick="definirCobrancaEntregaAtiva(true)">
-                        <strong>Sim</strong>
-                        <span>Cobrar na entrega</span>
+                    <div class="radio-row" id="cobranca-entrega-sim" onclick="definirCobrancaEntregaAtiva(true)">
+                        <div class="radio-row-icon"><i data-lucide="hand-coins" size="18"></i></div>
+                        <div class="radio-row-label">Sim</div>
+                        <div class="radio-row-sub">Cobrar na entrega</div>
+                        <div class="radio-row-dot"></div>
                     </div>
                 </div>
-                <div class="cobranca-grid" id="grupo-cobranca-entrega-formas" style="display: none; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
-                    <div class="select-box active" id="cobranca-forma-dinheiro" onclick="alternarFormaCobrancaEntrega('dinheiro', this)">
-                        <i data-lucide="banknote" size="20"></i>
-                        <strong>Dinheiro</strong>
+                <div class="cobranca-formas-row" id="grupo-cobranca-entrega-formas" style="display: none;">
+                    <div class="checkbox-pill active" id="cobranca-forma-dinheiro" onclick="alternarFormaCobrancaEntrega('dinheiro', this)">
+                        <span class="checkbox-pill-box"><i data-lucide="check" size="11"></i></span> Dinheiro
                     </div>
-                    <div class="select-box active" id="cobranca-forma-pix" onclick="alternarFormaCobrancaEntrega('pix', this)">
-                        <i data-lucide="qr-code" size="20"></i>
-                        <strong>Pix</strong>
+                    <div class="checkbox-pill active" id="cobranca-forma-pix" onclick="alternarFormaCobrancaEntrega('pix', this)">
+                        <span class="checkbox-pill-box"><i data-lucide="check" size="11"></i></span> Pix
                     </div>
                 </div>
                 <span style="font-size: 11px; color: #94a3b8; font-weight: 600; display: block; margin-top: 8px;">O entregador vai coletar o valor total acima do cliente e repassar para você.</span>
@@ -977,32 +979,58 @@
             </div>
 
             <span class="section-title">Tipo de Serviço</span>
-            <div class="selection-grid">
-                <div class="select-box active" id="srv-std" onclick="selecionarServico('Standard')">
-                    <i data-lucide="truck" size="24"></i>
-                    <strong>Standard</strong>
-                    <span>Até 24h</span>
+            <div class="radio-row-group" id="grupo-tipo-servico" style="margin-bottom: 25px;">
+                <div class="radio-row active" id="srv-std" onclick="selecionarServico('Standard')">
+                    <div class="radio-row-icon"><i data-lucide="truck" size="18"></i></div>
+                    <div class="radio-row-label">Start</div>
+                    <div class="radio-row-sub">Até 24h</div>
+                    <div class="radio-row-dot"></div>
                 </div>
-                <div class="select-box" id="srv-flash" onclick="selecionarServico('Flash')">
-                    <i data-lucide="zap" size="24"></i>
-                    <strong>Flash</strong>
-                    <span>Até 2h</span>
+                <div class="radio-row" id="srv-flash" onclick="selecionarServico('Flash')">
+                    <div class="radio-row-icon"><i data-lucide="zap" size="18"></i></div>
+                    <div class="radio-row-label">Flash</div>
+                    <div class="radio-row-sub">Até 2h</div>
+                    <div class="radio-row-dot"></div>
                 </div>
             </div>
 
             <span class="section-title">Tamanho do Volume</span>
-            <div class="selection-grid-3">
-                <div class="select-box active" id="sz-p" onclick="selecionarTamanho('P')">
-                    <strong>P</strong>
-                    <span>Até 2kg</span>
+            <div class="mini-radio-grid" id="grupo-tamanho-volume" style="margin-bottom: 25px;">
+                <div class="mini-radio-row active" id="sz-pp" onclick="selecionarTamanho('pp')">
+                    <div class="mini-radio-dot"></div>
+                    <div class="mini-radio-label">PP/P</div>
+                    <div class="mini-radio-sub">Até 2kg</div>
                 </div>
-                <div class="select-box" id="sz-m" onclick="selecionarTamanho('M')">
-                    <strong>M</strong>
-                    <span>Até 5kg</span>
+                <div class="mini-radio-row" id="sz-g" onclick="selecionarTamanho('g')">
+                    <div class="mini-radio-dot"></div>
+                    <div class="mini-radio-label">G</div>
+                    <div class="mini-radio-sub">Até 10kg</div>
                 </div>
-                <div class="select-box" id="sz-g" onclick="selecionarTamanho('G')">
-                    <strong>G</strong>
-                    <span>Até 10kg</span>
+                <div class="mini-radio-row" id="sz-m" onclick="selecionarTamanho('m')">
+                    <div class="mini-radio-dot"></div>
+                    <div class="mini-radio-label">M</div>
+                    <div class="mini-radio-sub">Até 5kg</div>
+                </div>
+                <div class="mini-radio-row" id="sz-gg" onclick="selecionarTamanho('gg')">
+                    <div class="mini-radio-dot"></div>
+                    <div class="mini-radio-label">GG</div>
+                    <div class="mini-radio-sub">acima 10kg</div>
+                </div>
+            </div>
+
+            <span class="section-title">Tipo de Embalagem</span>
+            <div class="radio-pill-row" id="grupo-tipo-embalagem">
+                <div class="radio-pill" id="emb-envelope" onclick="selecionarEmbalagem('envelope', this)">
+                    <span class="radio-pill-dot"></span> Envelope
+                </div>
+                <div class="radio-pill" id="emb-rolo" onclick="selecionarEmbalagem('rolo', this)">
+                    <span class="radio-pill-dot"></span> Rolo
+                </div>
+                <div class="radio-pill" id="emb-sacola" onclick="selecionarEmbalagem('sacola', this)">
+                    <span class="radio-pill-dot"></span> Sacola/Pacote
+                </div>
+                <div class="radio-pill active" id="emb-caixa" onclick="selecionarEmbalagem('caixa', this)">
+                    <span class="radio-pill-dot"></span> Caixa
                 </div>
             </div>
             </div>
@@ -1070,7 +1098,7 @@
                 <div style="background: white; padding: 20px; border-radius: 24px; margin-bottom: 20px; border: 1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <span style="color:var(--text-sub); font-weight:600;">Serviço</span>
-                        <strong id="rev-servico">Standard</strong>
+                        <strong id="rev-servico">Start</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <span style="color:var(--text-sub); font-weight:600;">Tamanho</span>
