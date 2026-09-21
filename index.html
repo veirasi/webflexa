@@ -54,57 +54,53 @@
 
     <div class="container">
 
-        <section id="view-inicio" class="view">
-            <div class="welcome-text">
-                <h1><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo"></h1>
-                <p>O futuro da sua logística está aqui.</p>
-            </div>
-            <div class="option-card card-loja" onclick="irParaCadastro('loja')">
-                <div class="icon-box"><i data-lucide="store" size="32"></i></div>
-                <div class="content">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <h2 style="font-size:18px; font-weight:700;">Enviar pacotes</h2>
-                        <span class="badge-card">Negócios</span>
-                    </div>
-                    <p style="font-size:14px; color:var(--text-sub);">Soluções inteligentes para expandir sua loja e entregas.</p>
-                </div>
-            </div>
-            <div class="option-card card-entrega" onclick="irParaCadastro('entrega')">
-                <div class="icon-box"><i data-lucide="truck" size="32"></i></div>
-                <div class="content">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <h2 style="font-size:18px; font-weight:700;">Fazer entregas</h2>
-                        <span class="badge-card">Parceiro</span>
-                    </div>
-                    <p style="font-size:14px; color:var(--text-sub);">Faça seu próprio horário e aumente sua renda diária.</p>
-                </div>
-            </div>
-        </section>
-
         <section id="view-auth" class="view">
             <div class="auth-card">
-                <div style="text-align: center; margin-bottom: 30px; cursor: pointer;" onclick="navegar('view-inicio')"><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo auth-logo"></div>
+                <div style="text-align: center; margin-bottom: 20px;"><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo auth-logo"></div>
+                <p class="auth-tagline">O futuro da sua logística está aqui.</p>
                 <div class="tabs">
                     <div id="tab-entrar" class="tab active" onclick="alternarAuth('entrar')">Entrar</div>
                     <div id="tab-cadastrar" class="tab" onclick="alternarAuth('cadastrar')">Cadastre-se</div>
                 </div>
 
                 <form id="form-entrar">
-                    <div class="form-group"><label>E-mail</label><div class="input-wrapper"><i data-lucide="mail" size="20"></i><input type="email" id="email-login" placeholder="Login de acesso"></div></div>
+                    <div class="form-group"><label>WhatsApp</label><div class="input-wrapper"><svg class="icon-whatsapp" width="20" height="20" viewBox="0 0 448 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg><input type="tel" id="whatsapp-login" placeholder="(00) 0 0000-0000"></div></div>
                     <div class="form-group"><label>Senha</label><div class="input-wrapper"><i data-lucide="lock" size="20"></i><input type="password" id="pass-login" placeholder="Sua senha"><i data-lucide="eye" size="20" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('pass-login')"></i></div></div>
-                    <button type="button" class="btn-main ui-button primary" onclick="loginReal()">Entrar na Flex</button>
+                    <button type="button" class="btn-main ui-button primary" onclick="loginReal()">Entrar</button>
                     <p style="text-align:center; margin-top:20px; font-size:14px; color:var(--brand-orange); font-weight:600; cursor:pointer;" onclick="navegar('view-recuperar')">Esqueci minha senha</p>
                 </form>
 
                 <form id="form-cadastrar" class="hidden">
+                    <p class="auth-form-lead">Como você vai usar a Flex?</p>
+                    <div class="option-card option-card-compact card-loja active" id="tipo-cad-loja" onclick="selecionarTipoCadastro('loja')">
+                        <div class="icon-box"><i data-lucide="store" size="24"></i></div>
+                        <div class="content">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                                <h2 style="font-size:15px; font-weight:700;">Enviar pacotes</h2>
+                                <span class="badge-card">Negócios</span>
+                            </div>
+                            <p style="font-size:12px; color:var(--text-sub);">Soluções inteligentes para expandir sua loja e entregas.</p>
+                        </div>
+                    </div>
+                    <div class="option-card option-card-compact card-entrega" id="tipo-cad-entrega" onclick="selecionarTipoCadastro('entrega')">
+                        <div class="icon-box"><i data-lucide="truck" size="24"></i></div>
+                        <div class="content">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                                <h2 style="font-size:15px; font-weight:700;">Fazer entregas</h2>
+                                <span class="badge-card">Parceiro</span>
+                            </div>
+                            <p style="font-size:12px; color:var(--text-sub);">Faça seu próprio horário e aumente sua renda diária.</p>
+                        </div>
+                    </div>
+
                     <div class="form-group"><label id="label-nome">Nome da loja</label><div class="input-wrapper"><i data-lucide="user" size="20"></i><input type="text" id="input-nome" placeholder="Digite o nome da loja"></div></div>
                     <div id="group-cnh" class="form-group hidden"><label>Número CNH</label><div class="input-wrapper"><i data-lucide="file-text" size="20"></i><input type="text" id="input-cnh" placeholder="000.000.000-00"></div></div>
                     <div class="form-group"><label>E-mail</label><div class="input-wrapper"><i data-lucide="mail" size="20"></i><input type="email" placeholder="contato@exemplo.com"></div></div>
+                    <div class="form-group"><label>Número do WhatsApp</label><div class="input-wrapper"><svg class="icon-whatsapp" width="20" height="20" viewBox="0 0 448 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg><input type="tel" id="input-whatsapp-cad" placeholder="(00) 0 0000-0000"></div></div>
                     <div class="form-group"><label>Senha</label><div class="input-wrapper"><i data-lucide="lock" size="20"></i><input type="password" id="pass-cad" placeholder="Mínimo 6 caracteres"><i data-lucide="eye" size="20" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('pass-cad')"></i></div></div>
                     <div class="form-group"><label>Confirmar Senha</label><div class="input-wrapper"><i data-lucide="lock" size="20"></i><input type="password" id="pass-conf" placeholder="Repita a senha"><i data-lucide="eye" size="20" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('pass-conf')"></i></div></div>
                     <button type="button" class="btn-main" onclick="cadastrarReal()">Criar minha conta</button>
                 </form>
-                <p style="text-align:center; margin-top:25px; font-size:14px; color:var(--text-sub); font-weight:600; cursor:pointer;" onclick="navegar('view-inicio')">← Voltar</p>
             </div>
         </section>
 
@@ -114,10 +110,25 @@
                 <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 10px; text-align: center;">Recuperar senha</h2>
                 <div class="form-group">
                     <label>E-mail</label>
-                    <div class="input-wrapper"><i data-lucide="mail" size="20"></i><input type="email" placeholder="seuemail@exemplo.com"></div>
+                    <div class="input-wrapper"><i data-lucide="mail" size="20"></i><input type="email" id="input-email-recuperar" placeholder="seuemail@exemplo.com"></div>
                 </div>
-                <button type="button" class="btn-main">Enviar Link de Recuperação</button>
+                <button type="button" class="btn-main" onclick="recuperarSenhaReal()">Enviar Link de Recuperação</button>
                 <p style="text-align:center; margin-top:25px; font-size:14px; color:var(--text-sub); font-weight:600; cursor:pointer;" onclick="navegar('view-auth')">← Voltar ao login</p>
+            </div>
+        </section>
+
+        <!-- Rastreio público do cliente final — acessível SEM login via
+             #/rastreio/{token}. Ver ativarModoRastreioSeNecessario e
+             exibirTelaRastreioPublico em legacy-monolith.js. -->
+        <section id="view-rastreio-publico" class="view">
+            <div class="rastreio-pub-shell">
+                <div style="text-align: center; margin: 10px 0 20px;"><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo"></div>
+
+                <div id="rastreio-pub-banners" class="rastreio-pub-banners hidden"></div>
+
+                <div id="rastreio-pub-conteudo">
+                    <div class="rastreio-pub-loading">Carregando rastreio...</div>
+                </div>
             </div>
         </section>
 
@@ -1316,6 +1327,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <script>
       window.FLEXA_GOOGLE_MAPS_KEY = "AIzaSyDgO6wu3gbsZYIYb1KxGOpZGZIb2pM-YAk";
       // Pagamento Pix: Cloud Function "payments" (backend/functions) deployada
@@ -1388,6 +1400,7 @@
                     <button type="button" class="admin-nav-btn" data-tab="packages" onclick="switchAdminTab('packages')"><i data-lucide="package" size="18"></i><span class="admin-nav-copy">Pacotes</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="database" onclick="switchAdminTab('database')"><i data-lucide="database" size="18"></i><span class="admin-nav-copy">Banco de dados</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="reports" onclick="switchAdminTab('reports')"><i data-lucide="chart-no-axes-combined" size="18"></i><span class="admin-nav-copy">Relatórios</span></button>
+                    <button type="button" class="admin-nav-btn" data-tab="banners" onclick="switchAdminTab('banners')"><i data-lucide="image" size="18"></i><span class="admin-nav-copy">Banners</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="settings" onclick="switchAdminTab('settings')"><i data-lucide="settings" size="18"></i><span class="admin-nav-copy">Configurações</span></button>
                 </nav>
                 <div class="admin-sidebar-footer">
@@ -1690,6 +1703,29 @@
                             <h3>Resumo do período</h3>
                             <p class="admin-subtle" id="admin-report-summary">Atualize o painel (aba Visão geral) pra gerar o resumo.</p>
                             <button class="btn-main" type="button" style="width:auto;" onclick="exportarRelatorioCsvAdmin()"><i data-lucide="download" size="16"></i> Exportar CSV</button>
+                        </div>
+                    </div>
+
+                    <div class="admin-tab" data-tab="banners">
+                        <div class="admin-section-heading">
+                            <p class="admin-kicker">Tela de rastreio público</p>
+                            <h1>Banners</h1>
+                            <p class="admin-subtle">Anúncios exibidos pro cliente final na página de rastreio do pedido (sem login).</p>
+                        </div>
+                        <div class="admin-panel admin-report-panel">
+                            <h3>Novo banner</h3>
+                            <div class="banner-form-row">
+                                <input type="file" id="banner-novo-arquivo" accept="image/*">
+                                <input type="text" id="banner-novo-link" placeholder="Link ao clicar (opcional) — https://...">
+                                <button class="btn-main" type="button" style="width:auto;" onclick="salvarBannerAdmin()"><i data-lucide="upload" size="16"></i> Adicionar banner</button>
+                            </div>
+                            <p class="admin-subtle" id="banner-upload-status"></p>
+                        </div>
+                        <div class="admin-panel admin-report-panel">
+                            <h3>Banners cadastrados</h3>
+                            <div id="admin-banners-lista" class="admin-banners-lista">
+                                <p class="admin-subtle">Carregando...</p>
+                            </div>
                         </div>
                     </div>
 

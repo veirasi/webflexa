@@ -136,6 +136,31 @@ window.addEventListener('hashchange', ativarModoAdminSeNecessario);
 // garante detecção antes do primeiro onAuthStateChanged
 ativarModoAdminSeNecessario();
 
+// ===== [RASTREIO PÚBLICO DO CLIENTE FINAL] =====
+// Mesmo padrão do modoAdmin acima: detecta a rota #/rastreio/<token> ANTES
+// do primeiro onAuthStateChanged, pra essa tela poder ser mostrada mesmo sem
+// (ou independente de) login — inclusive se o link for aberto no mesmo
+// navegador onde um lojista/entregador já está logado.
+let modoRastreioPublico = false;
+let tokenRastreioAtual = '';
+function ativarModoRastreioSeNecessario() {
+    const hash = window.location.hash || '';
+    const match = hash.match(/rastreio\/([a-z0-9_-]+)/i);
+    if (match) {
+        modoRastreioPublico = true;
+        tokenRastreioAtual = match[1];
+        // Se o app já estava carregado (a aba já tinha o Flex aberto e o
+        // link mudou só o hash), o onAuthStateChanged não dispara de novo
+        // sozinho — então também mostra a tela direto por aqui.
+        if (document.readyState !== 'loading') {
+            exibirTelaRastreioPublico(tokenRastreioAtual);
+        }
+    }
+}
+document.addEventListener('DOMContentLoaded', ativarModoRastreioSeNecessario);
+window.addEventListener('hashchange', ativarModoRastreioSeNecessario);
+ativarModoRastreioSeNecessario();
+
 function getUsuarioIdAtual() {
     return usuarioLogado?.id || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
 }
@@ -170,6 +195,7 @@ function switchAdminTab(tab) {
     if (tab === 'packages') adminCarregarPacotes();
     if (tab === 'routes') renderDashboardMaster();
     if (tab === 'database') adminListTables();
+    if (tab === 'banners') renderBannersAdmin();
 }
 
 function telaInicialPorTipoUsuario(tipo) {
@@ -848,6 +874,18 @@ async function salvarNovoCliente() {
         clientes.unshift(novoCliente);
         await saveClientes();
         clienteSelecionadoId = novoCliente.id;
+    }
+
+    // Mantém o índice global (clientesGlobais) atualizado pra outras lojas
+    // conseguirem achar esse mesmo cliente pelo WhatsApp — ver ponto 1 do
+    // pedido do dono 2026-09-21 (Karisy cadastrada pela Nidobox não aparecia
+    // pra Express Imports buscar).
+    const whatsappGlobalNorm = normalizarWhatsapp(tel);
+    if (whatsappGlobalNorm) {
+        db.ref('clientesGlobais/' + whatsappGlobalNorm).set({
+            nome: nome.trim(),
+            whatsapp: whatsappGlobalNorm
+        }).catch(() => {});
     }
 
     renderClientes(document.getElementById('buscar-cliente')?.value || '');
@@ -1926,12 +1964,20 @@ async function cadastrarReal() {
 }    
 // ===================== [AUTENTICA - fO - VERSÃO ATIVA] =====================
 async function loginReal() {
-    const email = document.getElementById('email-login').value;
+    const whatsapp = normalizarWhatsapp(document.getElementById('whatsapp-login')?.value || '');
     const senha = document.getElementById('pass-login').value;
 
-    if (!email || !senha) return alert('Preencha e-mail e senha!');
+    if (!whatsapp || !senha) return alert('Preencha WhatsApp e senha!');
 
     try {
+        // Firebase Auth só loga por e-mail — o WhatsApp é só a "chave" que o
+        // usuário digita; por baixo dos panos resolve pro e-mail cadastrado
+        // (ver telefoneParaEmail, escrito em cadastrarRealComTipo).
+        const email = await db.ref('telefoneParaEmail/' + whatsapp).once('value').then((s) => s.val());
+        if (!email) {
+            alert('Não encontramos uma conta com esse número de WhatsApp.');
+            return;
+        }
         const cred = await auth.signInWithEmailAndPassword(email, senha);
         const snapshot = await db.ref('usuarios/' + cred.user.uid).once('value');
         const dadosUser = snapshot.val();
@@ -1941,18 +1987,17 @@ async function loginReal() {
             return;
         }
 
-        const tipoContaRaw = normalizarTexto(dadosUser?.tipo || 'loja');
-        const contaEhEntregador = (tipoContaRaw === 'entregador' || tipoContaRaw === 'entrega');
-        const esperadoEhEntregador = tipoCadastroSelecionado === 'entrega';
-
-        if (contaEhEntregador !== esperadoEhEntregador) {
-            await auth.signOut();
-            alert(contaEhEntregador
-                ? 'Essa conta e de entregador. Entre pela opcao Fazer entregas.'
-                : 'Essa conta e de lojista. Entre pela opcao Enviar pacotes.');
-            return;
-        }
-
+        // BUG CORRIGIDO 2026-09-20: até aqui, login comparava o tipo real da
+        // conta (dadosUser.tipo) contra tipoCadastroSelecionado — uma variável
+        // que só fazia sentido na tela antiga (view-inicio), onde a pessoa
+        // escolhia "Enviar pacotes" ou "Fazer entregas" ANTES de chegar no
+        // login. Como essa tela não existe mais (login agora é a primeira
+        // tela, sem pré-seleção de tipo), tipoCadastroSelecionado ficava
+        // parado no valor padrão 'loja' e barrava todo login de entregador
+        // com "Essa conta é de entregador. Entre pela opção Fazer entregas" —
+        // mesmo a conta sendo, de fato, de entregador. O tipo da conta já
+        // vem do banco (dadosUser.tipo) e é isso que decide o dashboard logo
+        // abaixo (telaInicialPorTipoUsuario) — não precisa mais desse check.
         usuarioLogado = { id: cred.user.uid, ...dadosUser };
         window.usuarioLogado = usuarioLogado;
         // limpa caches locais para evitar vazamento entre tenants
@@ -1989,6 +2034,21 @@ async function loginReal() {
         }
     } catch (error) {
         alert('Erro ao entrar: ' + error.message);
+    }
+}
+
+// Login passou a ser por WhatsApp, mas a recuperação de senha continua por
+// e-mail (é assim que o Firebase Auth manda o link, e é o motivo de ainda
+// pedirmos e-mail no cadastro mesmo o dia a dia sendo só com o WhatsApp).
+async function recuperarSenhaReal() {
+    const email = (document.getElementById('input-email-recuperar')?.value || '').trim();
+    if (!email) return alert('Informe o e-mail cadastrado na conta.');
+    try {
+        await auth.sendPasswordResetEmail(email);
+        alert('Link de redefinição enviado para o seu e-mail.');
+        navegar('view-auth');
+    } catch (error) {
+        alert('Não foi possível enviar o link: ' + error.message);
     }
 }
 
@@ -2094,6 +2154,13 @@ firebase.auth().onAuthStateChanged((user) => {
     const tabbar = document.getElementById('main-nav');
     const splash = document.getElementById('splash-screen');
 
+    if (modoRastreioPublico) {
+        if (tabbar) tabbar.style.display = 'none';
+        exibirTelaRastreioPublico(tokenRastreioAtual);
+        finalizarSplash(splash);
+        return;
+    }
+
     if (user) {
         firebase.database().ref('usuarios/' + user.uid).once('value')
             .then((snapshot) => {
@@ -2172,7 +2239,12 @@ firebase.auth().onAuthStateChanged((user) => {
             return;
         }
 
-        navegar('view-inicio');
+        // Mudanca 2026-09-20: antes caia sempre numa tela de "escolha seu
+        // perfil" (marketing + 2 botoes), tanto na primeira visita quanto
+        // depois de um logout — pra quem ja tem conta isso nao fazia sentido.
+        // Agora vai direto pro login/cadastro; quem nao tem conta escolhe o
+        // perfil (lojista/entregador) dentro da propria aba "Cadastre-se".
+        navegar('view-auth');
         if (tabbar) tabbar.style.display = 'none';
         initClientes();
         finalizarSplash(splash);
@@ -3517,6 +3589,7 @@ function iniciarRastreioGpsEntregador(rotaObj) {
             };
             db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorGeo`).set(payload).catch(() => {});
             db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}/entregadorGeo`).set(payload).catch(() => {});
+            db.ref(`rastreioPublico/${rotaId}`).update({ entregadorGeo: payload, atualizadoEm: agora }).catch(() => {});
         },
         (err) => {
             console.warn('Geolocalização indisponível:', err?.message || err);
@@ -3893,6 +3966,8 @@ async function finalizarRotaSeCompleta(rotaObj, pacotes, { forcarEntregueIdx = -
         updatesRota[`${rotaEntregadorPath}/atualizadoEm`] = agora;
         updatesRota[`${rotaEntregadorPath}/concluidaEm`] = agora;
     }
+    updatesRota[`rastreioPublico/${rotaId}/statusRota`] = statusRota;
+    updatesRota[`rastreioPublico/${rotaId}/atualizadoEm`] = agora;
     if (Object.keys(updatesRota).length) {
         try {
             await db.ref().update(updatesRota);
@@ -3951,6 +4026,12 @@ async function persistirEntregaPacoteAtual(rotaObj = {}, pac = {}, codigoConfirm
         updates[`${basePacoteUsuario}/entregueEm`] = agora;
         updates[`${basePacoteUsuario}/atualizadoEm`] = agora;
     }
+
+    // Marca essa parada como entregue no espelho público de rastreio — é o
+    // que faz o ponto dela acender na timeline que o cliente final vê pelo
+    // link, mostrando que o entregador já passou por ali.
+    updates[`rastreioPublico/${rotaId}/pacotes/${pacoteId}/status`] = 'ENTREGUE';
+    updates[`rastreioPublico/${rotaId}/pacotes/${pacoteId}/entregueEm`] = agora;
 
     if (lojistaUid) {
         try {
@@ -4070,6 +4151,11 @@ async function confirmarColetaPacotes() {
         updates[`usuarios/${uidEntregador}/rotas/${rotaObj.id}/coletaConfirmada`] = true;
         updates[`usuarios/${uidEntregador}/rotas/${rotaObj.id}/coletaConfirmadaEm`] = agora;
     }
+    // BUG CORRIGIDO 2026-09-21: o ponto de retirada na timeline pública
+    // ficava verde assim que um entregador ACEITAVA a rota — mas aceitar não
+    // é a mesma coisa que já ter passado na loja e pego os pacotes de
+    // verdade. Só acende quando a coleta é confirmada aqui.
+    updates[`rastreioPublico/${rotaObj.id}/coletaConfirmada`] = true;
 
     try {
         await db.ref().update(updates);
@@ -4438,6 +4524,17 @@ async function confirmarCodigoDevolucaoPacoteAtual() {
             statusRaw: 'PACOTE_NOVO',
             rotaId: null
         });
+
+        // Mesma lógica de persistirEntregaPacoteAtual: marca essa parada como
+        // não entregue (devolvida) no espelho público, pra timeline do
+        // cliente final não mostrar "entregue" numa parada que na verdade
+        // voltou pro lojista.
+        if (rotaObj?.id) {
+            db.ref(`rastreioPublico/${rotaObj.id}/pacotes/${envioId}`).update({
+                status: 'DEVOLVIDO',
+                devolvidoEm: agora
+            }).catch(() => {});
+        }
 
         pac.devolucaoStatus = 'DEVOLVIDO';
         pac.status = 'PACOTE_NOVO';
@@ -5237,6 +5334,15 @@ async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) 
                 await db.ref().update(updates);
             }
         }
+
+        // Espelho público de rastreio já existe desde a criação da rota
+        // (criarLinksRastreioParaRota) — só falta preencher quem é o
+        // entregador agora que alguém aceitou.
+        db.ref(`rastreioPublico/${rotaId}`).update({
+            entregadorNome: metaEntregador.entregadorNome,
+            statusRota: 'EM_ROTA',
+            atualizadoEm: Date.now()
+        }).catch(() => {});
 
         const rotaMarketplaceAtual = rotasMarketplaceEntregadorCache.find((r) => String(r.id) === String(rotaId) && String(r.lojistaUid) === String(lojistaUid));
         const rotaNoEntregador = {
@@ -7242,10 +7348,21 @@ function renderRotaDetalhePagina() {
 
     rotaDetalhePaginaAtual = Math.max(0, Math.min(rotaDetalhePaginaAtual, rotaDetalhePacotes.length - 1));
     const p = rotaDetalhePacotes[rotaDetalhePaginaAtual];
+    const tokenRastreio = rotaDetalheAtual?.tokensRastreio?.[p.id] || '';
+    const linkRastreioHtml = tokenRastreio ? `
+        <div class="rota-detalhe-rastreio">
+            <span>Link de rastreio pro cliente</span>
+            <div class="rota-detalhe-rastreio-actions">
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
+            </div>
+        </div>
+    ` : '';
 
     wrap.innerHTML = `
         <div class="rota-detalhe-package-card">
             <h4>Pacote #${p.codigo} · ${p.destinatario}</h4>
+            ${linkRastreioHtml}
             <div class="rota-detalhe-line"><span>WhatsApp</span><strong>${p.whatsapp || '--'}</strong></div>
             <div class="rota-detalhe-line"><span>Serviço</span><strong>${p.servico || '--'}</strong></div>
             <div class="rota-detalhe-line"><span>Veículo</span><strong>${p.veiculo || '--'}</strong></div>
@@ -7265,6 +7382,29 @@ function renderRotaDetalhePagina() {
     info.innerText = `${rotaDetalhePaginaAtual + 1}/${rotaDetalhePacotes.length}`;
     btnPrev.disabled = rotaDetalhePaginaAtual <= 0;
     btnNext.disabled = rotaDetalhePaginaAtual >= rotaDetalhePacotes.length - 1;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function montarUrlRastreioPublico(token) {
+    return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
+}
+
+function copiarLinkRastreioPacote(token) {
+    const url = montarUrlRastreioPublico(token);
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(url)
+            .then(() => notificarSucesso('Link de rastreio copiado.'))
+            .catch(() => alert(`Copie o link manualmente:\n${url}`));
+    } else {
+        alert(`Copie o link manualmente:\n${url}`);
+    }
+}
+
+function compartilharLinkRastreioWhatsapp(token, whatsapp) {
+    const url = montarUrlRastreioPublico(token);
+    const numero = normalizarWhatsapp(whatsapp);
+    const texto = encodeURIComponent(`Acompanhe sua entrega em tempo real: ${url}`);
+    window.open(`https://wa.me/${numero}?text=${texto}`, '_blank');
 }
 
 function abrirModalDetalheRota(rotaId) {
@@ -8367,8 +8507,456 @@ async function salvarRotaNoBanco(rota) {
 
     try {
         await db.ref('usuarios/' + uid + '/rotas/' + rota.id).set(payload);
+        await criarLinksRastreioParaRota(rota, uid);
     } catch (err) {
         console.warn('Falha ao salvar rota no banco:', err);
+    }
+}
+
+// ===== [RASTREIO PÚBLICO DO CLIENTE FINAL] (2026-09-20) =====
+// Ver comentário em backend/database.rules.json sobre "rastreioToken" e
+// "rastreioPublico" — o motivo de existir uma cópia separada em vez de abrir
+// a rota/pacote de verdade pra leitura pública.
+function gerarTokenRastreio() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+    return 'rt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+}
+
+// Chamado assim que a rota é salva (lojista pagou/confirmou o frete) — é o
+// momento mais cedo em que dá pra gerar um link por pacote, mesmo que ainda
+// não tenha entregador. A tela pública mostra "aguardando entregador" até
+// alguém aceitar (ver atualização em aceitarRotaMarketplaceEntregador).
+async function criarLinksRastreioParaRota(rota, uidLojista) {
+    try {
+        const pacoteIds = Array.isArray(rota?.pacotes) ? rota.pacotes.map(String) : [];
+        if (!pacoteIds.length) return;
+
+        const lojaNome = (window.usuarioLogado?.loja || window.usuarioLogado?.nome || 'Loja').toString();
+        const pacotesMapa = {};
+        const updates = {};
+
+        // "ordem" é a posição do pacote dentro da rota (1ª parada, 2ª parada...) —
+        // pela ordem em que o lojista montou a rota, já que ainda não existe
+        // otimização automática de sequência de paradas. É isso que permite a
+        // tela pública mostrar "sua parada é a 3ª de 5".
+        for (let idx = 0; idx < pacoteIds.length; idx++) {
+            const pacoteId = pacoteIds[idx];
+            let destinatario = 'Cliente';
+            let destinoChave = pacoteId; // fallback: se não achar endereço, cada pacote fica no seu próprio ponto
+            try {
+                const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
+                const pac = snap.val() || {};
+                destinatario = (pac.destinatario || destinatario).toString();
+                // Pacotes pro MESMO endereço viram um só ponto na timeline
+                // (pedido do dono 2026-09-21) — normaliza pra não separar por
+                // causa de espaço/maiúscula diferente.
+                const enderecoBruto = (pac.destinoCompleto || pac.destinoEndereco || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+                if (enderecoBruto) destinoChave = enderecoBruto;
+            } catch (e) { /* pacote pode não existir no modelo novo ainda — mantém o padrão */ }
+
+            const token = gerarTokenRastreio();
+            updates[`usuarios/${uidLojista}/pacotes/${pacoteId}/tokenRastreio`] = token;
+            updates[`rastreioToken/${token}`] = { rotaId: String(rota.id), pacoteId, lojistaUid: uidLojista };
+            // Também grava na própria rota (tokensRastreio) pra tela de
+            // detalhes (renderRotaDetalhePagina) conseguir mostrar o botão
+            // "Copiar link" sem precisar de uma busca extra no banco.
+            updates[`usuarios/${uidLojista}/rotas/${rota.id}/tokensRastreio/${pacoteId}`] = token;
+            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1 };
+        }
+
+        updates[`rastreioPublico/${rota.id}`] = {
+            lojaNome,
+            statusRota: 'BUSCANDO',
+            coletaConfirmada: false,
+            entregadorNome: null,
+            entregadorGeo: null,
+            distanciaKm: Number(rota.distanciaTotal || 0) || null,
+            duracaoMin: Number(rota.duracaoTotal || 0) || null,
+            totalParadas: pacoteIds.length,
+            atualizadoEm: Date.now(),
+            pacotes: pacotesMapa
+        };
+
+        await db.ref().update(updates);
+    } catch (err) {
+        console.warn('Falha ao criar links de rastreio da rota:', err);
+    }
+}
+
+// Tela pública (sem login) que o cliente final abre pelo link enviado pela
+// loja. Usa um listener ao vivo em vez de leitura única — o objetivo é o
+// cliente ver o status/localização mudando sozinho, sem precisar recarregar.
+let rastreioPublicoListenerRef = null;
+
+async function exibirTelaRastreioPublico(token) {
+    document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+    const view = document.getElementById('view-rastreio-publico');
+    if (view) view.classList.add('active');
+    // Independe de quem chamou (onAuthStateChanged na carga inicial, ou o
+    // hashchange direto de ativarModoRastreioSeNecessario quando o app já
+    // estava aberto/logado) — essa tela nunca deve mostrar a barra de
+    // navegação do app.
+    const tabbar = document.getElementById('main-nav');
+    if (tabbar) tabbar.style.display = 'none';
+
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+
+    if (!token) {
+        conteudo.innerHTML = '<div class="rastreio-pub-erro">Link de rastreio inválido.</div>';
+        return;
+    }
+
+    carregarBannersRastreioPublico();
+
+    try {
+        const tokenSnap = await db.ref(`rastreioToken/${token}`).once('value');
+        const tokenInfo = tokenSnap.val();
+        if (!tokenInfo?.rotaId) {
+            conteudo.innerHTML = '<div class="rastreio-pub-erro">Link de rastreio inválido ou expirado.</div>';
+            return;
+        }
+
+        if (rastreioPublicoListenerRef) rastreioPublicoListenerRef.off();
+        rastreioPublicoListenerRef = db.ref(`rastreioPublico/${tokenInfo.rotaId}`);
+        rastreioPublicoListenerRef.on('value', (snap) => {
+            renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId);
+        });
+    } catch (err) {
+        console.warn('Falha ao carregar rastreio público:', err);
+        conteudo.innerHTML = '<div class="rastreio-pub-erro">Não foi possível carregar o rastreio agora. Tente novamente em instantes.</div>';
+    }
+}
+
+function renderConteudoRastreioPublico(dados, pacoteId) {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+
+    if (!dados) {
+        conteudo.innerHTML = '<div class="rastreio-pub-erro">Rastreio não encontrado.</div>';
+        return;
+    }
+
+    const pacotesMapa = dados.pacotes || {};
+    const pacoteInfo = pacotesMapa[pacoteId] || {};
+    const destinatario = pacoteInfo.destinatario || 'Cliente';
+    const statusNorm = normalizarStatusRotaFiltro(dados.statusRota || 'BUSCANDO');
+
+    // Paradas ordenadas pela sequência da rota, depois agrupadas por endereço
+    // — 2+ pacotes pro MESMO destino (ex: dois pedidos pro mesmo prédio)
+    // viram um ponto só na timeline (pedido do dono 2026-09-21), em vez de
+    // um ponto por pacote.
+    const paradasBrutas = Object.entries(pacotesMapa)
+        .map(([id, p]) => ({ pacoteId: id, ...p }))
+        .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+    const paradas = agruparParadasPorEndereco(paradasBrutas);
+
+    const totalParadas = paradas.length;
+    const minhaParadaIdx = paradas.findIndex((grupo) => grupo.pacoteIds.some((id) => String(id) === String(pacoteId)));
+    const minhaOrdem = minhaParadaIdx >= 0 ? minhaParadaIdx + 1 : 0;
+
+    const timelineHtml = montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm);
+
+    // O status da ROTA inteira (statusRota) nem sempre reflete o pedido
+    // desse cliente especificamente — numa rota com várias paradas, ela
+    // continua EM_ROTA (entregador ainda indo pras próximas) mesmo depois
+    // que a parada DESSE cliente já foi entregue.
+    const idxProximaParadaPendente = paradas.findIndex((grupo) => grupo.status !== 'ENTREGUE' && grupo.status !== 'DEVOLVIDO');
+    const souAProximaParada = idxProximaParadaPendente >= 0 && idxProximaParadaPendente === minhaParadaIdx;
+
+    let statusTexto;
+    if (pacoteInfo.status === 'ENTREGUE') {
+        statusTexto = 'Pedido entregue!';
+    } else if (pacoteInfo.status === 'DEVOLVIDO') {
+        statusTexto = 'Esse pedido foi devolvido para a loja.';
+    } else if (statusNorm === 'EM_ROTA' && paradas.length > 1) {
+        statusTexto = souAProximaParada
+            ? (dados.entregadorNome ? `${dados.entregadorNome} está a caminho com o seu pedido.` : 'Seu pedido está a caminho.')
+            : (dados.entregadorNome ? `${dados.entregadorNome} está em rota — ainda tem parada(s) antes da sua.` : 'O entregador está em rota — ainda tem parada(s) antes da sua.');
+    } else {
+        const textosPorStatus = {
+            BUSCANDO: 'Procurando um entregador para a sua entrega...',
+            EM_ROTA: dados.entregadorNome ? `${dados.entregadorNome} está a caminho com o seu pedido.` : 'Seu pedido está a caminho.',
+            CONCLUIDO: 'Pedido entregue!',
+            CANCELADO: 'Essa entrega foi cancelada.'
+        };
+        statusTexto = textosPorStatus[statusNorm] || '';
+    }
+
+    const paradaInfoHtml = (totalParadas > 1 && minhaOrdem > 0)
+        ? `<p class="rastreio-pub-parada-info">Sua parada é a <strong>${minhaOrdem}ª de ${totalParadas}</strong></p>`
+        : '';
+
+    const geo = dados.entregadorGeo;
+    const mapaHtml = (geo && geo.lat && geo.lng)
+        ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
+        : '';
+
+    const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : '';
+    const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : '';
+
+    conteudo.innerHTML = `
+        <div class="rastreio-pub-card">
+            <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || 'Loja')}</span>
+            <h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace(destinatario)}!</h2>
+            <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
+            ${timelineHtml}
+            ${paradaInfoHtml}
+            ${(distTxt || durTxt) ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(' • '))}</div>` : ''}
+        </div>
+        ${mapaHtml}
+    `;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Agrupa pacotes com o mesmo destinoChave (mesmo endereço) num único "ponto
+// de parada" — pedido do dono 2026-09-21: 2 pacotes pro mesmo endereço não
+// são 2 bolinhas, são 1. Mantém a ordem da primeira ocorrência de cada grupo.
+function agruparParadasPorEndereco(paradasBrutas) {
+    const grupos = [];
+    const porChave = new Map();
+
+    paradasBrutas.forEach((p) => {
+        const chave = p.destinoChave || p.pacoteId;
+        if (!porChave.has(chave)) {
+            const grupo = { destinoChave: chave, pacoteIds: [], destinatario: p.destinatario, statusPorPacote: [] };
+            porChave.set(chave, grupo);
+            grupos.push(grupo);
+        }
+        const grupo = porChave.get(chave);
+        grupo.pacoteIds.push(p.pacoteId);
+        grupo.statusPorPacote.push(p.status || 'BUSCANDO');
+    });
+
+    return grupos.map((g) => {
+        const todosEntregues = g.statusPorPacote.every((s) => s === 'ENTREGUE');
+        const todosDevolvidos = g.statusPorPacote.every((s) => s === 'DEVOLVIDO');
+        return {
+            ...g,
+            status: todosEntregues ? 'ENTREGUE' : (todosDevolvidos ? 'DEVOLVIDO' : 'BUSCANDO')
+        };
+    });
+}
+
+// Timeline vertical "por parada de verdade" (2026-09-20/21, substituiu a
+// versão horizontal de 4 bolinhas genéricas BUSCANDO/EM_ROTA/CONCLUIDO): a
+// quantidade de pontos agora é a rota real — ponto A (retirada na loja) + um
+// ponto por PARADA (pacotes pro mesmo endereço agrupados — ver
+// agruparParadasPorEndereco), na ordem de entrega. Rola verticalmente feito
+// timeline de rede social, então funciona igual com 1 parada ou 100.
+//
+// Privacidade (pedido do dono 2026-09-21): o nome e a numeração da parada só
+// aparecem no ponto da PRÓPRIA pessoa vendo a tela — as demais mostram só a
+// bolinha, sem identificar quem são os outros clientes da rota.
+function montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm) {
+    const idxAtual = paradas.findIndex((grupo) => grupo.status !== 'ENTREGUE' && grupo.status !== 'DEVOLVIDO');
+    // BUG CORRIGIDO 2026-09-21: o ponto de retirada acendia assim que um
+    // entregador aceitava a rota — agora só acende quando ele confirma que
+    // passou na loja e pegou os pacotes de verdade (coletaConfirmada, ver
+    // confirmarColetaPacotes).
+    const origemConcluida = dados.coletaConfirmada === true;
+
+    const pontos = [
+        {
+            origem: true,
+            label: dados.lojaNome || 'Loja',
+            sub: 'Retirada do pedido',
+            done: origemConcluida,
+            atual: !origemConcluida,
+            voce: false,
+            devolvido: false
+        },
+        ...paradas.map((grupo, idx) => {
+            const ehMinha = grupo.pacoteIds.some((id) => String(id) === String(pacoteId));
+            return {
+                origem: false,
+                // Só mostra nome/posição da parada de quem está vendo a
+                // tela — as outras ficam só com a bolinha, sem identificar
+                // o cliente.
+                label: ehMinha ? (grupo.destinatario || 'Cliente') : '',
+                sub: ehMinha ? `${idx + 1}ª parada` : '',
+                done: grupo.status === 'ENTREGUE',
+                devolvido: grupo.status === 'DEVOLVIDO',
+                atual: origemConcluida && statusNorm === 'EM_ROTA' && idx === idxAtual,
+                voce: ehMinha
+            };
+        })
+    ];
+
+    const itensHtml = pontos.map((pt, idx) => {
+        const classes = ['parada-v-item'];
+        if (pt.done) classes.push('done');
+        if (pt.devolvido) classes.push('devolvido');
+        if (pt.atual) classes.push('atual');
+        if (pt.voce) classes.push('voce');
+        if (!pt.label) classes.push('anonima');
+        if (idx === pontos.length - 1) classes.push('ultimo');
+
+        let marca = '';
+        if (pt.done) marca = '✓';
+        else if (pt.devolvido) marca = '–';
+        else if (pt.origem) marca = '<i data-lucide="store" size="12"></i>';
+
+        const conteudoHtml = pt.label
+            ? `<div class="parada-v-content">
+                    <span class="parada-v-label">${escaparHtmlMarketplace(pt.label)}${pt.voce ? ' <span class="parada-v-you">(Você)</span>' : ''}</span>
+                    <span class="parada-v-sub">${escaparHtmlMarketplace(pt.sub)}</span>
+                </div>`
+            : '';
+
+        return `
+            <div class="${classes.join(' ')}">
+                <div class="parada-v-marker"><span class="parada-v-dot">${marca}</span></div>
+                ${conteudoHtml}
+            </div>
+        `;
+    }).join('');
+
+    return `<div class="paradas-v-timeline">${itensHtml}</div>`;
+}
+
+// ===== [BANNERS] =====
+// Lidos aqui sem login (mesma tela pública). Gerenciados pelo master em
+// Admin > Banners (ver renderBannersAdmin / salvarBannerAdmin).
+function carregarBannersRastreioPublico() {
+    const wrap = document.getElementById('rastreio-pub-banners');
+    if (!wrap) return;
+    db.ref('banners').once('value').then((snap) => {
+        const dados = snap.val() || {};
+        const ativos = Object.values(dados)
+            .filter((b) => b?.ativo && b?.imagemUrl)
+            .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+
+        if (!ativos.length) {
+            wrap.classList.add('hidden');
+            return;
+        }
+
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = ativos.map((b) => `
+            <a href="${escaparHtmlMarketplace(b.linkUrl || '#')}" target="_blank" rel="noopener" class="rastreio-pub-banner-item">
+                <img src="${escaparHtmlMarketplace(b.imagemUrl)}" alt="Publicidade">
+            </a>
+        `).join('');
+        iniciarRotacaoBannersRastreioPublico(wrap);
+    }).catch(() => wrap.classList.add('hidden'));
+}
+
+let bannerRotacaoTimer = null;
+function iniciarRotacaoBannersRastreioPublico(wrap) {
+    const itens = wrap.querySelectorAll('.rastreio-pub-banner-item');
+    if (bannerRotacaoTimer) clearInterval(bannerRotacaoTimer);
+    itens.forEach((el, i) => el.classList.toggle('is-active', i === 0));
+    if (itens.length <= 1) return;
+    let idx = 0;
+    bannerRotacaoTimer = setInterval(() => {
+        itens[idx].classList.remove('is-active');
+        idx = (idx + 1) % itens.length;
+        itens[idx].classList.add('is-active');
+    }, 5000);
+}
+
+// ===== [BANNERS - PAINEL ADMIN] =====
+// CRUD simples pro master trocar os banners da tela de rastreio público sem
+// precisar mexer em código. Imagem vai pro Firebase Storage; só o link fica
+// no Realtime Database.
+async function renderBannersAdmin() {
+    const wrap = document.getElementById('admin-banners-lista');
+    if (!wrap) return;
+    wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
+
+    try {
+        const snap = await db.ref('banners').once('value');
+        const dados = snap.val() || {};
+        const lista = Object.entries(dados)
+            .map(([id, b]) => ({ id, ...b }))
+            .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+
+        if (!lista.length) {
+            wrap.innerHTML = '<p class="admin-subtle">Nenhum banner cadastrado ainda.</p>';
+            return;
+        }
+
+        wrap.innerHTML = lista.map((b) => `
+            <div class="admin-banner-item">
+                <img src="${escaparHtmlMarketplace(b.imagemUrl || '')}" alt="Banner">
+                <div class="admin-banner-info">
+                    <span class="admin-banner-link">${escaparHtmlMarketplace(b.linkUrl || 'Sem link')}</span>
+                    <label class="admin-banner-toggle">
+                        <input type="checkbox" ${b.ativo ? 'checked' : ''} onchange="alternarAtivoBannerAdmin('${b.id}', this.checked)">
+                        Ativo
+                    </label>
+                </div>
+                <button type="button" class="admin-banner-excluir" onclick="excluirBannerAdmin('${b.id}')" title="Excluir"><i data-lucide="trash-2" size="16"></i></button>
+            </div>
+        `).join('');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (err) {
+        console.warn('Falha ao carregar banners:', err);
+        wrap.innerHTML = '<p class="admin-subtle">Não foi possível carregar os banners agora.</p>';
+    }
+}
+
+async function salvarBannerAdmin() {
+    const fileInput = document.getElementById('banner-novo-arquivo');
+    const linkInput = document.getElementById('banner-novo-link');
+    const statusEl = document.getElementById('banner-upload-status');
+    const arquivo = fileInput?.files?.[0];
+
+    if (!arquivo) {
+        alert('Escolha uma imagem para o banner.');
+        return;
+    }
+
+    if (statusEl) statusEl.innerText = 'Enviando imagem...';
+
+    try {
+        const id = db.ref('banners').push().key;
+        const ref = firebase.storage().ref(`banners/${id}-${arquivo.name}`);
+        await ref.put(arquivo);
+        const imagemUrl = await ref.getDownloadURL();
+
+        const snapTodos = await db.ref('banners').once('value');
+        const totalAtual = Object.keys(snapTodos.val() || {}).length;
+
+        await db.ref('banners/' + id).set({
+            imagemUrl,
+            linkUrl: (linkInput?.value || '').trim(),
+            ativo: true,
+            ordem: totalAtual,
+            criadoEm: Date.now()
+        });
+
+        if (fileInput) fileInput.value = '';
+        if (linkInput) linkInput.value = '';
+        if (statusEl) statusEl.innerText = 'Banner adicionado.';
+        renderBannersAdmin();
+    } catch (err) {
+        console.warn('Falha ao salvar banner:', err);
+        if (statusEl) statusEl.innerText = 'Falha ao enviar o banner: ' + (err?.message || err);
+    }
+}
+
+async function alternarAtivoBannerAdmin(id, ativo) {
+    try {
+        await db.ref('banners/' + id + '/ativo').set(Boolean(ativo));
+    } catch (err) {
+        alert('Não foi possível atualizar o banner.');
+    }
+}
+
+async function excluirBannerAdmin(id) {
+    if (!confirm('Excluir esse banner?')) return;
+    try {
+        const snap = await db.ref('banners/' + id).once('value');
+        const imagemUrl = snap.val()?.imagemUrl;
+        await db.ref('banners/' + id).remove();
+        if (imagemUrl) {
+            firebase.storage().refFromURL(imagemUrl).delete().catch(() => {});
+        }
+        renderBannersAdmin();
+    } catch (err) {
+        alert('Não foi possível excluir o banner.');
     }
 }
 
@@ -8996,6 +9584,56 @@ function desfazerExclusaoCliente() {
     clientePendenteExclusao = null;
 }
 
+// Busca clientesGlobais (índice compartilhado entre lojas, ver
+// database.rules.json) quando essa loja não tem esse WhatsApp cadastrado
+// ainda. Se achar, mostra um card "encontramos esse contato" em vez de
+// obrigar o lojista a digitar o nome de novo do zero.
+async function buscarClienteGlobalEExibir(whatsapp, container) {
+    try {
+        const snap = await db.ref('clientesGlobais/' + whatsapp).once('value');
+        const dados = snap.val();
+        // Evita sobrescrever um resultado mais novo se a pessoa já digitou
+        // outra coisa enquanto a busca estava no ar.
+        const filtroAtual = (document.getElementById('buscar-cliente')?.value || '').replace(/\D/g, '');
+        if (filtroAtual !== whatsapp) return;
+
+        if (!dados?.nome) {
+            container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+            return;
+        }
+
+        const nomeEsc = escaparHtmlMarketplace(dados.nome);
+        const iniciais = (dados.nome || 'C').split(' ').filter(Boolean).map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+        container.innerHTML = `
+            <p class="selector-global-hint">Não é cliente dessa loja ainda, mas encontramos esse contato:</p>
+            <div class="selector-global-card" onclick="preencherClienteEncontradoGlobal('${dados.nome.replace(/'/g, "\\'")}', '${whatsapp}')">
+                <span class="selector-avatar-iniciais">${iniciais}</span>
+                <div class="selector-global-card-info">
+                    <strong>${nomeEsc}</strong>
+                    <span>${escaparHtmlMarketplace(whatsapp)}</span>
+                </div>
+                <span class="selector-global-card-cta">Usar</span>
+            </div>
+            <p class="selector-global-note">Confirme o endereço de entrega com o cliente ao continuar.</p>
+        `;
+    } catch (err) {
+        container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+    }
+}
+
+// Leva pro formulário de Novo Cliente já com nome/whatsapp preenchidos, pra
+// só faltar o endereço (que é por loja, então nunca vem do índice global).
+function preencherClienteEncontradoGlobal(nome, whatsapp) {
+    fecharSeletorCliente();
+    setTimeout(() => {
+        abrirNovoCliente();
+        const nomeInput = document.getElementById('new-cli-nome');
+        const telInput = document.getElementById('new-cli-tel');
+        if (nomeInput) nomeInput.value = nome;
+        if (telInput) telInput.value = whatsapp;
+    }, 180);
+}
+
 function renderClientesSelector(filtro = '') {
     const container = document.getElementById('clientes-sheet-list');
     if (!container) return;
@@ -9018,7 +9656,16 @@ function renderClientesSelector(filtro = '') {
     });
 
     if (!lista.length) {
-        container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+        // Não achou nessa loja — antes de desistir, checa se esse WhatsApp já
+        // é cliente de OUTRA loja (clientesGlobais). Só tenta se parece
+        // mesmo um número (8+ dígitos), pra não gerar leitura no banco a
+        // cada letra digitada numa busca por nome.
+        if (filtroNumero.length >= 8) {
+            container.innerHTML = '<div class="selector-empty">Buscando...</div>';
+            buscarClienteGlobalEExibir(filtroNumero, container);
+        } else {
+            container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+        }
         return;
     }
 
@@ -10949,11 +11596,20 @@ function normalizarTipoCadastro(valor) {
     return String(valor || '').toLowerCase() === 'entrega' ? 'entrega' : 'loja';
 }
 
+// Chave usada em usuarios/{uid}.whatsapp e no indice telefoneParaEmail — só
+// dígitos, pra bater sempre com o mesmo formato independente de como a
+// pessoa digitou (com parenteses, espaço, traço etc).
+function normalizarWhatsapp(valor) {
+    return String(valor || '').replace(/\D/g, '');
+}
+
 function aplicarTipoCadastroNaTela() {
     const labelNome = document.getElementById('label-nome');
     const inputNome = document.getElementById('input-nome');
     const groupCnh = document.getElementById('group-cnh');
     const cnhInput = groupCnh ? groupCnh.querySelector('input') : null;
+    const cardLoja = document.getElementById('tipo-cad-loja');
+    const cardEntrega = document.getElementById('tipo-cad-entrega');
 
     const ehEntregador = tipoCadastroSelecionado === 'entrega';
 
@@ -10970,12 +11626,17 @@ function aplicarTipoCadastroNaTela() {
         cnhInput.required = ehEntregador;
         if (!ehEntregador) cnhInput.value = '';
     }
+
+    if (cardLoja) cardLoja.classList.toggle('active', !ehEntregador);
+    if (cardEntrega) cardEntrega.classList.toggle('active', ehEntregador);
 }
 
-function irParaCadastro(tipo) {
+// Substituiu irParaCadastro: antes o tipo (lojista/entregador) era escolhido
+// numa tela à parte (view-inicio) antes de chegar no login/cadastro; agora
+// os dois cartões ficam dentro da própria aba "Cadastre-se", então só
+// precisa marcar a seleção — não navegar pra lugar nenhum.
+function selecionarTipoCadastro(tipo) {
     tipoCadastroSelecionado = normalizarTipoCadastro(tipo);
-    navegar('view-auth');
-    alternarAuth('entrar');
     aplicarTipoCadastroNaTela();
 }
 
@@ -10988,10 +11649,11 @@ alternarAuth = function alternarAuthComTipo(modo) {
 cadastrarReal = async function cadastrarRealComTipo() {
     const nome = (document.getElementById('input-nome')?.value || '').trim();
     const email = (document.querySelector('#form-cadastrar input[type="email"]')?.value || '').trim();
+    const whatsapp = normalizarWhatsapp(document.getElementById('input-whatsapp-cad')?.value || '');
     const senha = (document.getElementById('pass-cad')?.value || '').trim();
     const cnh = (document.getElementById('input-cnh')?.value || '').trim();
 
-    if (!nome || !email || !senha) return alert('Preencha todos os campos.');
+    if (!nome || !email || !senha || !whatsapp) return alert('Preencha todos os campos, incluindo o WhatsApp — ele é usado pra entrar no app.');
 
     const ehEntregador = tipoCadastroSelecionado === 'entrega';
     if (ehEntregador && !cnh) {
@@ -11000,16 +11662,32 @@ cadastrarReal = async function cadastrarRealComTipo() {
     }
 
     try {
+        // Login agora é por WhatsApp — esse número precisa ser único, senão o
+        // login de uma conta passaria a resolver pra outro e-mail. Checa
+        // ANTES de criar a conta no Firebase Auth pra não deixar uma conta
+        // órfã (criada mas sem conseguir logar) se o número já existir.
+        const telefoneJaUsado = (await db.ref('telefoneParaEmail/' + whatsapp).once('value')).val();
+        if (telefoneJaUsado) {
+            alert('Esse número de WhatsApp já está cadastrado. Tente entrar em vez de criar uma conta nova.');
+            return;
+        }
+
         const cred = await auth.createUserWithEmailAndPassword(email, senha);
         const payload = {
             nome,
             email,
+            whatsapp,
             tipo: ehEntregador ? 'entregador' : 'loja',
-            criadoEm: Date.now()
+            criadoEm: Date.now(),
+            // Antes esse campo só existia se alguém mexesse nele manualmente
+            // no console, ou na primeira transação real (ver ajustarSaldoUsuario)
+            // — deixa toda conta nova já com o mesmo formato, saldo: 0.
+            financeiro: { saldo: 0 }
         };
         if (ehEntregador) payload.cnh = cnh;
 
         await db.ref('usuarios/' + cred.user.uid).set(payload);
+        await db.ref('telefoneParaEmail/' + whatsapp).set(email);
 
         alert('Conta criada com sucesso.');
         alternarAuth('entrar');
@@ -12079,6 +12757,7 @@ export {
   agendarBuscaCepCliente,
   agendarBuscaCepLoja,
   ajustarSaldoUsuario,
+  alternarAtivoBannerAdmin,
   alternarAuth,
   alternarFormaCobrancaEntrega,
   alternarStatusUsuarioMaster,
@@ -12138,6 +12817,7 @@ export {
   cobrarTaxaCancelamentoEnvio,
   coletarEnviosDaBase,
   coletarEnviosPendentesParaRota,
+  compartilharLinkRastreioWhatsapp,
   confirmarCodigoDevolucaoPacoteAtual,
   confirmarColetaPacotes,
   confirmarDevolucaoComoLojista,
@@ -12154,6 +12834,7 @@ export {
   copiarCodigoPixDevolucaoLojista,
   copiarCodigoPixQuitacaoDivida,
   copiarCodigoPixRota,
+  copiarLinkRastreioPacote,
   creditarCarteiraEntregadorRotaFinalizada,
   creditarSaldoUsuarioAtual,
   criarContaMaster,
@@ -12175,6 +12856,7 @@ export {
   estimarRotaGoogle,
   estimarRotaRoutesApi,
   estimativaPlausivel,
+  excluirBannerAdmin,
   excluirClienteAtualComConfirmacao,
   excluirClienteComDesfazer,
   excluirEnvioAtualNoModal,
@@ -12266,7 +12948,6 @@ export {
   initClientes,
   initDropdownBuscaEntregador,
   irParaBuscarEntregador,
-  irParaCadastro,
   irParaHistoricoRotasEntregador,
   irParaPagamentoRota,
   irParaPasso2,
@@ -12362,12 +13043,14 @@ export {
   persistirEntregaPacoteAtual,
   persistirFinanceiroUsuario,
   podeSelecionarPacoteRota,
+  preencherClienteEncontradoGlobal,
   preencherPerfilEntregador,
   preencherPerfilLojista,
   preencherTextoDetalheEnvio,
   prepararPacotesRotaEntregador,
   previewImagem,
   proximaPaginaDetalheRota,
+  recuperarSenhaReal,
   registrarEstadosPacotesRota,
   registrarPresencaUsuario,
   registrarTransacaoFinanceira,
@@ -12401,6 +13084,7 @@ export {
   rotaSheetBloqueada,
   rotaTemEntregadorAtivoParaChat,
   rotuloStatusEnvio,
+  salvarBannerAdmin,
   salvarDadosPagamento,
   salvarEndereco,
   salvarMetaDiaEntregador,
@@ -12415,6 +13099,7 @@ export {
   selecionarImagemChat,
   selecionarServico,
   selecionarTamanho,
+  selecionarTipoCadastro,
   selecionarVeiculo,
   setEstadoPacoteRota,
   setModalEnvioStep,

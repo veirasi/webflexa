@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Imagens dos banners da tela de rastreio público — precisam ser lidas
+    // sem login (mesma tela pública) e só devem ser escritas pelo painel
+    // admin. Regras de Storage não conseguem consultar o Realtime Database
+    // pra checar "tipo === master" (isso é feito no client-side, igual o
+    // resto do painel admin já faz hoje) — aqui só garantimos que é alguém
+    // autenticado, e limitamos a imagens de até 5MB.
+    match /banners/{arquivo} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Tudo o mais fica bloqueado por padrão.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

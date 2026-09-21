@@ -135,6 +135,69 @@
     "presence": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+
+    // Login passou a ser por WhatsApp (2026-09-20): o Firebase Auth só sabe
+    // logar por e-mail, então esse índice resolve numero -> e-mail ANTES do
+    // login acontecer — por isso ".read" tem que ser público (nesse momento
+    // ainda não existe auth.uid pra checar nada). O e-mail sozinho não deixa
+    // ninguém entrar sem saber a senha também, então o risco real aqui é só
+    // alguém confirmar "esse número tem conta" testando números ao acaso —
+    // aceitável, não é dado sensível igual senha/saldo. A escrita exige que a
+    // pessoa esteja logada E que o valor gravado seja o e-mail da PRÓPRIA
+    // conta dela (impede logado sequestrar o número de outra conta).
+    "telefoneParaEmail": {
+      "$telefone": {
+        ".read": true,
+        ".write": "auth != null && newData.val() === root.child('usuarios').child(auth.uid).child('email').val()"
+      }
+    },
+
+    // ===== [RASTREIO PÚBLICO DO CLIENTE FINAL] (2026-09-20) =====
+    // Link de rastreio (ex: #/rastreio/<token>) acessado SEM LOGIN pelo
+    // cliente final. Mesma lógica do telefoneParaEmail: em vez de abrir a
+    // rota/pacote de verdade pra leitura pública (o que vazaria endereço e
+    // dados de OUTROS clientes da mesma rota), a gente mantém uma cópia à
+    // parte só com o mínimo necessário pro cliente ver o progresso do PRÓPRIO
+    // envio (status, localização do entregador, ETA). token é aleatório
+    // (crypto.randomUUID), então só quem tem o link específico acha o
+    // rotaId/pacoteId por trás dele.
+    "rastreioToken": {
+      "$token": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    // Um nó por rota (não por pacote) pra não multiplicar as escritas de GPS
+    // a cada 15s por N pacotes da mesma rota — todo pacote daquela rota lê o
+    // mesmo nó e pega só a própria linha dentro de "pacotes".
+    "rastreioPublico": {
+      "$rotaId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+
+    // Banners de publicidade da tela de rastreio público — gerenciados pelo
+    // master no painel admin, lidos sem login (mesma tela pública acima).
+    "banners": {
+      ".read": true,
+      ".write": "auth != null && root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'"
+    },
+
+    // ===== [IDENTIDADE GLOBAL DO CLIENTE FINAL] (2026-09-21) =====
+    // Índice compartilhado nome+whatsapp -> qualquer lojista logado consegue
+    // achar um cliente que já foi cadastrado por OUTRA loja (em vez de cada
+    // loja ter sua própria lista isolada e nunca se encontrarem). Só guarda
+    // o mínimo (nome, whatsapp) — nunca endereço, e-mail ou histórico de
+    // pedidos, que continuam isolados em usuarios/{lojistaUid}/clientes. É a
+    // base pra, no futuro, virar login de cliente único multi-loja sem
+    // precisar remodelar tudo de novo.
+    "clientesGlobais": {
+      "$telefone": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
     }
   }
 }

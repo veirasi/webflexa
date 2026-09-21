@@ -180,11 +180,20 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
             transition: var(--transition); min-height: 140px;
         }
         .option-card:hover { transform: translateY(-5px) scale(1.02); border-color: var(--brand-orange); }
-        
+        .option-card.active { border-color: var(--brand-orange); box-shadow: 0 10px 25px rgba(245, 130, 32, 0.15); }
+
+        /* Versão compacta usada dentro do formulário de cadastro (a versão
+           cheia era pensada pra ocupar a tela inteira sozinha). */
+        .option-card-compact { padding: 14px 16px; border-radius: 18px; margin-bottom: 12px; min-height: auto; }
+        .option-card-compact .icon-box { width: 44px; height: 44px; border-radius: 14px; margin-right: 14px; }
+
         .icon-box { width: 64px; height: 64px; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-right: 20px; flex-shrink: 0; }
         .card-loja .icon-box { background: #fff7ed; color: var(--brand-orange); }
         .card-entrega .icon-box { background: #eff6ff; color: #3b82f6; }
         .badge-card { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; background: #f1f5f9; color: var(--text-sub); }
+
+        .auth-tagline { text-align: center; color: var(--text-sub); font-weight: 600; font-size: 14px; margin-bottom: 25px; }
+        .auth-form-lead { font-size: 14px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
 
         .auth-card { background: var(--card-white); padding: 35px 25px; border-radius: 32px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); }
         .form-group { margin-bottom: 20px; }
@@ -1764,6 +1773,23 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     padding: 18px 0;
 }
 
+/* Cliente encontrado no índice global (clientesGlobais) — já é cliente de
+   OUTRA loja, mas não dessa ainda. */
+.selector-global-hint { font-size: 12px; color: var(--text-sub); font-weight: 600; margin: 4px 0 10px; text-align: center; }
+.selector-global-card {
+    display: flex; align-items: center; gap: 10px; border: 1.5px dashed var(--brand-orange);
+    background: #fff8f2; border-radius: 16px; padding: 10px 12px; cursor: pointer;
+}
+.selector-global-card .selector-avatar-iniciais {
+    width: 36px; height: 36px; border-radius: 50%; background: #ffe8d1; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+}
+.selector-global-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.selector-global-card-info strong { font-size: 14px; color: #0f172a; }
+.selector-global-card-info span { font-size: 12px; color: var(--text-sub); font-weight: 600; }
+.selector-global-card-cta { font-size: 12px; font-weight: 800; color: var(--brand-orange); flex-shrink: 0; }
+.selector-global-note { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px; }
+
 .selector-cliente-card {
     width: 100%;
     border: 1px solid #edf2f7;
@@ -2924,6 +2950,11 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     line-height: 1.35;
 }
 
+.rota-detalhe-rastreio { background: #fff8f2; border: 1px solid #fde2c8; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.rota-detalhe-rastreio > span { display: block; font-size: 11px; font-weight: 800; color: var(--brand-orange); margin-bottom: 8px; }
+.rota-detalhe-rastreio-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rota-detalhe-rastreio-actions .btn-chip { font-size: 12px; }
+
 .rota-detalhe-footer {
     position: sticky;
     bottom: 0;
@@ -3185,6 +3216,84 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     transform: scale(1.2);
     box-shadow: 0 0 0 4px rgba(218, 111, 24, 0.16);
 }
+
+/* ===== Rastreio público (cliente final, sem login) ===== */
+.rastreio-pub-shell { display: flex; flex-direction: column; gap: 16px; }
+.rastreio-pub-loading, .rastreio-pub-erro {
+    text-align: center; color: var(--text-sub); font-weight: 700; font-size: 14px;
+    background: white; border-radius: 20px; padding: 30px 20px; box-shadow: 0 10px 25px rgba(15,23,42,0.04);
+}
+.rastreio-pub-erro { color: #b91c1c; }
+.rastreio-pub-card { background: white; border-radius: 24px; padding: 24px 20px; box-shadow: 0 10px 25px rgba(15,23,42,0.04); }
+.rastreio-pub-loja { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--brand-orange); }
+.rastreio-pub-titulo { font-size: 20px; font-weight: 900; color: var(--text-main); margin: 4px 0 6px; }
+.rastreio-pub-status { font-size: 14px; color: var(--text-sub); font-weight: 600; margin-bottom: 6px; }
+.rastreio-pub-meta { margin-top: 14px; font-size: 13px; font-weight: 700; color: var(--text-main); }
+.rastreio-pub-mapa { border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(15,23,42,0.04); }
+.rastreio-pub-mapa iframe { width: 100%; height: 260px; border: 0; display: block; }
+
+.rastreio-pub-banners { border-radius: 18px; overflow: hidden; position: relative; aspect-ratio: 16/6; background: #f1f5f9; }
+.rastreio-pub-banners.hidden { display: none; }
+.rastreio-pub-banner-item { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease; }
+.rastreio-pub-banner-item.is-active { opacity: 1; }
+.rastreio-pub-banner-item img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Timeline vertical "por parada de verdade" — ponto A (retirada na loja) +
+   um ponto por pacote, na ordem de entrega. Rola verticalmente feito feed de
+   rede social, então funciona com 1 parada ou 100 sem quebrar layout (a
+   versão horizontal antiga tinha um número fixo de bolinhas — substituída).
+   O fundo com grade fina imita um mapa genérico; a linha entre os pontos é
+   tracejada feito o eixo de uma pista/estrada. */
+.paradas-v-timeline {
+    position: relative;
+    margin: 16px 0 6px;
+    padding: 14px 14px 4px;
+    border-radius: 16px;
+    background-color: #f8fafc;
+    background-image:
+        repeating-linear-gradient(0deg, rgba(100,116,139,0.09) 0px, rgba(100,116,139,0.09) 1px, transparent 1px, transparent 32px),
+        repeating-linear-gradient(90deg, rgba(100,116,139,0.09) 0px, rgba(100,116,139,0.09) 1px, transparent 1px, transparent 32px);
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.parada-v-item { position: relative; display: flex; gap: 12px; padding: 0 2px 22px; }
+.parada-v-item.ultimo { padding-bottom: 2px; }
+
+.parada-v-marker { position: relative; display: flex; flex-shrink: 0; width: 24px; justify-content: center; }
+.parada-v-marker::after {
+    content: '';
+    position: absolute;
+    top: 25px;
+    bottom: -22px;
+    left: 50%;
+    width: 3px;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    background-image: repeating-linear-gradient(to bottom, #cbd5e1 0px, #cbd5e1 6px, transparent 6px, transparent 12px);
+}
+.parada-v-item.ultimo .parada-v-marker::after { display: none; }
+.parada-v-item.done .parada-v-marker::after { background-image: repeating-linear-gradient(to bottom, #16a34a 0px, #16a34a 6px, transparent 6px, transparent 12px); }
+
+.parada-v-dot {
+    width: 24px; height: 24px; border-radius: 50%; background: white; border: 3px solid #cbd5e1;
+    display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 11px; font-weight: 900;
+    position: relative; z-index: 2; transition: var(--transition); flex-shrink: 0;
+}
+.parada-v-item.done .parada-v-dot { background: #16a34a; border-color: #16a34a; color: #fff; }
+.parada-v-item.devolvido .parada-v-dot { background: #94a3b8; border-color: #94a3b8; color: #fff; }
+.parada-v-item.atual .parada-v-dot { border-color: var(--brand-orange); color: var(--brand-orange); box-shadow: 0 0 0 4px rgba(245, 130, 32, 0.18); }
+.parada-v-item.voce .parada-v-dot { box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.16); }
+.parada-v-item.voce.atual .parada-v-dot { box-shadow: 0 0 0 4px rgba(245, 130, 32, 0.18), 0 0 0 7px rgba(15, 23, 42, 0.12); }
+
+.parada-v-content { padding-top: 2px; min-width: 0; }
+.parada-v-label { display: block; font-size: 13px; font-weight: 800; color: #0f172a; }
+.parada-v-item.voce .parada-v-label { color: var(--brand-orange); }
+.parada-v-you { font-weight: 800; color: var(--brand-orange); }
+.parada-v-sub { display: block; font-size: 11px; color: var(--text-sub); font-weight: 600; margin-top: 1px; }
+
+.rastreio-pub-parada-info { text-align: center; font-size: 13px; font-weight: 700; color: var(--text-main); margin: -4px 0 4px; }
+.rastreio-pub-parada-info strong { color: var(--brand-orange); }
 
 .rastrear-track-bike {
     position: absolute;
@@ -5777,6 +5886,20 @@ body.admin-mode { overflow: auto; }
 .admin-report-panel { padding: 22px; }
 .admin-report-panel h3 { margin: 0 0 6px; font-size: 16px; }
 .admin-report-panel .btn-main { margin-top: 14px; display: inline-flex; align-items: center; gap: 8px; }
+
+.admin-report-panel + .admin-report-panel { margin-top: 16px; }
+.banner-form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+.banner-form-row input[type="text"] { flex: 1; min-width: 220px; border: 1px solid #e5e7eb; border-radius: 9px; padding: 9px 12px; font-size: 13px; background: #f8fafc; color: #0f172a; }
+.banner-form-row input[type="file"] { font-size: 13px; }
+#banner-upload-status { margin-top: 10px; }
+
+.admin-banners-lista { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.admin-banner-item { display: flex; align-items: center; gap: 14px; border: 1px solid #eef2f6; border-radius: 12px; padding: 10px; }
+.admin-banner-item img { width: 90px; height: 50px; object-fit: cover; border-radius: 8px; background: #f1f5f9; flex-shrink: 0; }
+.admin-banner-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.admin-banner-link { font-size: 13px; color: #0f172a; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-banner-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--admin-sub, #64748b); cursor: pointer; }
+.admin-banner-excluir { border: none; background: #fef2f2; color: #dc2626; width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
 
 /* Tema escuro — escopado só dentro de #view-admin-dashboard, nunca toca o resto do app */
 #view-admin-dashboard.admin-dark { --admin-bg:#0b1526; --admin-panel:#131f36; --admin-line:#243250; --admin-ink:#e7edf7; --admin-sub:#93a3bd; }

@@ -57,6 +57,7 @@
     agendarBuscaCepCliente: () => agendarBuscaCepCliente,
     agendarBuscaCepLoja: () => agendarBuscaCepLoja,
     ajustarSaldoUsuario: () => ajustarSaldoUsuario,
+    alternarAtivoBannerAdmin: () => alternarAtivoBannerAdmin,
     alternarAuth: () => alternarAuth,
     alternarFormaCobrancaEntrega: () => alternarFormaCobrancaEntrega,
     alternarStatusUsuarioMaster: () => alternarStatusUsuarioMaster,
@@ -116,6 +117,7 @@
     cobrarTaxaCancelamentoEnvio: () => cobrarTaxaCancelamentoEnvio,
     coletarEnviosDaBase: () => coletarEnviosDaBase,
     coletarEnviosPendentesParaRota: () => coletarEnviosPendentesParaRota,
+    compartilharLinkRastreioWhatsapp: () => compartilharLinkRastreioWhatsapp,
     confirmarCodigoDevolucaoPacoteAtual: () => confirmarCodigoDevolucaoPacoteAtual,
     confirmarColetaPacotes: () => confirmarColetaPacotes,
     confirmarDevolucaoComoLojista: () => confirmarDevolucaoComoLojista,
@@ -132,6 +134,7 @@
     copiarCodigoPixDevolucaoLojista: () => copiarCodigoPixDevolucaoLojista,
     copiarCodigoPixQuitacaoDivida: () => copiarCodigoPixQuitacaoDivida,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
+    copiarLinkRastreioPacote: () => copiarLinkRastreioPacote,
     creditarCarteiraEntregadorRotaFinalizada: () => creditarCarteiraEntregadorRotaFinalizada,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
     criarContaMaster: () => criarContaMaster,
@@ -153,6 +156,7 @@
     estimarRotaGoogle: () => estimarRotaGoogle,
     estimarRotaRoutesApi: () => estimarRotaRoutesApi,
     estimativaPlausivel: () => estimativaPlausivel,
+    excluirBannerAdmin: () => excluirBannerAdmin,
     excluirClienteAtualComConfirmacao: () => excluirClienteAtualComConfirmacao,
     excluirClienteComDesfazer: () => excluirClienteComDesfazer,
     excluirEnvioAtualNoModal: () => excluirEnvioAtualNoModal,
@@ -244,7 +248,6 @@
     initClientes: () => initClientes,
     initDropdownBuscaEntregador: () => initDropdownBuscaEntregador,
     irParaBuscarEntregador: () => irParaBuscarEntregador,
-    irParaCadastro: () => irParaCadastro,
     irParaHistoricoRotasEntregador: () => irParaHistoricoRotasEntregador,
     irParaPagamentoRota: () => irParaPagamentoRota,
     irParaPasso2: () => irParaPasso2,
@@ -340,12 +343,14 @@
     persistirEntregaPacoteAtual: () => persistirEntregaPacoteAtual,
     persistirFinanceiroUsuario: () => persistirFinanceiroUsuario,
     podeSelecionarPacoteRota: () => podeSelecionarPacoteRota,
+    preencherClienteEncontradoGlobal: () => preencherClienteEncontradoGlobal,
     preencherPerfilEntregador: () => preencherPerfilEntregador,
     preencherPerfilLojista: () => preencherPerfilLojista,
     preencherTextoDetalheEnvio: () => preencherTextoDetalheEnvio,
     prepararPacotesRotaEntregador: () => prepararPacotesRotaEntregador,
     previewImagem: () => previewImagem,
     proximaPaginaDetalheRota: () => proximaPaginaDetalheRota,
+    recuperarSenhaReal: () => recuperarSenhaReal,
     registrarEstadosPacotesRota: () => registrarEstadosPacotesRota,
     registrarPresencaUsuario: () => registrarPresencaUsuario,
     registrarTransacaoFinanceira: () => registrarTransacaoFinanceira,
@@ -379,6 +384,7 @@
     rotaSheetBloqueada: () => rotaSheetBloqueada,
     rotaTemEntregadorAtivoParaChat: () => rotaTemEntregadorAtivoParaChat,
     rotuloStatusEnvio: () => rotuloStatusEnvio,
+    salvarBannerAdmin: () => salvarBannerAdmin,
     salvarDadosPagamento: () => salvarDadosPagamento,
     salvarEndereco: () => salvarEndereco,
     salvarMetaDiaEntregador: () => salvarMetaDiaEntregador,
@@ -393,6 +399,7 @@
     selecionarImagemChat: () => selecionarImagemChat,
     selecionarServico: () => selecionarServico,
     selecionarTamanho: () => selecionarTamanho,
+    selecionarTipoCadastro: () => selecionarTipoCadastro,
     selecionarVeiculo: () => selecionarVeiculo,
     setEstadoPacoteRota: () => setEstadoPacoteRota,
     setModalEnvioStep: () => setModalEnvioStep,
@@ -782,6 +789,22 @@
   document.addEventListener("DOMContentLoaded", ativarModoAdminSeNecessario);
   window.addEventListener("hashchange", ativarModoAdminSeNecessario);
   ativarModoAdminSeNecessario();
+  var modoRastreioPublico = false;
+  var tokenRastreioAtual = "";
+  function ativarModoRastreioSeNecessario() {
+    const hash = window.location.hash || "";
+    const match = hash.match(/rastreio\/([a-z0-9_-]+)/i);
+    if (match) {
+      modoRastreioPublico = true;
+      tokenRastreioAtual = match[1];
+      if (document.readyState !== "loading") {
+        exibirTelaRastreioPublico(tokenRastreioAtual);
+      }
+    }
+  }
+  document.addEventListener("DOMContentLoaded", ativarModoRastreioSeNecessario);
+  window.addEventListener("hashchange", ativarModoRastreioSeNecessario);
+  ativarModoRastreioSeNecessario();
   function getUsuarioIdAtual() {
     return usuarioLogado?.id || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
   }
@@ -812,6 +835,7 @@
     if (tab === "packages") adminCarregarPacotes();
     if (tab === "routes") renderDashboardMaster();
     if (tab === "database") adminListTables();
+    if (tab === "banners") renderBannersAdmin();
   }
   function telaInicialPorTipoUsuario(tipo) {
     return tipo === "entregador" ? "view-dash-entregador" : "view-dash-loja";
@@ -1396,6 +1420,14 @@
       clientes.unshift(novoCliente);
       await saveClientes();
       clienteSelecionadoId = novoCliente.id;
+    }
+    const whatsappGlobalNorm = normalizarWhatsapp(tel);
+    if (whatsappGlobalNorm) {
+      db.ref("clientesGlobais/" + whatsappGlobalNorm).set({
+        nome: nome.trim(),
+        whatsapp: whatsappGlobalNorm
+      }).catch(() => {
+      });
     }
     renderClientes(document.getElementById("buscar-cliente")?.value || "");
     if (typeof renderClientesSelector === "function") {
@@ -2294,23 +2326,20 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
   }
   async function loginReal() {
-    const email = document.getElementById("email-login").value;
+    const whatsapp = normalizarWhatsapp(document.getElementById("whatsapp-login")?.value || "");
     const senha = document.getElementById("pass-login").value;
-    if (!email || !senha) return alert("Preencha e-mail e senha!");
+    if (!whatsapp || !senha) return alert("Preencha WhatsApp e senha!");
     try {
+      const email = await db.ref("telefoneParaEmail/" + whatsapp).once("value").then((s) => s.val());
+      if (!email) {
+        alert("N\xE3o encontramos uma conta com esse n\xFAmero de WhatsApp.");
+        return;
+      }
       const cred = await auth.signInWithEmailAndPassword(email, senha);
       const snapshot = await db.ref("usuarios/" + cred.user.uid).once("value");
       const dadosUser = snapshot.val();
       if (!dadosUser) {
         alert("Conta sem perfil no banco. Fale com o suporte.");
-        return;
-      }
-      const tipoContaRaw = normalizarTexto(dadosUser?.tipo || "loja");
-      const contaEhEntregador = tipoContaRaw === "entregador" || tipoContaRaw === "entrega";
-      const esperadoEhEntregador = tipoCadastroSelecionado === "entrega";
-      if (contaEhEntregador !== esperadoEhEntregador) {
-        await auth.signOut();
-        alert(contaEhEntregador ? "Essa conta e de entregador. Entre pela opcao Fazer entregas." : "Essa conta e de lojista. Entre pela opcao Enviar pacotes.");
         return;
       }
       usuarioLogado = { id: cred.user.uid, ...dadosUser };
@@ -2337,6 +2366,17 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       }
     } catch (error) {
       alert("Erro ao entrar: " + error.message);
+    }
+  }
+  async function recuperarSenhaReal() {
+    const email = (document.getElementById("input-email-recuperar")?.value || "").trim();
+    if (!email) return alert("Informe o e-mail cadastrado na conta.");
+    try {
+      await auth.sendPasswordResetEmail(email);
+      alert("Link de redefini\xE7\xE3o enviado para o seu e-mail.");
+      navegar("view-auth");
+    } catch (error) {
+      alert("N\xE3o foi poss\xEDvel enviar o link: " + error.message);
     }
   }
   document.addEventListener("DOMContentLoaded", () => {
@@ -2425,6 +2465,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   firebase.auth().onAuthStateChanged((user) => {
     const tabbar = document.getElementById("main-nav");
     const splash = document.getElementById("splash-screen");
+    if (modoRastreioPublico) {
+      if (tabbar) tabbar.style.display = "none";
+      exibirTelaRastreioPublico(tokenRastreioAtual);
+      finalizarSplash(splash);
+      return;
+    }
     if (user) {
       firebase.database().ref("usuarios/" + user.uid).once("value").then((snapshot) => {
         const userData = snapshot.val();
@@ -2491,7 +2537,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         finalizarSplash(splash);
         return;
       }
-      navegar("view-inicio");
+      navegar("view-auth");
       if (tabbar) tabbar.style.display = "none";
       initClientes();
       finalizarSplash(splash);
@@ -3596,6 +3642,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         });
         db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}/entregadorGeo`).set(payload).catch(() => {
         });
+        db.ref(`rastreioPublico/${rotaId}`).update({ entregadorGeo: payload, atualizadoEm: agora }).catch(() => {
+        });
       },
       (err) => {
         console.warn("Geolocaliza\xE7\xE3o indispon\xEDvel:", err?.message || err);
@@ -3876,6 +3924,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       updatesRota[`${rotaEntregadorPath}/atualizadoEm`] = agora;
       updatesRota[`${rotaEntregadorPath}/concluidaEm`] = agora;
     }
+    updatesRota[`rastreioPublico/${rotaId}/statusRota`] = statusRota;
+    updatesRota[`rastreioPublico/${rotaId}/atualizadoEm`] = agora;
     if (Object.keys(updatesRota).length) {
       try {
         await db.ref().update(updatesRota);
@@ -3930,6 +3980,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       updates[`${basePacoteUsuario}/entregueEm`] = agora;
       updates[`${basePacoteUsuario}/atualizadoEm`] = agora;
     }
+    updates[`rastreioPublico/${rotaId}/pacotes/${pacoteId}/status`] = "ENTREGUE";
+    updates[`rastreioPublico/${rotaId}/pacotes/${pacoteId}/entregueEm`] = agora;
     if (lojistaUid) {
       try {
         const clientesSnap = await db.ref(`usuarios/${lojistaUid}/clientes`).once("value");
@@ -4031,6 +4083,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       updates[`usuarios/${uidEntregador}/rotas/${rotaObj.id}/coletaConfirmada`] = true;
       updates[`usuarios/${uidEntregador}/rotas/${rotaObj.id}/coletaConfirmadaEm`] = agora;
     }
+    updates[`rastreioPublico/${rotaObj.id}/coletaConfirmada`] = true;
     try {
       await db.ref().update(updates);
     } catch (err) {
@@ -4330,6 +4383,13 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         statusRaw: "PACOTE_NOVO",
         rotaId: null
       });
+      if (rotaObj?.id) {
+        db.ref(`rastreioPublico/${rotaObj.id}/pacotes/${envioId}`).update({
+          status: "DEVOLVIDO",
+          devolvidoEm: agora
+        }).catch(() => {
+        });
+      }
       pac.devolucaoStatus = "DEVOLVIDO";
       pac.status = "PACOTE_NOVO";
       pac.statusRaw = "PACOTE_NOVO";
@@ -4996,6 +5056,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           await db.ref().update(updates);
         }
       }
+      db.ref(`rastreioPublico/${rotaId}`).update({
+        entregadorNome: metaEntregador.entregadorNome,
+        statusRota: "EM_ROTA",
+        atualizadoEm: Date.now()
+      }).catch(() => {
+      });
       const rotaMarketplaceAtual = rotasMarketplaceEntregadorCache.find((r) => String(r.id) === String(rotaId) && String(r.lojistaUid) === String(lojistaUid));
       const rotaNoEntregador = {
         id: String(rotaId),
@@ -6655,9 +6721,20 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
     rotaDetalhePaginaAtual = Math.max(0, Math.min(rotaDetalhePaginaAtual, rotaDetalhePacotes.length - 1));
     const p = rotaDetalhePacotes[rotaDetalhePaginaAtual];
+    const tokenRastreio = rotaDetalheAtual?.tokensRastreio?.[p.id] || "";
+    const linkRastreioHtml = tokenRastreio ? `
+        <div class="rota-detalhe-rastreio">
+            <span>Link de rastreio pro cliente</span>
+            <div class="rota-detalhe-rastreio-actions">
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                ${p.whatsapp && p.whatsapp !== "--" ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ""}
+            </div>
+        </div>
+    ` : "";
     wrap.innerHTML = `
         <div class="rota-detalhe-package-card">
             <h4>Pacote #${p.codigo} \xB7 ${p.destinatario}</h4>
+            ${linkRastreioHtml}
             <div class="rota-detalhe-line"><span>WhatsApp</span><strong>${p.whatsapp || "--"}</strong></div>
             <div class="rota-detalhe-line"><span>Servi\xE7o</span><strong>${p.servico || "--"}</strong></div>
             <div class="rota-detalhe-line"><span>Ve\xEDculo</span><strong>${p.veiculo || "--"}</strong></div>
@@ -6676,6 +6753,26 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     info.innerText = `${rotaDetalhePaginaAtual + 1}/${rotaDetalhePacotes.length}`;
     btnPrev.disabled = rotaDetalhePaginaAtual <= 0;
     btnNext.disabled = rotaDetalhePaginaAtual >= rotaDetalhePacotes.length - 1;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  function montarUrlRastreioPublico(token) {
+    return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
+  }
+  function copiarLinkRastreioPacote(token) {
+    const url = montarUrlRastreioPublico(token);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(() => notificarSucesso("Link de rastreio copiado.")).catch(() => alert(`Copie o link manualmente:
+${url}`));
+    } else {
+      alert(`Copie o link manualmente:
+${url}`);
+    }
+  }
+  function compartilharLinkRastreioWhatsapp(token, whatsapp) {
+    const url = montarUrlRastreioPublico(token);
+    const numero = normalizarWhatsapp(whatsapp);
+    const texto = encodeURIComponent(`Acompanhe sua entrega em tempo real: ${url}`);
+    window.open(`https://wa.me/${numero}?text=${texto}`, "_blank");
   }
   function abrirModalDetalheRota(rotaId) {
     if (!rotaId) return;
@@ -7555,8 +7652,334 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     };
     try {
       await db.ref("usuarios/" + uid + "/rotas/" + rota.id).set(payload);
+      await criarLinksRastreioParaRota(rota, uid);
     } catch (err) {
       console.warn("Falha ao salvar rota no banco:", err);
+    }
+  }
+  function gerarTokenRastreio() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, "");
+    return "rt" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+  }
+  async function criarLinksRastreioParaRota(rota, uidLojista) {
+    try {
+      const pacoteIds = Array.isArray(rota?.pacotes) ? rota.pacotes.map(String) : [];
+      if (!pacoteIds.length) return;
+      const lojaNome = (window.usuarioLogado?.loja || window.usuarioLogado?.nome || "Loja").toString();
+      const pacotesMapa = {};
+      const updates = {};
+      for (let idx = 0; idx < pacoteIds.length; idx++) {
+        const pacoteId = pacoteIds[idx];
+        let destinatario = "Cliente";
+        let destinoChave = pacoteId;
+        try {
+          const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
+          const pac = snap.val() || {};
+          destinatario = (pac.destinatario || destinatario).toString();
+          const enderecoBruto = (pac.destinoCompleto || pac.destinoEndereco || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+          if (enderecoBruto) destinoChave = enderecoBruto;
+        } catch (e) {
+        }
+        const token = gerarTokenRastreio();
+        updates[`usuarios/${uidLojista}/pacotes/${pacoteId}/tokenRastreio`] = token;
+        updates[`rastreioToken/${token}`] = { rotaId: String(rota.id), pacoteId, lojistaUid: uidLojista };
+        updates[`usuarios/${uidLojista}/rotas/${rota.id}/tokensRastreio/${pacoteId}`] = token;
+        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1 };
+      }
+      updates[`rastreioPublico/${rota.id}`] = {
+        lojaNome,
+        statusRota: "BUSCANDO",
+        coletaConfirmada: false,
+        entregadorNome: null,
+        entregadorGeo: null,
+        distanciaKm: Number(rota.distanciaTotal || 0) || null,
+        duracaoMin: Number(rota.duracaoTotal || 0) || null,
+        totalParadas: pacoteIds.length,
+        atualizadoEm: Date.now(),
+        pacotes: pacotesMapa
+      };
+      await db.ref().update(updates);
+    } catch (err) {
+      console.warn("Falha ao criar links de rastreio da rota:", err);
+    }
+  }
+  var rastreioPublicoListenerRef = null;
+  async function exibirTelaRastreioPublico(token) {
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+    const view = document.getElementById("view-rastreio-publico");
+    if (view) view.classList.add("active");
+    const tabbar = document.getElementById("main-nav");
+    if (tabbar) tabbar.style.display = "none";
+    const conteudo = document.getElementById("rastreio-pub-conteudo");
+    if (!conteudo) return;
+    if (!token) {
+      conteudo.innerHTML = '<div class="rastreio-pub-erro">Link de rastreio inv\xE1lido.</div>';
+      return;
+    }
+    carregarBannersRastreioPublico();
+    try {
+      const tokenSnap = await db.ref(`rastreioToken/${token}`).once("value");
+      const tokenInfo = tokenSnap.val();
+      if (!tokenInfo?.rotaId) {
+        conteudo.innerHTML = '<div class="rastreio-pub-erro">Link de rastreio inv\xE1lido ou expirado.</div>';
+        return;
+      }
+      if (rastreioPublicoListenerRef) rastreioPublicoListenerRef.off();
+      rastreioPublicoListenerRef = db.ref(`rastreioPublico/${tokenInfo.rotaId}`);
+      rastreioPublicoListenerRef.on("value", (snap) => {
+        renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId);
+      });
+    } catch (err) {
+      console.warn("Falha ao carregar rastreio p\xFAblico:", err);
+      conteudo.innerHTML = '<div class="rastreio-pub-erro">N\xE3o foi poss\xEDvel carregar o rastreio agora. Tente novamente em instantes.</div>';
+    }
+  }
+  function renderConteudoRastreioPublico(dados, pacoteId) {
+    const conteudo = document.getElementById("rastreio-pub-conteudo");
+    if (!conteudo) return;
+    if (!dados) {
+      conteudo.innerHTML = '<div class="rastreio-pub-erro">Rastreio n\xE3o encontrado.</div>';
+      return;
+    }
+    const pacotesMapa = dados.pacotes || {};
+    const pacoteInfo = pacotesMapa[pacoteId] || {};
+    const destinatario = pacoteInfo.destinatario || "Cliente";
+    const statusNorm = normalizarStatusRotaFiltro(dados.statusRota || "BUSCANDO");
+    const paradasBrutas = Object.entries(pacotesMapa).map(([id, p]) => ({ pacoteId: id, ...p })).sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+    const paradas = agruparParadasPorEndereco(paradasBrutas);
+    const totalParadas = paradas.length;
+    const minhaParadaIdx = paradas.findIndex((grupo) => grupo.pacoteIds.some((id) => String(id) === String(pacoteId)));
+    const minhaOrdem = minhaParadaIdx >= 0 ? minhaParadaIdx + 1 : 0;
+    const timelineHtml = montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm);
+    const idxProximaParadaPendente = paradas.findIndex((grupo) => grupo.status !== "ENTREGUE" && grupo.status !== "DEVOLVIDO");
+    const souAProximaParada = idxProximaParadaPendente >= 0 && idxProximaParadaPendente === minhaParadaIdx;
+    let statusTexto;
+    if (pacoteInfo.status === "ENTREGUE") {
+      statusTexto = "Pedido entregue!";
+    } else if (pacoteInfo.status === "DEVOLVIDO") {
+      statusTexto = "Esse pedido foi devolvido para a loja.";
+    } else if (statusNorm === "EM_ROTA" && paradas.length > 1) {
+      statusTexto = souAProximaParada ? dados.entregadorNome ? `${dados.entregadorNome} est\xE1 a caminho com o seu pedido.` : "Seu pedido est\xE1 a caminho." : dados.entregadorNome ? `${dados.entregadorNome} est\xE1 em rota \u2014 ainda tem parada(s) antes da sua.` : "O entregador est\xE1 em rota \u2014 ainda tem parada(s) antes da sua.";
+    } else {
+      const textosPorStatus = {
+        BUSCANDO: "Procurando um entregador para a sua entrega...",
+        EM_ROTA: dados.entregadorNome ? `${dados.entregadorNome} est\xE1 a caminho com o seu pedido.` : "Seu pedido est\xE1 a caminho.",
+        CONCLUIDO: "Pedido entregue!",
+        CANCELADO: "Essa entrega foi cancelada."
+      };
+      statusTexto = textosPorStatus[statusNorm] || "";
+    }
+    const paradaInfoHtml = totalParadas > 1 && minhaOrdem > 0 ? `<p class="rastreio-pub-parada-info">Sua parada \xE9 a <strong>${minhaOrdem}\xAA de ${totalParadas}</strong></p>` : "";
+    const geo = dados.entregadorGeo;
+    const mapaHtml = geo && geo.lat && geo.lng ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : "";
+    const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
+    const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";
+    conteudo.innerHTML = `
+        <div class="rastreio-pub-card">
+            <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || "Loja")}</span>
+            <h2 class="rastreio-pub-titulo">Ol\xE1, ${escaparHtmlMarketplace(destinatario)}!</h2>
+            <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
+            ${timelineHtml}
+            ${paradaInfoHtml}
+            ${distTxt || durTxt ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(" \u2022 "))}</div>` : ""}
+        </div>
+        ${mapaHtml}
+    `;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  function agruparParadasPorEndereco(paradasBrutas) {
+    const grupos = [];
+    const porChave = /* @__PURE__ */ new Map();
+    paradasBrutas.forEach((p) => {
+      const chave = p.destinoChave || p.pacoteId;
+      if (!porChave.has(chave)) {
+        const grupo2 = { destinoChave: chave, pacoteIds: [], destinatario: p.destinatario, statusPorPacote: [] };
+        porChave.set(chave, grupo2);
+        grupos.push(grupo2);
+      }
+      const grupo = porChave.get(chave);
+      grupo.pacoteIds.push(p.pacoteId);
+      grupo.statusPorPacote.push(p.status || "BUSCANDO");
+    });
+    return grupos.map((g) => {
+      const todosEntregues = g.statusPorPacote.every((s) => s === "ENTREGUE");
+      const todosDevolvidos = g.statusPorPacote.every((s) => s === "DEVOLVIDO");
+      return {
+        ...g,
+        status: todosEntregues ? "ENTREGUE" : todosDevolvidos ? "DEVOLVIDO" : "BUSCANDO"
+      };
+    });
+  }
+  function montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm) {
+    const idxAtual = paradas.findIndex((grupo) => grupo.status !== "ENTREGUE" && grupo.status !== "DEVOLVIDO");
+    const origemConcluida = dados.coletaConfirmada === true;
+    const pontos = [
+      {
+        origem: true,
+        label: dados.lojaNome || "Loja",
+        sub: "Retirada do pedido",
+        done: origemConcluida,
+        atual: !origemConcluida,
+        voce: false,
+        devolvido: false
+      },
+      ...paradas.map((grupo, idx) => {
+        const ehMinha = grupo.pacoteIds.some((id) => String(id) === String(pacoteId));
+        return {
+          origem: false,
+          // Só mostra nome/posição da parada de quem está vendo a
+          // tela — as outras ficam só com a bolinha, sem identificar
+          // o cliente.
+          label: ehMinha ? grupo.destinatario || "Cliente" : "",
+          sub: ehMinha ? `${idx + 1}\xAA parada` : "",
+          done: grupo.status === "ENTREGUE",
+          devolvido: grupo.status === "DEVOLVIDO",
+          atual: origemConcluida && statusNorm === "EM_ROTA" && idx === idxAtual,
+          voce: ehMinha
+        };
+      })
+    ];
+    const itensHtml = pontos.map((pt, idx) => {
+      const classes = ["parada-v-item"];
+      if (pt.done) classes.push("done");
+      if (pt.devolvido) classes.push("devolvido");
+      if (pt.atual) classes.push("atual");
+      if (pt.voce) classes.push("voce");
+      if (!pt.label) classes.push("anonima");
+      if (idx === pontos.length - 1) classes.push("ultimo");
+      let marca = "";
+      if (pt.done) marca = "\u2713";
+      else if (pt.devolvido) marca = "\u2013";
+      else if (pt.origem) marca = '<i data-lucide="store" size="12"></i>';
+      const conteudoHtml = pt.label ? `<div class="parada-v-content">
+                    <span class="parada-v-label">${escaparHtmlMarketplace(pt.label)}${pt.voce ? ' <span class="parada-v-you">(Voc\xEA)</span>' : ""}</span>
+                    <span class="parada-v-sub">${escaparHtmlMarketplace(pt.sub)}</span>
+                </div>` : "";
+      return `
+            <div class="${classes.join(" ")}">
+                <div class="parada-v-marker"><span class="parada-v-dot">${marca}</span></div>
+                ${conteudoHtml}
+            </div>
+        `;
+    }).join("");
+    return `<div class="paradas-v-timeline">${itensHtml}</div>`;
+  }
+  function carregarBannersRastreioPublico() {
+    const wrap = document.getElementById("rastreio-pub-banners");
+    if (!wrap) return;
+    db.ref("banners").once("value").then((snap) => {
+      const dados = snap.val() || {};
+      const ativos = Object.values(dados).filter((b) => b?.ativo && b?.imagemUrl).sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+      if (!ativos.length) {
+        wrap.classList.add("hidden");
+        return;
+      }
+      wrap.classList.remove("hidden");
+      wrap.innerHTML = ativos.map((b) => `
+            <a href="${escaparHtmlMarketplace(b.linkUrl || "#")}" target="_blank" rel="noopener" class="rastreio-pub-banner-item">
+                <img src="${escaparHtmlMarketplace(b.imagemUrl)}" alt="Publicidade">
+            </a>
+        `).join("");
+      iniciarRotacaoBannersRastreioPublico(wrap);
+    }).catch(() => wrap.classList.add("hidden"));
+  }
+  var bannerRotacaoTimer = null;
+  function iniciarRotacaoBannersRastreioPublico(wrap) {
+    const itens = wrap.querySelectorAll(".rastreio-pub-banner-item");
+    if (bannerRotacaoTimer) clearInterval(bannerRotacaoTimer);
+    itens.forEach((el, i) => el.classList.toggle("is-active", i === 0));
+    if (itens.length <= 1) return;
+    let idx = 0;
+    bannerRotacaoTimer = setInterval(() => {
+      itens[idx].classList.remove("is-active");
+      idx = (idx + 1) % itens.length;
+      itens[idx].classList.add("is-active");
+    }, 5e3);
+  }
+  async function renderBannersAdmin() {
+    const wrap = document.getElementById("admin-banners-lista");
+    if (!wrap) return;
+    wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
+    try {
+      const snap = await db.ref("banners").once("value");
+      const dados = snap.val() || {};
+      const lista = Object.entries(dados).map(([id, b]) => ({ id, ...b })).sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+      if (!lista.length) {
+        wrap.innerHTML = '<p class="admin-subtle">Nenhum banner cadastrado ainda.</p>';
+        return;
+      }
+      wrap.innerHTML = lista.map((b) => `
+            <div class="admin-banner-item">
+                <img src="${escaparHtmlMarketplace(b.imagemUrl || "")}" alt="Banner">
+                <div class="admin-banner-info">
+                    <span class="admin-banner-link">${escaparHtmlMarketplace(b.linkUrl || "Sem link")}</span>
+                    <label class="admin-banner-toggle">
+                        <input type="checkbox" ${b.ativo ? "checked" : ""} onchange="alternarAtivoBannerAdmin('${b.id}', this.checked)">
+                        Ativo
+                    </label>
+                </div>
+                <button type="button" class="admin-banner-excluir" onclick="excluirBannerAdmin('${b.id}')" title="Excluir"><i data-lucide="trash-2" size="16"></i></button>
+            </div>
+        `).join("");
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    } catch (err) {
+      console.warn("Falha ao carregar banners:", err);
+      wrap.innerHTML = '<p class="admin-subtle">N\xE3o foi poss\xEDvel carregar os banners agora.</p>';
+    }
+  }
+  async function salvarBannerAdmin() {
+    const fileInput = document.getElementById("banner-novo-arquivo");
+    const linkInput = document.getElementById("banner-novo-link");
+    const statusEl = document.getElementById("banner-upload-status");
+    const arquivo = fileInput?.files?.[0];
+    if (!arquivo) {
+      alert("Escolha uma imagem para o banner.");
+      return;
+    }
+    if (statusEl) statusEl.innerText = "Enviando imagem...";
+    try {
+      const id = db.ref("banners").push().key;
+      const ref = firebase.storage().ref(`banners/${id}-${arquivo.name}`);
+      await ref.put(arquivo);
+      const imagemUrl = await ref.getDownloadURL();
+      const snapTodos = await db.ref("banners").once("value");
+      const totalAtual = Object.keys(snapTodos.val() || {}).length;
+      await db.ref("banners/" + id).set({
+        imagemUrl,
+        linkUrl: (linkInput?.value || "").trim(),
+        ativo: true,
+        ordem: totalAtual,
+        criadoEm: Date.now()
+      });
+      if (fileInput) fileInput.value = "";
+      if (linkInput) linkInput.value = "";
+      if (statusEl) statusEl.innerText = "Banner adicionado.";
+      renderBannersAdmin();
+    } catch (err) {
+      console.warn("Falha ao salvar banner:", err);
+      if (statusEl) statusEl.innerText = "Falha ao enviar o banner: " + (err?.message || err);
+    }
+  }
+  async function alternarAtivoBannerAdmin(id, ativo) {
+    try {
+      await db.ref("banners/" + id + "/ativo").set(Boolean(ativo));
+    } catch (err) {
+      alert("N\xE3o foi poss\xEDvel atualizar o banner.");
+    }
+  }
+  async function excluirBannerAdmin(id) {
+    if (!confirm("Excluir esse banner?")) return;
+    try {
+      const snap = await db.ref("banners/" + id).once("value");
+      const imagemUrl = snap.val()?.imagemUrl;
+      await db.ref("banners/" + id).remove();
+      if (imagemUrl) {
+        firebase.storage().refFromURL(imagemUrl).delete().catch(() => {
+        });
+      }
+      renderBannersAdmin();
+    } catch (err) {
+      alert("N\xE3o foi poss\xEDvel excluir o banner.");
     }
   }
   async function pagarRotaComSaldo() {
@@ -8065,6 +8488,44 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     atualizarListasClientesUI();
     clientePendenteExclusao = null;
   }
+  async function buscarClienteGlobalEExibir(whatsapp, container) {
+    try {
+      const snap = await db.ref("clientesGlobais/" + whatsapp).once("value");
+      const dados = snap.val();
+      const filtroAtual = (document.getElementById("buscar-cliente")?.value || "").replace(/\D/g, "");
+      if (filtroAtual !== whatsapp) return;
+      if (!dados?.nome) {
+        container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+        return;
+      }
+      const nomeEsc = escaparHtmlMarketplace(dados.nome);
+      const iniciais = (dados.nome || "C").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+      container.innerHTML = `
+            <p class="selector-global-hint">N\xE3o \xE9 cliente dessa loja ainda, mas encontramos esse contato:</p>
+            <div class="selector-global-card" onclick="preencherClienteEncontradoGlobal('${dados.nome.replace(/'/g, "\\'")}', '${whatsapp}')">
+                <span class="selector-avatar-iniciais">${iniciais}</span>
+                <div class="selector-global-card-info">
+                    <strong>${nomeEsc}</strong>
+                    <span>${escaparHtmlMarketplace(whatsapp)}</span>
+                </div>
+                <span class="selector-global-card-cta">Usar</span>
+            </div>
+            <p class="selector-global-note">Confirme o endere\xE7o de entrega com o cliente ao continuar.</p>
+        `;
+    } catch (err) {
+      container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+    }
+  }
+  function preencherClienteEncontradoGlobal(nome, whatsapp) {
+    fecharSeletorCliente();
+    setTimeout(() => {
+      abrirNovoCliente();
+      const nomeInput = document.getElementById("new-cli-nome");
+      const telInput2 = document.getElementById("new-cli-tel");
+      if (nomeInput) nomeInput.value = nome;
+      if (telInput2) telInput2.value = whatsapp;
+    }, 180);
+  }
   function renderClientesSelector(filtro = "") {
     const container = document.getElementById("clientes-sheet-list");
     if (!container) return;
@@ -8084,7 +8545,12 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       return (a.nome || "").localeCompare(b.nome || "");
     });
     if (!lista.length) {
-      container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+      if (filtroNumero.length >= 8) {
+        container.innerHTML = '<div class="selector-empty">Buscando...</div>';
+        buscarClienteGlobalEExibir(filtroNumero, container);
+      } else {
+        container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+      }
       return;
     }
     container.innerHTML = lista.map((c) => {
@@ -9688,11 +10154,16 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
   function normalizarTipoCadastro(valor) {
     return String(valor || "").toLowerCase() === "entrega" ? "entrega" : "loja";
   }
+  function normalizarWhatsapp(valor) {
+    return String(valor || "").replace(/\D/g, "");
+  }
   function aplicarTipoCadastroNaTela() {
     const labelNome = document.getElementById("label-nome");
     const inputNome = document.getElementById("input-nome");
     const groupCnh = document.getElementById("group-cnh");
     const cnhInput = groupCnh ? groupCnh.querySelector("input") : null;
+    const cardLoja = document.getElementById("tipo-cad-loja");
+    const cardEntrega = document.getElementById("tipo-cad-entrega");
     const ehEntregador = tipoCadastroSelecionado === "entrega";
     if (labelNome) labelNome.innerText = ehEntregador ? "Nome completo" : "Nome da loja";
     if (inputNome) {
@@ -9705,11 +10176,11 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
       cnhInput.required = ehEntregador;
       if (!ehEntregador) cnhInput.value = "";
     }
+    if (cardLoja) cardLoja.classList.toggle("active", !ehEntregador);
+    if (cardEntrega) cardEntrega.classList.toggle("active", ehEntregador);
   }
-  function irParaCadastro(tipo) {
+  function selecionarTipoCadastro(tipo) {
     tipoCadastroSelecionado = normalizarTipoCadastro(tipo);
-    navegar("view-auth");
-    alternarAuth("entrar");
     aplicarTipoCadastroNaTela();
   }
   var _alternarAuthComTipoOriginal = alternarAuth;
@@ -9720,24 +10191,36 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
   cadastrarReal = async function cadastrarRealComTipo() {
     const nome = (document.getElementById("input-nome")?.value || "").trim();
     const email = (document.querySelector('#form-cadastrar input[type="email"]')?.value || "").trim();
+    const whatsapp = normalizarWhatsapp(document.getElementById("input-whatsapp-cad")?.value || "");
     const senha = (document.getElementById("pass-cad")?.value || "").trim();
     const cnh = (document.getElementById("input-cnh")?.value || "").trim();
-    if (!nome || !email || !senha) return alert("Preencha todos os campos.");
+    if (!nome || !email || !senha || !whatsapp) return alert("Preencha todos os campos, incluindo o WhatsApp \u2014 ele \xE9 usado pra entrar no app.");
     const ehEntregador = tipoCadastroSelecionado === "entrega";
     if (ehEntregador && !cnh) {
       alert("Preencha o numero da CNH para cadastro de entregador.");
       return;
     }
     try {
+      const telefoneJaUsado = (await db.ref("telefoneParaEmail/" + whatsapp).once("value")).val();
+      if (telefoneJaUsado) {
+        alert("Esse n\xFAmero de WhatsApp j\xE1 est\xE1 cadastrado. Tente entrar em vez de criar uma conta nova.");
+        return;
+      }
       const cred = await auth.createUserWithEmailAndPassword(email, senha);
       const payload = {
         nome,
         email,
+        whatsapp,
         tipo: ehEntregador ? "entregador" : "loja",
-        criadoEm: Date.now()
+        criadoEm: Date.now(),
+        // Antes esse campo só existia se alguém mexesse nele manualmente
+        // no console, ou na primeira transação real (ver ajustarSaldoUsuario)
+        // — deixa toda conta nova já com o mesmo formato, saldo: 0.
+        financeiro: { saldo: 0 }
       };
       if (ehEntregador) payload.cnh = cnh;
       await db.ref("usuarios/" + cred.user.uid).set(payload);
+      await db.ref("telefoneParaEmail/" + whatsapp).set(email);
       alert("Conta criada com sucesso.");
       alternarAuth("entrar");
     } catch (error) {
