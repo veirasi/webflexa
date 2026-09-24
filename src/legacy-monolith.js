@@ -36,6 +36,9 @@ let clienteSelecionadoId = null;
 // clique no card forçar selecionarVeiculo (que aí sim "criava" a variável).
 let veiculoSelecionado = 'Moto';
 let veiculoPrecoSelecionado = null;
+// Coleta reversa (troca/devolução agendada) — ver selecionarTipoFluxoEnvio e
+// confirmarEnvioFinal. 'entrega' é o padrão (loja -> cliente, como sempre foi).
+let tipoFluxoEnvioAtual = 'entrega';
 let cepLojaDebounceTimer = null;
 let cepClienteDebounceTimer = null;
 let ultimoCepLojaConsultado = '';
@@ -146,9 +149,13 @@ let tokenRastreioAtual = '';
 function ativarModoRastreioSeNecessario() {
     const hash = window.location.hash || '';
     const match = hash.match(/rastreio\/([a-z0-9_-]+)/i);
-    if (match) {
+    // #/cliente (sem token) é o link genérico de convite (ver
+    // convidarClienteParaApp) — não aponta pra uma entrega específica, só
+    // abre a mesma tela pro cliente entrar/completar o cadastro.
+    const ehLinkClienteGenerico = /^#\/cliente\/?$/.test(hash);
+    if (match || ehLinkClienteGenerico) {
         modoRastreioPublico = true;
-        tokenRastreioAtual = match[1];
+        tokenRastreioAtual = match ? match[1] : '';
         // Se o app já estava carregado (a aba já tinha o Flex aberto e o
         // link mudou só o hash), o onAuthStateChanged não dispara de novo
         // sozinho — então também mostra a tela direto por aqui.
@@ -555,6 +562,7 @@ function irParaPasso2(id, nome, endereco, whats) {
     if (inputValor) inputValor.value = '';
     if (inputObs) inputObs.value = '';
     resetarCobrancaEntregaFormulario();
+    selecionarTipoFluxoEnvio('entrega');
 
     if (cliente && !resumoRevisaoAtual.destinoGeo) {
         garantirGeoClienteSelecionado().catch(() => {});
@@ -580,6 +588,14 @@ function selecionarTamanho(tam) {
     });
     const alvo = document.getElementById('sz-' + String(tam || '').toLowerCase());
     if (alvo) alvo.classList.add('active');
+}
+
+function selecionarTipoFluxoEnvio(tipo) {
+    tipoFluxoEnvioAtual = tipo === 'coleta_reversa' ? 'coleta_reversa' : 'entrega';
+    document.getElementById('fluxo-entrega')?.classList.toggle('active', tipoFluxoEnvioAtual === 'entrega');
+    document.getElementById('fluxo-coleta')?.classList.toggle('active', tipoFluxoEnvioAtual === 'coleta_reversa');
+    const hint = document.getElementById('hint-tipo-fluxo');
+    if (hint) hint.style.display = tipoFluxoEnvioAtual === 'coleta_reversa' ? 'block' : 'none';
 }
 
 function selecionarEmbalagem(tipo, el) {
@@ -644,6 +660,17 @@ function confirmarEnvioFinal() {
             const observacoes = (resumoRevisaoAtual.observacoes || document.getElementById('input-obs-envio')?.value || clientes[idx].obs || '').trim();
             const cobrancaEntrega = resumoRevisaoAtual.cobrancaEntrega?.ativa ? resumoRevisaoAtual.cobrancaEntrega : null;
 
+            // Coleta reversa (troca/devolução agendada, ver ponto 3 do dono
+            // 2026-09-22): mesma distância/rota calculada pra loja<->cliente,
+            // só inverte QUAL endereço é retirada e qual é entrega — o
+            // entregador busca no cliente e traz pra loja, em vez do
+            // caminho normal.
+            const ehColetaReversa = tipoFluxoEnvioAtual === 'coleta_reversa';
+            const origemLojaEndereco = resumoRevisaoAtual.origem || obterEnderecoLojaTexto();
+            const destinoClienteEndereco = resumoRevisaoAtual.destino || document.getElementById('card-endereco')?.innerText || '';
+            const origemLojaGeo = resumoRevisaoAtual.origemGeo || null;
+            const destinoClienteGeo = resumoRevisaoAtual.destinoGeo || null;
+
             const pacoteObj = {
                 id: pedidoId,
                 codigoConfirmacaoEntrega,
@@ -651,6 +678,7 @@ function confirmarEnvioFinal() {
                 descricao: desc,
                 observacoes,
                 cobrancaEntrega,
+                tipoFluxo: ehColetaReversa ? 'coleta_reversa' : 'entrega',
                 valorConteudo: Number(valorConteudo.toFixed(2)),
                 valorFrete: Number(totalFrete.toFixed(2)),
                 servico,
@@ -659,10 +687,10 @@ function confirmarEnvioFinal() {
                 veiculo: resumoRevisaoAtual.veiculo || veiculoSelecionado,
                 distanciaKm: Number.isFinite(resumoRevisaoAtual.distanciaKm) ? Number(resumoRevisaoAtual.distanciaKm.toFixed(2)) : null,
                 duracaoMin: Number.isFinite(resumoRevisaoAtual.duracaoMin) ? Math.round(resumoRevisaoAtual.duracaoMin) : null,
-                origemEndereco: resumoRevisaoAtual.origem || obterEnderecoLojaTexto(),
-                destinoEndereco: resumoRevisaoAtual.destino || document.getElementById('card-endereco')?.innerText || '',
-                origemGeo: resumoRevisaoAtual.origemGeo || null,
-                destinoGeo: resumoRevisaoAtual.destinoGeo || null,
+                origemEndereco: ehColetaReversa ? destinoClienteEndereco : origemLojaEndereco,
+                destinoEndereco: ehColetaReversa ? origemLojaEndereco : destinoClienteEndereco,
+                origemGeo: ehColetaReversa ? destinoClienteGeo : origemLojaGeo,
+                destinoGeo: ehColetaReversa ? origemLojaGeo : destinoClienteGeo,
                 status: 'PACOTE_NOVO',
                 clienteId: clientes[idx].id,
                 destinatario: clientes[idx].nome || 'Cliente',
@@ -1868,6 +1896,16 @@ async function irParaRevisao() {
         valorConteudo: resumoRevisaoAtual.valorConteudo,
         cobrancaEntrega: resumoRevisaoAtual.cobrancaEntrega || null
     };
+    // BUG CORRIGIDO 2026-09-23: essa tela mostrava sempre loja=origem e
+    // cliente=destino, mesmo em coleta reversa — só o pacote final (depois
+    // de confirmado) vinha com os endereços trocados. Agora a revisão já
+    // mostra igual vai ficar de verdade.
+    const ehColetaReversaRevisao = tipoFluxoEnvioAtual === 'coleta_reversa';
+    const revEndLabel = document.getElementById('rev-end-label');
+    const revOrigemLabel = document.getElementById('rev-origem-label');
+    if (revEndLabel) revEndLabel.innerText = ehColetaReversaRevisao ? 'Retirada (origem)' : 'Destino';
+    if (revOrigemLabel) revOrigemLabel.innerText = ehColetaReversaRevisao ? 'Entrega na loja' : 'Origem';
+
     document.getElementById('rev-nome').innerText = nome;
     document.getElementById('rev-end').innerText = enderecoDestinoExibicao;
     document.getElementById('rev-servico').innerText = servico;
@@ -1875,7 +1913,8 @@ async function irParaRevisao() {
     document.getElementById('rev-total').innerText = precoParaMoeda(totalFrete);
     const revDist = document.getElementById('rev-distancia'); if (revDist) revDist.innerText = formatarDistancia(distanciaKm);
     const revTempo = document.getElementById('rev-tempo'); if (revTempo) revTempo.innerText = formatarDuracao(duracaoMin);
-    const revOrigem = document.getElementById('rev-origem'); if (revOrigem) revOrigem.innerText = enderecoOrigem || 'Defina o endereco da loja no Perfil';
+    const revOrigem = document.getElementById('rev-origem');
+    if (revOrigem) revOrigem.innerText = enderecoOrigem || 'Defina o endereco da loja no Perfil';
     if (!estimativa) {
         const detalheTxt = detalheRotaParaTexto(ultimoErroRota?.detalhe);
         alert(`Endereco invalido ou incompleto para rota.\n\nRetorno da API:\n${detalheTxt || (ultimoErroRota?.msg || 'Sem detalhe de erro.')}`);
@@ -2448,6 +2487,8 @@ function renderizarDashboard(user) {
                 </button>
             </div>
 
+            <div id="banner-lojista-home" class="rastreio-pub-banners hidden"></div>
+
             <div class="home-quick-grid">
                 <button type="button" class="home-quick-card" onclick="navegar('view-rotas')">
                     <strong class="home-quick-title">Nova Rota</strong>
@@ -2472,6 +2513,7 @@ function renderizarDashboard(user) {
     `;
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    carregarBannersPorPublico('lojista', 'banner-lojista-home');
 
     if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
         dashboardRotasSincronizadas = true;
@@ -2892,6 +2934,11 @@ async function carregarMarketplaceRotasEntregador() {
                     return !(serv.includes('flash') || serv.includes('expresso'));
                 }) || !pacotes.length;
                 const servicoLabel = temFlash ? 'Expresso' : 'Padrao';
+                // Coleta reversa (troca/devolução agendada) parte do
+                // endereço do CLIENTE em vez da loja — montarRota já impede
+                // misturar com entregas normais, então isso é tudo-ou-nada
+                // por rota, mas checa "some" pelo mesmo padrão usado acima.
+                const ehColetaReversa = pacotes.some((p) => p?.tipoFluxo === 'coleta_reversa');
 
                 lista.push({
                     id: rota.id,
@@ -2912,6 +2959,7 @@ async function carregarMarketplaceRotasEntregador() {
                     servicoLabel,
                     temStandard,
                     temFlash,
+                    ehColetaReversa,
                     entregadorId: String(rota?.entregadorId || rota?.aceitoPor || ''),
                     pacoteIds,
                     criadoEm: Number(rota?.criadoEm || 0)
@@ -3220,6 +3268,14 @@ function montarCardBuscaEntregador(rota) {
 // tags 'Start'/'Flash' da lista).
 function montarTagsServicoMarketplace(rota) {
     const tags = [];
+    // Coleta reversa vem primeiro e sozinha — é a informação mais
+    // importante pro entregador antes de aceitar (direção invertida:
+    // busca no cliente, entrega na loja), não pode passar despercebida
+    // misturada com as tags de serviço.
+    if (rota?.ehColetaReversa) {
+        tags.push('<span class="buscar-rota-tag tag-coleta">↩ Coleta</span>');
+        return tags;
+    }
     if (rota?.temStandard) tags.push('<span class="buscar-rota-tag tag-standard">Start</span>');
     if (rota?.temFlash) tags.push('<span class="buscar-rota-tag tag-flash">⚡ Flash</span>');
     if (!tags.length) tags.push('<span class="buscar-rota-tag tag-standard">Start</span>');
@@ -4346,7 +4402,7 @@ function renderSheetRotaEntregadorConteudo() {
             <div class=\"ent-sheet-pedido\">Pedido: #${escaparHtmlMarketplace(String(pedidoId))}</div>
             <div class=\"ent-sheet-endereco\">${escaparHtmlMarketplace(enderecoCompleto)}</div>
             ${enderecoExtra ? `<div class=\"ent-sheet-endereco-extra\">${escaparHtmlMarketplace(enderecoExtra)}</div>` : ''}
-            ${obs ? `<div class=\"ent-sheet-obs\">Obs: ${escaparHtmlMarketplace(obs)}</div>` : ''}
+            ${obs ? `<div class=\"ent-sheet-obs\"><i data-lucide=\"alert-triangle\" size=\"16\"></i><div><span class=\"ent-sheet-obs-label\">Atenção</span><p>${escaparHtmlMarketplace(obs)}</p></div></div>` : ''}
         </div>
 
         ${renderBlocoCobrancaEntrega(pac)}
@@ -7400,9 +7456,20 @@ function copiarLinkRastreioPacote(token) {
     }
 }
 
+// BUG CORRIGIDO 2026-09-22: o wa.me exige o número no formato internacional
+// completo (com código do país) — sem isso o WhatsApp recusa com "código do
+// país não foi inserido". Os números salvos no app são só DDD+número (como
+// a pessoa digita normalmente no Brasil), então precisa completar com 55
+// aqui na hora de montar o link — sem mexer em normalizarWhatsapp (usada
+// pro login/índices, que já estão salvos nesse formato sem 55).
+function paraWhatsappInternacional(whatsapp) {
+    const digits = normalizarWhatsapp(whatsapp);
+    return digits.length <= 11 ? '55' + digits : digits;
+}
+
 function compartilharLinkRastreioWhatsapp(token, whatsapp) {
     const url = montarUrlRastreioPublico(token);
-    const numero = normalizarWhatsapp(whatsapp);
+    const numero = paraWhatsappInternacional(whatsapp);
     const texto = encodeURIComponent(`Acompanhe sua entrega em tempo real: ${url}`);
     window.open(`https://wa.me/${numero}?text=${texto}`, '_blank');
 }
@@ -7512,7 +7579,14 @@ function coletarEnviosPendentesParaRota() {
                 servico,
                 flash,
                 valorFrete,
-                veiculo: h.veiculo || 'Moto'
+                veiculo: h.veiculo || 'Moto',
+                tipoFluxo: h.tipoFluxo || 'entrega',
+                // Geo do ponto de parada — em coleta reversa é o próprio
+                // destinoGeo que já guarda o endereço do CLIENTE (origem e
+                // destino já vêm trocados desde a criação do envio, ver
+                // confirmarEnvioFinal), então sempre é o campo certo pra
+                // calcular a ordem por proximidade (ver ordenarPacotesPorProximidade).
+                destinoGeo: h.destinoGeo || null
             });
         });
     });
@@ -7548,6 +7622,9 @@ function renderListaPendentesRota() {
         const badgeClass = pacote.flash ? 'rota-badge-flash' : 'rota-badge-standard';
         const badgeText = pacote.flash ? 'FLASH' : 'START';
         const cityText = pacote.cidade || 'Sem cidade';
+        const coletaBadge = pacote.tipoFluxo === 'coleta_reversa'
+            ? '<span class="rota-badge-coleta">↩ COLETA</span>'
+            : '';
 
         return `
             <button type="button" class="rota-pending-item ${selecionado ? 'selected' : ''}" onclick="togglePacoteRota('${pacote.id}')">
@@ -7556,6 +7633,7 @@ function renderListaPendentesRota() {
                     <span>${cityText} • ${pacote.veiculo}</span>
                 </div>
                 <div class="rota-pending-meta">
+                    ${coletaBadge}
                     <span class="${badgeClass}">${badgeText}</span>
                     <strong>${precoParaMoeda(pacote.valorFrete || 0)}</strong>
                 </div>
@@ -7571,6 +7649,20 @@ function podeSelecionarPacoteRota(pacote) {
 
     if (pacote.flash && selecionados.some((item) => item.flash)) {
         alert('Regra Flash: apenas 1 pacote Flash por rota.');
+        return false;
+    }
+
+    // Coleta reversa parte do endereço do CLIENTE, não da loja — misturar
+    // com entregas normais (que partem da loja) quebraria a lógica de uma
+    // origem só por rota. Enquanto não existir suporte a múltiplas
+    // origens numa rota, cada uma fica separada.
+    const ehColeta = pacote.tipoFluxo === 'coleta_reversa';
+    if (ehColeta && selecionados.some((item) => item.tipoFluxo !== 'coleta_reversa')) {
+        alert('Coleta reversa não pode ser combinada com entregas normais na mesma rota — monte uma rota separada só de coletas.');
+        return false;
+    }
+    if (!ehColeta && selecionados.some((item) => item.tipoFluxo === 'coleta_reversa')) {
+        alert('Essa rota já tem uma coleta reversa — não dá pra combinar com entregas normais.');
         return false;
     }
 
@@ -8246,6 +8338,52 @@ function renderBlocoCobrancaEntrega(pac) {
     </div>`;
 }
 
+// Distância em linha reta (Haversine) entre 2 pontos {lat, lon} — suficiente
+// pra ORDENAR paradas por proximidade (não precisa da distância de rua real
+// que o Google Maps calcula depois, só de saber qual é mais perto de qual).
+function distanciaHaversineKm(a, b) {
+    if (!a || !b) return Infinity;
+    const R = 6371;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLon = (b.lon - a.lon) * Math.PI / 180;
+    const lat1 = a.lat * Math.PI / 180;
+    const lat2 = b.lat * Math.PI / 180;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+// Regra geral pedida pelo dono 2026-09-23: a rota deixa de seguir a ordem em
+// que os pacotes foram selecionados/clicados e passa a visitar sempre a
+// parada mais próxima da posição atual, começando na loja (vizinho mais
+// próximo, guloso — não é o caminho matematicamente ótimo, mas é o padrão
+// mais simples e comum pra esse tipo de app, e já resolve o caso real: não
+// ziguezaguear pela cidade). Pacotes sem geo (endereço não geocodificado)
+// ficam no fim, na ordem original, pra não travar a rota por causa de 1
+// endereço com problema. Não tenta detectar "essa entrega é urgente" a
+// partir do texto da observação — isso fica pra decisão manual do lojista.
+function ordenarPacotesPorProximidade(itens) {
+    const origemGeo = normalizarGeo(window.usuarioLogado?.endereco?.geo);
+    const comGeo = itens.filter((it) => it.destinoGeo);
+    const semGeo = itens.filter((it) => !it.destinoGeo);
+    if (!origemGeo || comGeo.length < 2) return itens;
+
+    const restantes = [...comGeo];
+    const ordenado = [];
+    let atual = origemGeo;
+    while (restantes.length) {
+        let idxMaisProximo = 0;
+        let menorDist = Infinity;
+        restantes.forEach((it, idx) => {
+            const d = distanciaHaversineKm(atual, it.destinoGeo);
+            if (d < menorDist) { menorDist = d; idxMaisProximo = idx; }
+        });
+        const [proximo] = restantes.splice(idxMaisProximo, 1);
+        ordenado.push(proximo);
+        atual = proximo.destinoGeo;
+    }
+    return [...ordenado, ...semGeo];
+}
+
 async function irParaPagamentoRota() {
     const selecionados = rotaPendentesCache.filter((item) => rotaSelecaoIds.has(item.id));
     if (!selecionados.length) {
@@ -8254,10 +8392,11 @@ async function irParaPagamentoRota() {
     }
 
     const total = selecionados.reduce((acc, item) => acc + Number(item.valorFrete || 0), 0);
+    const selecionadosOrdenados = ordenarPacotesPorProximidade(selecionados);
 
     rotaDraftAtual = {
         id: gerarIdRota(),
-        pacotes: selecionados.map((item) => item.id),
+        pacotes: selecionadosOrdenados.map((item) => item.id),
         qtd: selecionados.length,
         totalFrete: Number(total.toFixed(2)),
         criadoEm: Date.now(),
@@ -8534,6 +8673,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
         const lojaNome = (window.usuarioLogado?.loja || window.usuarioLogado?.nome || 'Loja').toString();
         const pacotesMapa = {};
         const updates = {};
+        let tipoFluxoRota = 'entrega';
 
         // "ordem" é a posição do pacote dentro da rota (1ª parada, 2ª parada...) —
         // pela ordem em que o lojista montou a rota, já que ainda não existe
@@ -8547,10 +8687,17 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
                 const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
                 const pac = snap.val() || {};
                 destinatario = (pac.destinatario || destinatario).toString();
+                if (pac.tipoFluxo === 'coleta_reversa') tipoFluxoRota = 'coleta_reversa';
                 // Pacotes pro MESMO endereço viram um só ponto na timeline
                 // (pedido do dono 2026-09-21) — normaliza pra não separar por
-                // causa de espaço/maiúscula diferente.
-                const enderecoBruto = (pac.destinoCompleto || pac.destinoEndereco || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+                // causa de espaço/maiúscula diferente. Numa coleta reversa o
+                // endereço que VARIA por pacote é a origem (cliente), não o
+                // destino (loja, igual pra todo mundo) — agrupa pelo lado
+                // certo em cada caso.
+                const campoEndereco = pac.tipoFluxo === 'coleta_reversa'
+                    ? (pac.origemCompleta || pac.origemEndereco)
+                    : (pac.destinoCompleto || pac.destinoEndereco);
+                const enderecoBruto = (campoEndereco || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
                 if (enderecoBruto) destinoChave = enderecoBruto;
             } catch (e) { /* pacote pode não existir no modelo novo ainda — mantém o padrão */ }
 
@@ -8567,6 +8714,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
         updates[`rastreioPublico/${rota.id}`] = {
             lojaNome,
             statusRota: 'BUSCANDO',
+            tipoFluxo: tipoFluxoRota,
             coletaConfirmada: false,
             entregadorNome: null,
             entregadorGeo: null,
@@ -8588,6 +8736,223 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
 // cliente ver o status/localização mudando sozinho, sem precisar recarregar.
 let rastreioPublicoListenerRef = null;
 
+// ===== [CONTA DO CLIENTE FINAL] (2026-09-23) =====
+// Login/cadastro acessível a partir da tela de rastreio público, pra dar ao
+// cliente final uma conta única que no futuro reúne os pedidos dele em
+// qualquer loja parceira (hoje só a mecânica de conta; o "meus pedidos"
+// entre lojas fica pra depois). Usa uma instância SECUNDÁRIA do Firebase
+// (mesmo projeto, auth isolada) em vez de firebase.auth() — a auth
+// principal do app não tem nenhum conceito de usuário "cliente" (só
+// lojista/entregador) e o onAuthStateChanged global tentaria montar um
+// dashboard de loja com os dados vazios de uma conta cliente. Mantendo a
+// sessão do cliente isolada, a tela de rastreio continua funcionando do
+// jeito que já funciona (leitura pública via token), e a conta logada é só
+// um estado a mais nessa mesma tela.
+let clienteAuthApp = null;
+let clienteAuthListenerAtivo = false;
+function obterClienteAuthApp() {
+    if (!clienteAuthApp) {
+        clienteAuthApp = firebase.initializeApp(firebase.app().options, 'clienteAuth');
+    }
+    return clienteAuthApp;
+}
+function obterClienteAuth() {
+    const auth2 = obterClienteAuthApp().auth();
+    // A sessão persistida (localStorage) dessa instância só termina de ser
+    // restaurada de forma ASSÍNCRONA — auth2.currentUser continua null por um
+    // instante logo após dar reload na página, mesmo com uma conta já
+    // logada. Sem esse listener, atualizarUiClienteAuth() (chamada na carga
+    // da tela) sempre achava "deslogado" nesse primeiro instante e nunca
+    // corrigia depois, então o botão Entrar/Cadastre-se ficava preso mesmo
+    // com o cliente logado.
+    if (!clienteAuthListenerAtivo) {
+        clienteAuthListenerAtivo = true;
+        auth2.onAuthStateChanged(() => atualizarUiClienteAuth());
+    }
+    return auth2;
+}
+function obterClienteDb() {
+    return obterClienteAuthApp().database();
+}
+
+function abrirModalClienteAuth(modo) {
+    alternarClienteAuthTab(modo || 'entrar');
+    const overlay = document.getElementById('overlay-cliente-auth');
+    const sheet = document.getElementById('sheet-cliente-auth');
+    if (!overlay || !sheet) return;
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => {
+        sheet.classList.add('is-open');
+    });
+}
+
+function fecharModalClienteAuth() {
+    const overlay = document.getElementById('overlay-cliente-auth');
+    const sheet = document.getElementById('sheet-cliente-auth');
+    if (!overlay || !sheet) return;
+    sheet.classList.remove('is-open');
+    setTimeout(() => {
+        overlay.style.display = 'none';
+    }, 220);
+}
+
+function alternarClienteAuthTab(modo) {
+    const fCad = document.getElementById('form-cliente-cadastrar');
+    const fEnt = document.getElementById('form-cliente-entrar');
+    const fCompletar = document.getElementById('form-cliente-completar');
+    if (!fCad || !fEnt) return;
+    if (fCompletar) fCompletar.classList.add('hidden');
+    if (modo === 'cadastrar') {
+        fCad.classList.remove('hidden');
+        fEnt.classList.add('hidden');
+    } else {
+        fEnt.classList.remove('hidden');
+        fCad.classList.add('hidden');
+    }
+}
+
+function abrirClienteAuthCompletarCadastro(nomeAtual) {
+    const fCad = document.getElementById('form-cliente-cadastrar');
+    const fEnt = document.getElementById('form-cliente-entrar');
+    const fCompletar = document.getElementById('form-cliente-completar');
+    if (!fCad || !fEnt || !fCompletar) return;
+    fCad.classList.add('hidden');
+    fEnt.classList.add('hidden');
+    fCompletar.classList.remove('hidden');
+    const nomeInput = document.getElementById('cliente-auth-completar-nome');
+    if (nomeInput) nomeInput.value = nomeAtual || '';
+}
+
+async function cadastrarClienteRastreio() {
+    const nome = (document.getElementById('cliente-auth-nome')?.value || '').trim();
+    const whatsapp = normalizarWhatsapp(document.getElementById('cliente-auth-whatsapp')?.value || '');
+    const email = (document.getElementById('cliente-auth-email')?.value || '').trim();
+    const senha = (document.getElementById('cliente-auth-senha')?.value || '').trim();
+
+    if (!nome || !whatsapp || !email || !senha) return alert('Preencha todos os campos.');
+
+    const auth2 = obterClienteAuth();
+    const db2 = obterClienteDb();
+    try {
+        const telefoneJaUsado = (await db2.ref('telefoneParaEmail/' + whatsapp).once('value')).val();
+        if (telefoneJaUsado) {
+            alert('Esse número de WhatsApp já tem conta. Toque em "Entrar".');
+            return;
+        }
+
+        const cred = await auth2.createUserWithEmailAndPassword(email, senha);
+        await db2.ref('usuarios/' + cred.user.uid).set({
+            nome, email, whatsapp, tipo: 'cliente', criadoEm: Date.now()
+        });
+        await db2.ref('telefoneParaEmail/' + whatsapp).set(email);
+        // Mesmo índice usado pela busca de cliente do lojista (ver
+        // salvarNovoCliente) — assim uma loja que já tinha esse número
+        // cadastrado manualmente passa a enxergar o mesmo nome que o
+        // cliente confirmou na própria conta.
+        await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp });
+
+        fecharModalClienteAuth();
+        atualizarUiClienteAuth();
+    } catch (error) {
+        alert('Erro ao cadastrar: ' + error.message);
+    }
+}
+
+async function loginClienteRastreio() {
+    const whatsapp = normalizarWhatsapp(document.getElementById('cliente-auth-login-whatsapp')?.value || '');
+    const senha = document.getElementById('cliente-auth-login-senha')?.value || '';
+    if (!whatsapp || !senha) return alert('Preencha WhatsApp e senha.');
+
+    const auth2 = obterClienteAuth();
+    const db2 = obterClienteDb();
+    try {
+        const email = (await db2.ref('telefoneParaEmail/' + whatsapp).once('value')).val();
+        if (!email) {
+            alert('Não encontramos uma conta com esse número de WhatsApp.');
+            return;
+        }
+        const cred = await auth2.signInWithEmailAndPassword(email, senha);
+        const dadosUser = (await db2.ref('usuarios/' + cred.user.uid).once('value')).val();
+        if (!dadosUser || dadosUser.tipo !== 'cliente') {
+            await auth2.signOut();
+            alert('Essa conta não é de cliente. Entre pelo login de loja/entregador.');
+            return;
+        }
+
+        // Conta criada por CONVITE do lojista (ver convidarClienteAtualParaApp)
+        // ainda com senha temporária — pede pro próprio cliente confirmar os
+        // dados e trocar a senha antes de considerar a conta ativa.
+        if (dadosUser.cadastroCompleto === false) {
+            abrirClienteAuthCompletarCadastro(dadosUser.nome);
+            return;
+        }
+
+        fecharModalClienteAuth();
+        atualizarUiClienteAuth();
+    } catch (error) {
+        alert('Erro ao entrar: ' + error.message);
+    }
+}
+
+async function completarCadastroClienteRastreio() {
+    const auth2 = obterClienteAuth();
+    const db2 = obterClienteDb();
+    const user = auth2.currentUser;
+    if (!user) return;
+
+    const nome = (document.getElementById('cliente-auth-completar-nome')?.value || '').trim();
+    const email = (document.getElementById('cliente-auth-completar-email')?.value || '').trim();
+    const novaSenha = (document.getElementById('cliente-auth-completar-senha')?.value || '').trim();
+
+    if (!nome || !novaSenha) return alert('Preencha nome e a nova senha.');
+    if (novaSenha.length < 6) return alert('A nova senha precisa ter pelo menos 6 caracteres.');
+
+    try {
+        const dadosAntes = (await db2.ref('usuarios/' + user.uid).once('value')).val() || {};
+        const whatsapp = dadosAntes.whatsapp || '';
+
+        await user.updatePassword(novaSenha);
+        if (email) await user.updateEmail(email);
+
+        const updates = { nome, cadastroCompleto: true };
+        if (email) updates.email = email;
+        await db2.ref('usuarios/' + user.uid).update(updates);
+        if (email && whatsapp) await db2.ref('telefoneParaEmail/' + whatsapp).set(email);
+        if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp });
+
+        fecharModalClienteAuth();
+        atualizarUiClienteAuth();
+        alert('Cadastro completo! Sua conta Flex já está ativa em todas as lojas parceiras.');
+    } catch (error) {
+        alert('Erro ao completar cadastro: ' + error.message);
+    }
+}
+
+function sairClienteRastreio() {
+    obterClienteAuth().signOut().finally(() => atualizarUiClienteAuth());
+}
+
+function atualizarUiClienteAuth() {
+    const logado = document.getElementById('rastreio-pub-auth-logado');
+    const deslogado = document.getElementById('rastreio-pub-auth-deslogado');
+    const nomeEl = document.getElementById('rastreio-pub-auth-nome');
+    if (!logado || !deslogado) return;
+
+    const user = obterClienteAuth().currentUser;
+    if (!user) {
+        logado.style.display = 'none';
+        deslogado.style.display = 'flex';
+        return;
+    }
+
+    obterClienteDb().ref('usuarios/' + user.uid).once('value').then((snap) => {
+        const dados = snap.val();
+        if (nomeEl) nomeEl.innerText = dados?.nome ? dados.nome.split(' ')[0] : 'cliente';
+        logado.style.display = 'flex';
+        deslogado.style.display = 'none';
+    });
+}
+
 async function exibirTelaRastreioPublico(token) {
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     const view = document.getElementById('view-rastreio-publico');
@@ -8598,12 +8963,15 @@ async function exibirTelaRastreioPublico(token) {
     // navegação do app.
     const tabbar = document.getElementById('main-nav');
     if (tabbar) tabbar.style.display = 'none';
+    atualizarUiClienteAuth();
 
     const conteudo = document.getElementById('rastreio-pub-conteudo');
     if (!conteudo) return;
 
     if (!token) {
-        conteudo.innerHTML = '<div class="rastreio-pub-erro">Link de rastreio inválido.</div>';
+        // Link genérico #/cliente (convite do lojista ou acesso direto, sem
+        // uma entrega específica por trás) — mesma tela, só sem timeline.
+        conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Bem-vindo(a) à Flex</p><p class="rastreio-pub-status">Entre com seu WhatsApp e senha pra acompanhar seus pedidos, ou acesse pelo link de rastreio que a loja te enviou.</p></div>';
         return;
     }
 
@@ -8664,8 +9032,25 @@ function renderConteudoRastreioPublico(dados, pacoteId) {
     const idxProximaParadaPendente = paradas.findIndex((grupo) => grupo.status !== 'ENTREGUE' && grupo.status !== 'DEVOLVIDO');
     const souAProximaParada = idxProximaParadaPendente >= 0 && idxProximaParadaPendente === minhaParadaIdx;
 
+    const ehColetaReversaTexto = dados.tipoFluxo === 'coleta_reversa';
     let statusTexto;
-    if (pacoteInfo.status === 'ENTREGUE') {
+    if (ehColetaReversaTexto) {
+        // Direção invertida: "entregue" pro pacote aqui significa "já foi
+        // recolhido com o cliente" (não "chegou até ele").
+        if (pacoteInfo.status === 'ENTREGUE') {
+            statusTexto = 'Pedido recolhido! Está a caminho da loja.';
+        } else if (statusNorm === 'EM_ROTA') {
+            statusTexto = souAProximaParada
+                ? (dados.entregadorNome ? `${dados.entregadorNome} está a caminho para buscar com você.` : 'Um entregador está a caminho para buscar seu pedido.')
+                : (dados.entregadorNome ? `${dados.entregadorNome} está em rota — ainda tem parada(s) antes da sua.` : 'O entregador está em rota — ainda tem parada(s) antes da sua.');
+        } else if (statusNorm === 'CONCLUIDO') {
+            statusTexto = 'Coleta concluída — o pedido já chegou na loja.';
+        } else if (statusNorm === 'CANCELADO') {
+            statusTexto = 'Essa coleta foi cancelada.';
+        } else {
+            statusTexto = 'Procurando um entregador para buscar seu pedido...';
+        }
+    } else if (pacoteInfo.status === 'ENTREGUE') {
         statusTexto = 'Pedido entregue!';
     } else if (pacoteInfo.status === 'DEVOLVIDO') {
         statusTexto = 'Esse pedido foi devolvido para a loja.';
@@ -8687,6 +9072,20 @@ function renderConteudoRastreioPublico(dados, pacoteId) {
         ? `<p class="rastreio-pub-parada-info">Sua parada é a <strong>${minhaOrdem}ª de ${totalParadas}</strong></p>`
         : '';
 
+    // Previsão de horário (pedido do dono 2026-09-23): reparte a duração
+    // total da rota pelas paradas na ordem em que serão visitadas (a ordem já
+    // é por proximidade — ver ordenarPacotesPorProximidade — não por ordem de
+    // cadastro). É uma estimativa proporcional simples, não uma previsão de
+    // trânsito ao vivo recalculada a cada movimento do entregador.
+    let etaHtml = '';
+    if (statusNorm === 'EM_ROTA' && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO' && minhaOrdem > 0 && Number(dados.duracaoMin) > 0) {
+        const etaMin = Math.max(1, Math.round((minhaOrdem / totalParadas) * Number(dados.duracaoMin)));
+        const etaTxt = formatarDuracao(etaMin);
+        etaHtml = ehColetaReversaTexto
+            ? `<p class="rastreio-pub-eta"><i data-lucide="clock" size="14"></i> Previsão de coleta em <strong>${escaparHtmlMarketplace(etaTxt)}</strong></p>`
+            : `<p class="rastreio-pub-eta"><i data-lucide="clock" size="14"></i> Seu pedido chega em <strong>${escaparHtmlMarketplace(etaTxt)}</strong></p>`;
+    }
+
     const geo = dados.entregadorGeo;
     const mapaHtml = (geo && geo.lat && geo.lng)
         ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
@@ -8700,6 +9099,7 @@ function renderConteudoRastreioPublico(dados, pacoteId) {
             <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || 'Loja')}</span>
             <h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace(destinatario)}!</h2>
             <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
+            ${etaHtml}
             ${timelineHtml}
             ${paradaInfoHtml}
             ${(distTxt || durTxt) ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(' • '))}</div>` : ''}
@@ -8750,38 +9150,74 @@ function agruparParadasPorEndereco(paradasBrutas) {
 // bolinha, sem identificar quem são os outros clientes da rota.
 function montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm) {
     const idxAtual = paradas.findIndex((grupo) => grupo.status !== 'ENTREGUE' && grupo.status !== 'DEVOLVIDO');
-    // BUG CORRIGIDO 2026-09-21: o ponto de retirada acendia assim que um
-    // entregador aceitava a rota — agora só acende quando ele confirma que
-    // passou na loja e pegou os pacotes de verdade (coletaConfirmada, ver
-    // confirmarColetaPacotes).
-    const origemConcluida = dados.coletaConfirmada === true;
+    const ehColetaReversa = dados.tipoFluxo === 'coleta_reversa';
 
-    const pontos = [
-        {
-            origem: true,
-            label: dados.lojaNome || 'Loja',
-            sub: 'Retirada do pedido',
-            done: origemConcluida,
-            atual: !origemConcluida,
-            voce: false,
-            devolvido: false
-        },
-        ...paradas.map((grupo, idx) => {
-            const ehMinha = grupo.pacoteIds.some((id) => String(id) === String(pacoteId));
-            return {
-                origem: false,
-                // Só mostra nome/posição da parada de quem está vendo a
-                // tela — as outras ficam só com a bolinha, sem identificar
-                // o cliente.
-                label: ehMinha ? (grupo.destinatario || 'Cliente') : '',
-                sub: ehMinha ? `${idx + 1}ª parada` : '',
-                done: grupo.status === 'ENTREGUE',
-                devolvido: grupo.status === 'DEVOLVIDO',
-                atual: origemConcluida && statusNorm === 'EM_ROTA' && idx === idxAtual,
-                voce: ehMinha
-            };
-        })
-    ];
+    let pontos;
+    if (ehColetaReversa) {
+        // Coleta reversa: a ordem física é invertida (busca no(s) cliente(s),
+        // entrega na loja) — então a loja vira o ÚLTIMO ponto em vez do
+        // primeiro. "Retirada" de cada parada já usa o mesmo status ENTREGUE
+        // que a confirmação de entrega grava (ver confirmarEnvioFinal: em
+        // coleta reversa origem/destino do pacote já vêm trocados, então
+        // esse status sempre significou "chegou no destino final do pacote"
+        // — aqui o destino final de cada parada é justamente ter sido
+        // recolhida do cliente).
+        pontos = [
+            ...paradas.map((grupo, idx) => {
+                const ehMinha = grupo.pacoteIds.some((id) => String(id) === String(pacoteId));
+                return {
+                    origem: false,
+                    label: ehMinha ? (grupo.destinatario || 'Cliente') : '',
+                    sub: ehMinha ? 'Retirada com você' : '',
+                    done: grupo.status === 'ENTREGUE',
+                    devolvido: grupo.status === 'DEVOLVIDO',
+                    atual: statusNorm === 'EM_ROTA' && idx === idxAtual,
+                    voce: ehMinha
+                };
+            }),
+            {
+                origem: true,
+                label: dados.lojaNome || 'Loja',
+                sub: 'Entrega na loja',
+                done: statusNorm === 'CONCLUIDO',
+                atual: statusNorm === 'EM_ROTA' && idxAtual === -1,
+                voce: false,
+                devolvido: false
+            }
+        ];
+    } else {
+        // BUG CORRIGIDO 2026-09-21: o ponto de retirada acendia assim que um
+        // entregador aceitava a rota — agora só acende quando ele confirma
+        // que passou na loja e pegou os pacotes de verdade (coletaConfirmada,
+        // ver confirmarColetaPacotes).
+        const origemConcluida = dados.coletaConfirmada === true;
+        pontos = [
+            {
+                origem: true,
+                label: dados.lojaNome || 'Loja',
+                sub: 'Retirada do pedido',
+                done: origemConcluida,
+                atual: !origemConcluida,
+                voce: false,
+                devolvido: false
+            },
+            ...paradas.map((grupo, idx) => {
+                const ehMinha = grupo.pacoteIds.some((id) => String(id) === String(pacoteId));
+                return {
+                    origem: false,
+                    // Só mostra nome/posição da parada de quem está vendo a
+                    // tela — as outras ficam só com a bolinha, sem identificar
+                    // o cliente.
+                    label: ehMinha ? (grupo.destinatario || 'Cliente') : '',
+                    sub: ehMinha ? `${idx + 1}ª parada` : '',
+                    done: grupo.status === 'ENTREGUE',
+                    devolvido: grupo.status === 'DEVOLVIDO',
+                    atual: origemConcluida && statusNorm === 'EM_ROTA' && idx === idxAtual,
+                    voce: ehMinha
+                };
+            })
+        ];
+    }
 
     const itensHtml = pontos.map((pt, idx) => {
         const classes = ['parada-v-item'];
@@ -8816,15 +9252,21 @@ function montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm) {
 }
 
 // ===== [BANNERS] =====
-// Lidos aqui sem login (mesma tela pública). Gerenciados pelo master em
-// Admin > Banners (ver renderBannersAdmin / salvarBannerAdmin).
+// Cada tipo de usuário (cliente final na tela de rastreio, lojista e
+// entregador no início) tem seus próprios banners — filtrados pelo campo
+// "publico" gravado em cada banner. Gerenciados pelo master em Admin >
+// Banners (ver renderBannersAdmin / salvarBannerAdmin).
 function carregarBannersRastreioPublico() {
-    const wrap = document.getElementById('rastreio-pub-banners');
+    carregarBannersPorPublico('cliente', 'rastreio-pub-banners');
+}
+
+function carregarBannersPorPublico(publico, containerId) {
+    const wrap = document.getElementById(containerId);
     if (!wrap) return;
     db.ref('banners').once('value').then((snap) => {
         const dados = snap.val() || {};
         const ativos = Object.values(dados)
-            .filter((b) => b?.ativo && b?.imagemUrl)
+            .filter((b) => b?.ativo && b?.imagemUrl && (b?.publico || 'cliente') === publico)
             .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
 
         if (!ativos.length) {
@@ -8838,28 +9280,40 @@ function carregarBannersRastreioPublico() {
                 <img src="${escaparHtmlMarketplace(b.imagemUrl)}" alt="Publicidade">
             </a>
         `).join('');
-        iniciarRotacaoBannersRastreioPublico(wrap);
+        iniciarRotacaoBanners(wrap);
     }).catch(() => wrap.classList.add('hidden'));
 }
 
-let bannerRotacaoTimer = null;
-function iniciarRotacaoBannersRastreioPublico(wrap) {
+const bannerRotacaoTimers = new WeakMap();
+function iniciarRotacaoBanners(wrap) {
     const itens = wrap.querySelectorAll('.rastreio-pub-banner-item');
-    if (bannerRotacaoTimer) clearInterval(bannerRotacaoTimer);
+    const timerAntigo = bannerRotacaoTimers.get(wrap);
+    if (timerAntigo) clearInterval(timerAntigo);
     itens.forEach((el, i) => el.classList.toggle('is-active', i === 0));
     if (itens.length <= 1) return;
     let idx = 0;
-    bannerRotacaoTimer = setInterval(() => {
+    const timer = setInterval(() => {
         itens[idx].classList.remove('is-active');
         idx = (idx + 1) % itens.length;
         itens[idx].classList.add('is-active');
     }, 5000);
+    bannerRotacaoTimers.set(wrap, timer);
 }
 
 // ===== [BANNERS - PAINEL ADMIN] =====
-// CRUD simples pro master trocar os banners da tela de rastreio público sem
-// precisar mexer em código. Imagem vai pro Firebase Storage; só o link fica
-// no Realtime Database.
+// CRUD simples pro master trocar os banners sem precisar mexer em código.
+// Imagem vai pro Firebase Storage; só o link fica no Realtime Database.
+// Cada banner pertence a um "publico" (cliente/lojista/entregador) — o
+// painel filtra pela aba selecionada (ver filtrarBannersAdminPorPublico).
+let filtroPublicoBannerAdmin = 'cliente';
+
+function filtrarBannersAdminPorPublico(publico, btn) {
+    filtroPublicoBannerAdmin = publico;
+    document.querySelectorAll('#admin-banner-tabs .admin-chip').forEach((b) => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderBannersAdmin();
+}
+
 async function renderBannersAdmin() {
     const wrap = document.getElementById('admin-banners-lista');
     if (!wrap) return;
@@ -8870,10 +9324,11 @@ async function renderBannersAdmin() {
         const dados = snap.val() || {};
         const lista = Object.entries(dados)
             .map(([id, b]) => ({ id, ...b }))
+            .filter((b) => (b.publico || 'cliente') === filtroPublicoBannerAdmin)
             .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
 
         if (!lista.length) {
-            wrap.innerHTML = '<p class="admin-subtle">Nenhum banner cadastrado ainda.</p>';
+            wrap.innerHTML = '<p class="admin-subtle">Nenhum banner cadastrado pra esse público ainda.</p>';
             return;
         }
 
@@ -8900,8 +9355,10 @@ async function renderBannersAdmin() {
 async function salvarBannerAdmin() {
     const fileInput = document.getElementById('banner-novo-arquivo');
     const linkInput = document.getElementById('banner-novo-link');
+    const publicoInput = document.getElementById('banner-novo-publico');
     const statusEl = document.getElementById('banner-upload-status');
     const arquivo = fileInput?.files?.[0];
+    const publico = publicoInput?.value || 'cliente';
 
     if (!arquivo) {
         alert('Escolha uma imagem para o banner.');
@@ -8917,19 +9374,22 @@ async function salvarBannerAdmin() {
         const imagemUrl = await ref.getDownloadURL();
 
         const snapTodos = await db.ref('banners').once('value');
-        const totalAtual = Object.keys(snapTodos.val() || {}).length;
+        const totalNessePublico = Object.values(snapTodos.val() || {}).filter((b) => (b.publico || 'cliente') === publico).length;
 
         await db.ref('banners/' + id).set({
             imagemUrl,
             linkUrl: (linkInput?.value || '').trim(),
+            publico,
             ativo: true,
-            ordem: totalAtual,
+            ordem: totalNessePublico,
             criadoEm: Date.now()
         });
 
         if (fileInput) fileInput.value = '';
         if (linkInput) linkInput.value = '';
         if (statusEl) statusEl.innerText = 'Banner adicionado.';
+        filtroPublicoBannerAdmin = publico;
+        document.querySelectorAll('#admin-banner-tabs .admin-chip').forEach((b) => b.classList.toggle('active', b.dataset.publico === publico));
         renderBannersAdmin();
     } catch (err) {
         console.warn('Falha ao salvar banner:', err);
@@ -9491,6 +9951,12 @@ function abrirModalAcoesCliente(id) {
     const title = document.getElementById('cliente-actions-name');
     if (!modal || !title) return;
     title.innerText = cliente.nome || 'Cliente';
+
+    const btnConvidar = document.getElementById('cliente-actions-convidar');
+    if (btnConvidar) {
+        btnConvidar.innerText = cliente.contaClienteUid ? 'Reenviar convite' : 'Convidar pro app';
+    }
+
     modal.style.display = 'flex';
     requestAnimationFrame(() => modal.classList.add('is-open'));
 }
@@ -9508,6 +9974,83 @@ function abrirHistoricoDoClienteAtual() {
     clienteAcaoAtualId = null;
     fecharModalAcoesCliente();
     setTimeout(() => verHistoricoCliente(id), 150);
+}
+
+// ===== [CONVITE DO LOJISTA PRO CLIENTE] (2026-09-23) =====
+// Complementa o autocadastro (ver cadastrarClienteRastreio): em vez de
+// esperar o cliente achar sozinho o link de rastreio e criar a própria
+// conta, o lojista pode "puxar" o cliente que já tem cadastrado — cria a
+// conta com uma senha temporária de 6 dígitos e manda por WhatsApp. No
+// primeiro login (ver loginClienteRastreio → cadastroCompleto:false) o
+// próprio cliente confirma os dados e troca a senha, e só aí a conta conta
+// como "ativada" de verdade.
+function gerarSenhaTemporaria() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function convidarClienteAtualParaApp() {
+    if (!clienteAcaoAtualId) return;
+    const id = clienteAcaoAtualId;
+    fecharModalAcoesCliente();
+    await convidarClienteParaApp(id);
+}
+
+async function convidarClienteParaApp(clienteId) {
+    const idx = clientes.findIndex((c) => c.id === clienteId);
+    if (idx < 0) return;
+    const cliente = clientes[idx];
+    const whatsapp = normalizarWhatsapp(cliente.whatsapp || '');
+    if (!whatsapp) {
+        alert('Este cliente não tem um WhatsApp válido cadastrado.');
+        return;
+    }
+
+    // Instância secundária (mesma técnica do login/cadastro do cliente) —
+    // criar a conta aqui NÃO pode derrubar a sessão do lojista que está
+    // logado no app principal.
+    const auth2 = obterClienteAuth();
+    const db2 = obterClienteDb();
+
+    try {
+        const emailExistente = (await db2.ref('telefoneParaEmail/' + whatsapp).once('value')).val();
+        if (emailExistente) {
+            if (!cliente.contaClienteUid) {
+                clientes[idx] = { ...clientes[idx], contaClienteUid: 'externo' };
+                await saveClientes();
+            }
+            alert('Esse cliente já tem uma conta no Flex (própria ou de outra loja). Não é possível reenviar um convite de senha temporária.');
+            return;
+        }
+
+        const senhaTemp = gerarSenhaTemporaria();
+        // E-mail fictício — Firebase Auth exige um, mas o convite não depende
+        // do cliente ter e-mail; ele pode informar um de verdade ao
+        // completar o cadastro (ver completarCadastroClienteRastreio).
+        const emailConvite = `cliente.${whatsapp}@flex.local`;
+
+        const cred = await auth2.createUserWithEmailAndPassword(emailConvite, senhaTemp);
+        await db2.ref('usuarios/' + cred.user.uid).set({
+            nome: cliente.nome || '',
+            email: emailConvite,
+            whatsapp,
+            tipo: 'cliente',
+            criadoEm: Date.now(),
+            convidadoPorUid: getUsuarioIdAtual(),
+            cadastroCompleto: false
+        });
+        await db2.ref('telefoneParaEmail/' + whatsapp).set(emailConvite);
+        await db2.ref('clientesGlobais/' + whatsapp).set({ nome: cliente.nome || '', whatsapp });
+        await auth2.signOut();
+
+        clientes[idx] = { ...clientes[idx], contaClienteUid: cred.user.uid, contaClienteConvidadaEm: Date.now() };
+        await saveClientes();
+
+        const link = `${window.location.origin}${window.location.pathname}#/cliente`;
+        const msg = `Olá${cliente.nome ? ', ' + cliente.nome.split(' ')[0] : ''}! Agora você pode acompanhar seus pedidos pela Flex.\n\nAcesse: ${link}\nSeu login é o seu WhatsApp e a senha temporária é: *${senhaTemp}*\n\nNo primeiro acesso você confirma seus dados e cria sua própria senha.`;
+        window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, '_blank');
+    } catch (error) {
+        alert('Erro ao convidar cliente: ' + error.message);
+    }
 }
 
 function excluirClienteAtualComConfirmacao() {
@@ -12008,9 +12551,7 @@ function renderizarDashboardEntregador(payloadUsuario = null) {
     container.innerHTML = `
         ${headerHtml}
         <div class="pb-28">
-            <div class="mb-3 overflow-hidden rounded-2xl bg-white shadow-sm">
-                <img src="img/banner1.png" alt="Banner Flex" class="h-auto w-full object-cover" onerror="this.style.display='none'">
-            </div>
+            <div id="banner-entregador-home" class="rastreio-pub-banners hidden mb-3"></div>
 
             <div class="mb-3 rounded-3xl bg-white p-3 shadow-sm entregador-dia-card">
                 <div class="dash-meta-head">
@@ -12068,6 +12609,7 @@ function renderizarDashboardEntregador(payloadUsuario = null) {
     `;
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    carregarBannersPorPublico('entregador', 'banner-entregador-home');
 }
 
 function abrirSheetRotaEntregadorHome(rotaId) {
@@ -12199,6 +12741,35 @@ function pararPresencaUsuarioAtual() {
 }
 
 let trackLojaIdAtual = null;
+// Guarda os pacotes da rota aberta no modal de tracking, pra clicar numa
+// bolinha da timeline e mostrar de quem é aquele pacote sem precisar buscar
+// no banco de novo (ver mostrarInfoParadaTrackingLoja).
+let trackLojaPacotesAtual = [];
+
+function mostrarInfoParadaTrackingLoja(rangeStart, rangeEnd) {
+    const el = document.getElementById('track-loja-parada-info');
+    if (!el) return;
+
+    const pacotesDoRange = trackLojaPacotesAtual.slice(rangeStart, rangeEnd);
+    if (!pacotesDoRange.length) {
+        el.classList.add('hidden');
+        return;
+    }
+
+    el.innerHTML = pacotesDoRange.map((p) => {
+        const statusNorm = normalizarStatusEnvioFiltro(p?.status || p?.statusRaw || 'PACOTE_NOVO');
+        const statusLabel = rotuloStatusEnvio(statusNorm);
+        return `
+            <div class="tracking-parada-info-item">
+                <strong>${escaparHtmlMarketplace(p?.destinatario || 'Cliente')}</strong>
+                <span class="tracking-parada-info-status">${escaparHtmlMarketplace(statusLabel)}</span>
+                <small>${escaparHtmlMarketplace(p?.destinoEndereco || p?.destinoCompleto || '--')}</small>
+            </div>
+        `;
+    }).join('');
+    el.classList.remove('hidden');
+}
+
 async function abrirModalTrackingLoja(rotaId) {
     if (!rotaId) return;
     try {
@@ -12280,6 +12851,9 @@ async function abrirModalTrackingLoja(rotaId) {
         setTxt('track-loja-duracao', durRaw ? dur : 'Calculando...');
 
     // linha do tempo de pacotes (até 5 pontos)
+    trackLojaPacotesAtual = pacotes;
+    const paradaInfoEl = document.getElementById('track-loja-parada-info');
+    if (paradaInfoEl) paradaInfoEl.classList.add('hidden');
     const timelineEl = document.getElementById('track-loja-timeline');
     if (timelineEl) {
         const maxDots = 5;
@@ -12300,7 +12874,7 @@ async function abrirModalTrackingLoja(rotaId) {
             const hasCancel = canceladosRange > 0;
             const active = !reached && concluidos >= rangeStart && concluidos < rangeEnd;
             const classe = reached ? 'done' : active ? 'active' : hasCancel ? 'cancel' : '';
-            html += `<span class="tracking-dot ${classe}"></span>`;
+            html += `<span class="tracking-dot ${classe}" onclick="mostrarInfoParadaTrackingLoja(${rangeStart}, ${rangeEnd})"></span>`;
         }
         timelineEl.innerHTML = html;
     }
@@ -12350,8 +12924,11 @@ async function abrirModalTrackingLoja(rotaId) {
             const telefone = driver.whatsapp || driver.telefone || driver.celular || rota?.telefoneEntregador || driver?.contato || '';
             if (btnCall) {
                 if (telefone) {
-                    const numeroLimpo = String(telefone).trim();
-                    btnCall.onclick = () => { window.location.href = `tel:${numeroLimpo}`; };
+                    // BUG CORRIGIDO 2026-09-23: era ligação de telefone
+                    // (tel:) — troca pra abrir o WhatsApp de verdade com o
+                    // entregador, igual o botão equivalente na tela de
+                    // rastreio público.
+                    btnCall.onclick = () => { window.open(`https://wa.me/${paraWhatsappInternacional(telefone)}`, '_blank'); };
                     setBtnState(btnCall, true);
                 } else {
                     btnCall.onclick = null;
@@ -12716,6 +13293,7 @@ export {
   abrirHistoricoDoClienteAtual,
   abrirModalAcoesCliente,
   abrirMapaColetaLoja,
+  abrirModalClienteAuth,
   abrirModalDetalheEnvio,
   abrirModalDetalheRota,
   abrirModalEndereco,
@@ -12759,6 +13337,7 @@ export {
   ajustarSaldoUsuario,
   alternarAtivoBannerAdmin,
   alternarAuth,
+  alternarClienteAuthTab,
   alternarFormaCobrancaEntrega,
   alternarStatusUsuarioMaster,
   animarAtivacaoItemMenu,
@@ -12790,10 +13369,12 @@ export {
   atualizarResumoSelecaoRota,
   atualizarSaldoPagamentoUI,
   atualizarStatusRotaMaster,
+  atualizarUiClienteAuth,
   atualizarWalletChipEntregadorUI,
   buscarCEP,
   buscarDadosDoBanco,
   buscarEndereco,
+  cadastrarClienteRastreio,
   cadastrarReal,
   calcularFreteBaseServico,
   calcularFreteEstimado,
@@ -12818,6 +13399,7 @@ export {
   coletarEnviosDaBase,
   coletarEnviosPendentesParaRota,
   compartilharLinkRastreioWhatsapp,
+  completarCadastroClienteRastreio,
   confirmarCodigoDevolucaoPacoteAtual,
   confirmarColetaPacotes,
   confirmarDevolucaoComoLojista,
@@ -12830,6 +13412,7 @@ export {
   confirmarRecebimentoDinheiro,
   consultarPagamentoPixMercadoPago,
   consultarPagamentoPixTesteClienteLocal,
+  convidarClienteAtualParaApp,
   copiarCodigoPixCobrancaEntrega,
   copiarCodigoPixDevolucaoLojista,
   copiarCodigoPixQuitacaoDivida,
@@ -12866,6 +13449,7 @@ export {
   exportarRelatorioCsvAdmin,
   extrairCidadeEnderecoSimples,
   fecharModalAcoesCliente,
+  fecharModalClienteAuth,
   fecharModalDetalheEnvio,
   fecharModalDetalheRota,
   fecharModalEndereco,
@@ -12889,6 +13473,7 @@ export {
   filtrarAdminBuscaAtiva,
   filtrarAdminPacotes,
   filtrarAdminUsuarios,
+  filtrarBannersAdminPorPublico,
   finalizarSplash,
   finalizarSwipeEntSheet,
   finalizarSwipePaginaRota,
@@ -12964,6 +13549,7 @@ export {
   loadClientes,
   localizarRotaDoEnvio,
   loginAdmin,
+  loginClienteRastreio,
   loginReal,
   logoutReal,
   mapearCategoriaEnvio,
@@ -12987,6 +13573,7 @@ export {
   montarOptionsFiltroMarketplace,
   montarTimelineRastreamento,
   montarWaypointRota,
+  mostrarInfoParadaTrackingLoja,
   mostrarTelaAdminDashboard,
   mostrarTelaAdminLogin,
   mostrarTelaAdminSignup,
@@ -13084,6 +13671,7 @@ export {
   rotaSheetBloqueada,
   rotaTemEntregadorAtivoParaChat,
   rotuloStatusEnvio,
+  sairClienteRastreio,
   salvarBannerAdmin,
   salvarDadosPagamento,
   salvarEndereco,
@@ -13100,6 +13688,7 @@ export {
   selecionarServico,
   selecionarTamanho,
   selecionarTipoCadastro,
+  selecionarTipoFluxoEnvio,
   selecionarVeiculo,
   setEstadoPacoteRota,
   setModalEnvioStep,

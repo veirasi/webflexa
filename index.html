@@ -122,7 +122,17 @@
              exibirTelaRastreioPublico em legacy-monolith.js. -->
         <section id="view-rastreio-publico" class="view">
             <div class="rastreio-pub-shell">
-                <div style="text-align: center; margin: 10px 0 20px;"><img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo"></div>
+                <div class="rastreio-pub-header-row">
+                    <div class="rastreio-pub-header-spacer"></div>
+                    <img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo">
+                    <div class="rastreio-pub-header-right">
+                        <div class="rastreio-pub-auth-chip" id="rastreio-pub-auth-logado" style="display:none;">
+                            <span class="rastreio-pub-auth-ola">Olá, <strong id="rastreio-pub-auth-nome"></strong></span>
+                            <button type="button" class="rastreio-pub-auth-sair" onclick="sairClienteRastreio()">Sair</button>
+                        </div>
+                        <button type="button" class="rastreio-pub-auth-btn" id="rastreio-pub-auth-deslogado" onclick="abrirModalClienteAuth('entrar')"><i data-lucide="user" size="15"></i> Entrar</button>
+                    </div>
+                </div>
 
                 <div id="rastreio-pub-banners" class="rastreio-pub-banners hidden"></div>
 
@@ -186,11 +196,57 @@
     </div>
 </div>
 
+<!-- Modal Entrar/Cadastrar do cliente final, acionado pelo botão da tela de
+     rastreio público. Conta separada (tipo:'cliente'), autenticada numa
+     instância secundária do Firebase (ver obterClienteAuth) pra não se
+     misturar com a sessão de lojista/entregador do app. Visual em dropdown
+     (ancorado embaixo do botão Entrar), não em sheet de baixo pra cima como
+     os outros modais do app. -->
+<div id="overlay-cliente-auth" class="modal-overlay rastreio-auth-overlay" onclick="fecharModalClienteAuth()" style="display:none;">
+    <div class="rastreio-auth-overlay-inner">
+        <div id="sheet-cliente-auth" class="rastreio-pub-auth-dropdown" onclick="event.stopPropagation()">
+
+            <form id="form-cliente-entrar">
+                <p class="rastreio-auth-dropdown-title">Entrar</p>
+                <div class="form-group"><label>WhatsApp</label><div class="input-wrapper"><svg class="icon-whatsapp" width="18" height="18" viewBox="0 0 448 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg><input type="tel" id="cliente-auth-login-whatsapp" placeholder="(00) 0 0000-0000"></div></div>
+                <div class="form-group"><label>Senha</label><div class="input-wrapper"><i data-lucide="lock" size="18"></i><input type="password" id="cliente-auth-login-senha" placeholder="Sua senha"><i data-lucide="eye" size="18" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('cliente-auth-login-senha')"></i></div></div>
+                <p class="rastreio-auth-switch-link" onclick="alternarClienteAuthTab('cadastrar')">Não tem cadastro? <strong>Cadastre-se</strong></p>
+                <button type="button" class="btn-main" onclick="loginClienteRastreio()">Entrar</button>
+            </form>
+
+            <form id="form-cliente-cadastrar" class="hidden">
+                <p class="rastreio-auth-dropdown-title rastreio-auth-back" onclick="alternarClienteAuthTab('entrar')"><i data-lucide="chevron-left" size="16"></i> Criar conta</p>
+                <div class="form-group"><div class="input-wrapper"><i data-lucide="user" size="18"></i><input type="text" id="cliente-auth-nome" placeholder="Seu nome completo"></div></div>
+                <div class="form-group"><div class="input-wrapper"><svg class="icon-whatsapp" width="18" height="18" viewBox="0 0 448 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg><input type="tel" id="cliente-auth-whatsapp" placeholder="WhatsApp"></div></div>
+                <div class="form-group"><div class="input-wrapper"><i data-lucide="mail" size="18"></i><input type="email" id="cliente-auth-email" placeholder="E-mail"></div></div>
+                <div class="form-group"><div class="input-wrapper"><i data-lucide="lock" size="18"></i><input type="password" id="cliente-auth-senha" placeholder="Senha (mínimo 6 caracteres)"><i data-lucide="eye" size="18" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('cliente-auth-senha')"></i></div></div>
+                <button type="button" class="btn-main" onclick="cadastrarClienteRastreio()">Criar minha conta</button>
+            </form>
+
+            <!-- Mostrado depois do login quando a conta foi criada por CONVITE
+                 do lojista (senha temporária) e ainda não foi confirmada pelo
+                 próprio cliente — ver completarCadastroClienteRastreio. -->
+            <form id="form-cliente-completar" class="hidden">
+                <p class="rastreio-auth-dropdown-title">Complete seu cadastro</p>
+                <p class="rastreio-auth-completar-hint">Você entrou com a senha temporária enviada pela loja. Confirme seus dados e crie uma senha só sua.</p>
+                <div class="form-group"><label>Nome</label><div class="input-wrapper"><i data-lucide="user" size="18"></i><input type="text" id="cliente-auth-completar-nome" placeholder="Seu nome completo"></div></div>
+                <div class="form-group"><label>E-mail (opcional)</label><div class="input-wrapper"><i data-lucide="mail" size="18"></i><input type="email" id="cliente-auth-completar-email" placeholder="seuemail@exemplo.com"></div></div>
+                <div class="form-group"><label>Nova senha</label><div class="input-wrapper"><i data-lucide="lock" size="18"></i><input type="password" id="cliente-auth-completar-senha" placeholder="Mínimo 6 caracteres"><i data-lucide="eye" size="18" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('cliente-auth-completar-senha')"></i></div></div>
+                <button type="button" class="btn-main" onclick="completarCadastroClienteRastreio()">Confirmar e ativar conta</button>
+            </form>
+
+        </div>
+    </div>
+</div>
+
 <!-- Modal Tracking Rota (Home Lojista) -->
 <div id="overlay-tracking-loja" class="modal-overlay tracking-overlay" onclick="fecharModalTrackingLoja()" style="display:none;">
     <div class="tracking-shell" onclick="event.stopPropagation()">
         <div class="tracking-sheet tracking-sheet-dark">
-            <div class="tracking-handle tracking-handle-light"></div>
+            <div class="tracking-handle-row">
+                <div class="tracking-handle tracking-handle-light"></div>
+                <button type="button" class="tracking-close-btn" onclick="fecharModalTrackingLoja()" title="Fechar">×</button>
+            </div>
             <div class="tracking-row tracking-row-header">
                 <div class="tracking-route-id">
                     <span class="tracking-label">ROTA</span>
@@ -204,6 +260,7 @@
             <div class="tracking-timeline-row">
                 <div class="tracking-timeline" id="track-loja-timeline"></div>
             </div>
+            <div id="track-loja-parada-info" class="tracking-parada-info hidden"></div>
 
             <div class="tracking-grid tracking-grid-2col">
                 <div class="tracking-cell dark">
@@ -225,7 +282,7 @@
                     </div>
                 </div>
                 <div class="tracking-driver-actions">
-                    <button class="tracking-btn-circle ghost" id="track-driver-call" title="Ligar"><i data-lucide="phone"></i></button>
+                    <button class="tracking-btn-circle ghost" id="track-driver-call" title="WhatsApp"><svg class="icon-whatsapp" width="18" height="18" viewBox="0 0 448 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.1 0-65.6-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.2-3.2-5.6-.3-8.6 2.5-11.3 2.5-2.5 5.6-6.5 8.3-9.7 2.8-3.3 3.7-5.6 5.6-9.3 1.9-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.8 23.5 9.2 31.5 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg></button>
                     <button class="tracking-btn-circle ghost" id="track-driver-chat" title="Mensagem"><i data-lucide="message-circle"></i></button>
                 </div>
             </div>
@@ -275,6 +332,7 @@
             <button type="button" class="cliente-actions-close" onclick="fecharModalAcoesCliente()">×</button>
         </div>
         <button type="button" class="cliente-actions-item" onclick="abrirHistoricoDoClienteAtual()">Ver Histórico</button>
+        <button type="button" class="cliente-actions-item" id="cliente-actions-convidar" onclick="convidarClienteAtualParaApp()">Convidar pro app</button>
         <button type="button" class="cliente-actions-item danger" onclick="excluirClienteAtualComConfirmacao()">Excluir</button>
     </div>
 </div>
@@ -989,6 +1047,23 @@
                 </div>
             </div>
 
+            <span class="section-title">Direção do envio</span>
+            <div class="radio-row-group" id="grupo-tipo-fluxo" style="margin-bottom: 25px;">
+                <div class="radio-row active" id="fluxo-entrega" onclick="selecionarTipoFluxoEnvio('entrega')">
+                    <div class="radio-row-icon"><i data-lucide="package-check" size="18"></i></div>
+                    <div class="radio-row-label">Entrega</div>
+                    <div class="radio-row-sub">Loja → Cliente</div>
+                    <div class="radio-row-dot"></div>
+                </div>
+                <div class="radio-row" id="fluxo-coleta" onclick="selecionarTipoFluxoEnvio('coleta_reversa')">
+                    <div class="radio-row-icon"><i data-lucide="undo-2" size="18"></i></div>
+                    <div class="radio-row-label">Coleta</div>
+                    <div class="radio-row-sub">Cliente → Loja</div>
+                    <div class="radio-row-dot"></div>
+                </div>
+            </div>
+            <p class="radio-row-group-hint" id="hint-tipo-fluxo" style="display:none;">O entregador vai buscar o pacote com o cliente e trazer de volta pra loja (troca/devolução).</p>
+
             <span class="section-title">Tipo de Serviço</span>
             <div class="radio-row-group" id="grupo-tipo-servico" style="margin-bottom: 25px;">
                 <div class="radio-row active" id="srv-std" onclick="selecionarServico('Standard')">
@@ -1101,7 +1176,7 @@
 
             <div id="modal-envio-step-3" class="hidden">
                 <div class="destinatario-card" style="border: 2px solid var(--brand-orange); background: #fffaf5;">
-                    <span class="destinatario-label">Destino</span>
+                    <span class="destinatario-label" id="rev-end-label">Destino</span>
                     <strong class="destinatario-nome" id="rev-nome">Maria Silva</strong>
                     <span class="destinatario-info" id="rev-end">Rua das Flores, 123</span>
                 </div>
@@ -1116,7 +1191,7 @@
                         <strong id="rev-tamanho">Pacote P</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                        <span style="color:var(--text-sub); font-weight:600;">Origem</span>
+                        <span style="color:var(--text-sub); font-weight:600;" id="rev-origem-label">Origem</span>
                         <strong id="rev-origem" style="max-width:56%; text-align:right; font-size:12px; color:#64748b;">--</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
@@ -1714,7 +1789,13 @@
                         </div>
                         <div class="admin-panel admin-report-panel">
                             <h3>Novo banner</h3>
+                            <p class="admin-subtle">Tamanho recomendado: 1200×450px (proporção 8:3), JPG/PNG/WebP, até ~300KB.</p>
                             <div class="banner-form-row">
+                                <select id="banner-novo-publico" class="banner-select-publico">
+                                    <option value="cliente">Cliente final (tela de rastreio)</option>
+                                    <option value="lojista">Lojista (início)</option>
+                                    <option value="entregador">Entregador (início)</option>
+                                </select>
                                 <input type="file" id="banner-novo-arquivo" accept="image/*">
                                 <input type="text" id="banner-novo-link" placeholder="Link ao clicar (opcional) — https://...">
                                 <button class="btn-main" type="button" style="width:auto;" onclick="salvarBannerAdmin()"><i data-lucide="upload" size="16"></i> Adicionar banner</button>
@@ -1723,6 +1804,11 @@
                         </div>
                         <div class="admin-panel admin-report-panel">
                             <h3>Banners cadastrados</h3>
+                            <div class="admin-banner-tabs" id="admin-banner-tabs">
+                                <button type="button" class="admin-chip active" data-publico="cliente" onclick="filtrarBannersAdminPorPublico('cliente', this)">Cliente</button>
+                                <button type="button" class="admin-chip" data-publico="lojista" onclick="filtrarBannersAdminPorPublico('lojista', this)">Lojista</button>
+                                <button type="button" class="admin-chip" data-publico="entregador" onclick="filtrarBannersAdminPorPublico('entregador', this)">Entregador</button>
+                            </div>
                             <div id="admin-banners-lista" class="admin-banners-lista">
                                 <p class="admin-subtle">Carregando...</p>
                             </div>
