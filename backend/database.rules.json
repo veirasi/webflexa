@@ -198,6 +198,20 @@
         ".read": "auth != null",
         ".write": "auth != null"
       }
+    },
+
+    // ===== [CONTA DO CLIENTE FINAL — MEUS PEDIDOS] (2026-09-24) =====
+    // Índice mínimo telefone -> {token de rastreio, loja, data} pra tela
+    // "Meus pedidos" do cliente logado (ver renderMeusPedidosCliente em
+    // legacy-monolith.js) montar a lista de pedidos em QUALQUER loja parceira
+    // sem precisar ler os dados reais de cada lojista (que continuam
+    // isolados e privados). Cada item aponta pra um rastreioToken já público
+    // por si só, então não vaza nada de novo.
+    "pedidosPorCliente": {
+      "$telefone": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
     }
   }
 }

@@ -10,16 +10,29 @@ const db = admin.database();
 const ROUTING_REGION = process.env.ROUTING_REGION || 'southamerica-east1';
 const PAYMENTS_REGION = process.env.PAYMENTS_REGION || 'southamerica-east1';
 const REQUIRE_AUTH = String(process.env.REQUIRE_AUTH || 'true').toLowerCase() === 'true';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
-const GOOGLE_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY || 'AIzaSyCOgFqFbI1U8DPYt_UWyc5_lwft-5PlULQ';
+// Lista de origens permitidas pra CORS, separadas por vírgula (ex:
+// "https://app.seudominio.com,http://localhost:5501"). Sem isso configurado,
+// NENHUMA origem é liberada (fail-closed) — antes disso o padrão era '*'
+// (qualquer site podia chamar a função), que precisa ser travado no domínio
+// real de produção antes do lançamento comercial.
+const CORS_ALLOWED_ORIGINS = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-// Segredo do Mercado Pago: NUNCA hardcoded. Definido via:
+// Segredos: NUNCA hardcoded. Definidos via:
 //   firebase functions:secrets:set MP_ACCESS_TOKEN
+//   firebase functions:secrets:set GOOGLE_MAPS_SERVER_KEY
 // (o valor é digitado direto no terminal do dono da conta, nunca passa pelo código-fonte)
 const MP_ACCESS_TOKEN = defineSecret('MP_ACCESS_TOKEN');
+const GOOGLE_MAPS_SERVER_KEY = defineSecret('GOOGLE_MAPS_SERVER_KEY');
 
-function setCors(res) {
-  res.set('Access-Control-Allow-Origin', CORS_ORIGIN);
+function setCors(req, res) {
+  const origin = req.get('Origin');
+  if (origin && CORS_ALLOWED_ORIGINS.includes(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+  }
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
@@ -57,8 +70,8 @@ async function resolveRequester(req) {
   return decoded;
 }
 
-async function geocodeGoogle(address) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&components=country:BR&key=${GOOGLE_SERVER_KEY}`;
+async function geocodeGoogle(address, apiKey) {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&components=country:BR&key=${apiKey}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Google Geocoding HTTP ${response.status}`);
   const json = await response.json();
@@ -67,10 +80,10 @@ async function geocodeGoogle(address) {
   return { lat: Number(loc.lat), lon: Number(loc.lng) };
 }
 
-async function routeGoogleDistanceMatrix(origin, destination) {
+async function routeGoogleDistanceMatrix(origin, destination, apiKey) {
   const origins = `${origin.lat},${origin.lon}`;
   const destinations = `${destination.lat},${destination.lon}`;
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origins)}&destinations=${encodeURIComponent(destinations)}&mode=driving&region=br&language=pt-BR&key=${GOOGLE_SERVER_KEY}`;
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origins)}&destinations=${encodeURIComponent(destinations)}&mode=driving&region=br&language=pt-BR&key=${apiKey}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Google Distance Matrix HTTP ${response.status}`);
   const json = await response.json();
@@ -123,8 +136,8 @@ async function canAccessTenant(requester, tenantId) {
   return snap.val() === 'admin';
 }
 
-exports.routing = onRequest({ region: ROUTING_REGION, timeoutSeconds: 20, invoker: 'public' }, async (req, res) => {
-  setCors(res);
+exports.routing = onRequest({ region: ROUTING_REGION, timeoutSeconds: 20, secrets: [GOOGLE_MAPS_SERVER_KEY], invoker: 'public' }, async (req, res) => {
+  setCors(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(204).send('');
@@ -172,17 +185,18 @@ exports.routing = onRequest({ region: ROUTING_REGION, timeoutSeconds: 20, invoke
 
     const geoOrigemPreferida = normalizeGeo(origemGeo) || normalizeGeo(enderecoLojistaObj.geo);
     const geoDestinoPreferida = normalizeGeo(destinoGeo);
+    const mapsKey = GOOGLE_MAPS_SERVER_KEY.value();
 
     const [originGeo, destinationGeo] = await Promise.all([
-      geoOrigemPreferida ? Promise.resolve(geoOrigemPreferida) : geocodeGoogle(origemResolvida),
-      geoDestinoPreferida ? Promise.resolve(geoDestinoPreferida) : geocodeGoogle(destinoEndereco)
+      geoOrigemPreferida ? Promise.resolve(geoOrigemPreferida) : geocodeGoogle(origemResolvida, mapsKey),
+      geoDestinoPreferida ? Promise.resolve(geoDestinoPreferida) : geocodeGoogle(destinoEndereco, mapsKey)
     ]);
 
     if (!originGeo || !destinationGeo) {
       return res.status(422).json({ error: 'Não foi possível geocodificar origem/destino' });
     }
 
-    const route = await routeGoogleDistanceMatrix(originGeo, destinationGeo);
+    const route = await routeGoogleDistanceMatrix(originGeo, destinationGeo, mapsKey);
     if (!route) {
       return res.status(422).json({ error: 'Não foi possível calcular rota' });
     }
@@ -251,7 +265,7 @@ async function consultarPagamentoPixMp(token, paymentId) {
 // sempre recalculado aqui a partir dos envios persistidos (nunca confia em
 // total enviado pelo cliente).
 exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secrets: [MP_ACCESS_TOKEN], invoker: 'public' }, async (req, res) => {
-  setCors(res);
+  setCors(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(204).send('');

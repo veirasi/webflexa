@@ -94,6 +94,7 @@
     atualizarStatusRotaMaster: () => atualizarStatusRotaMaster,
     atualizarUiClienteAuth: () => atualizarUiClienteAuth,
     atualizarWalletChipEntregadorUI: () => atualizarWalletChipEntregadorUI,
+    avisarClienteStatusWhatsapp: () => avisarClienteStatusWhatsapp,
     buscarCEP: () => buscarCEP,
     buscarDadosDoBanco: () => buscarDadosDoBanco,
     buscarEndereco: () => buscarEndereco,
@@ -2597,6 +2598,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const localColeta = obterCidadeUfUsuarioLogado() || "Defina o endereco";
     const envios = typeof coletarEnviosDaBase === "function" ? coletarEnviosDaBase() : [];
     const recentes = envios.slice(0, 4);
+    const agoraGastoMes = /* @__PURE__ */ new Date();
+    const gastoFreteMes = envios.reduce((acc, e) => {
+      const d = new Date(Number(e?.criadoEm) || 0);
+      const mesmoMes = d.getMonth() === agoraGastoMes.getMonth() && d.getFullYear() === agoraGastoMes.getFullYear();
+      return mesmoMes ? acc + Number(e?.valorFrete || 0) : acc;
+    }, 0);
     const rotas = Array.isArray(rotasHomeCache) ? rotasHomeCache : [];
     const rotasOrdenadas = [...rotas].sort((a, b) => Number(b?.atualizadoEm || b?.criadoEm || 0) - Number(a?.atualizadoEm || a?.criadoEm || 0));
     const rotasRecentes = rotasOrdenadas.slice(0, 3);
@@ -2760,6 +2767,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                     <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
                 </div>
                 <div class="home-recent-list">${listaRotasRecentes}</div>
+            </section>
+
+            <section class="home-gasto-mes-card">
+                <span class="home-gasto-mes-label">Gasto com frete este m\xEAs</span>
+                <strong class="home-gasto-mes-valor">R$ ${gastoFreteMes.toFixed(2)}</strong>
             </section>
         </div>
     `;
@@ -7772,10 +7784,12 @@ ${url}`);
         const pacoteId = pacoteIds[idx];
         let destinatario = "Cliente";
         let destinoChave = pacoteId;
+        let whatsappCliente = "";
         try {
           const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
           const pac = snap.val() || {};
           destinatario = (pac.destinatario || destinatario).toString();
+          whatsappCliente = normalizarWhatsapp(pac.whatsapp || "");
           if (pac.tipoFluxo === "coleta_reversa") tipoFluxoRota = "coleta_reversa";
           const campoEndereco = pac.tipoFluxo === "coleta_reversa" ? pac.origemCompleta || pac.origemEndereco : pac.destinoCompleto || pac.destinoEndereco;
           const enderecoBruto = (campoEndereco || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
@@ -7786,6 +7800,9 @@ ${url}`);
         updates[`usuarios/${uidLojista}/pacotes/${pacoteId}/tokenRastreio`] = token;
         updates[`rastreioToken/${token}`] = { rotaId: String(rota.id), pacoteId, lojistaUid: uidLojista };
         updates[`usuarios/${uidLojista}/rotas/${rota.id}/tokensRastreio/${pacoteId}`] = token;
+        if (whatsappCliente) {
+          updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
+        }
         pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1 };
       }
       updates[`rastreioPublico/${rota.id}`] = {
@@ -7968,6 +7985,7 @@ ${url}`);
     if (!user) {
       logado.style.display = "none";
       deslogado.style.display = "flex";
+      if (!tokenRastreioAtual) renderBemVindoClienteDeslogado();
       return;
     }
     obterClienteDb().ref("usuarios/" + user.uid).once("value").then((snap) => {
@@ -7975,6 +7993,44 @@ ${url}`);
       if (nomeEl) nomeEl.innerText = dados?.nome ? dados.nome.split(" ")[0] : "cliente";
       logado.style.display = "flex";
       deslogado.style.display = "none";
+      if (!tokenRastreioAtual) renderMeusPedidosCliente(dados?.whatsapp);
+    });
+  }
+  function renderBemVindoClienteDeslogado() {
+    const conteudo = document.getElementById("rastreio-pub-conteudo");
+    if (!conteudo) return;
+    conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Bem-vindo(a) \xE0 Flex</p><p class="rastreio-pub-status">Entre com seu WhatsApp e senha pra acompanhar seus pedidos, ou acesse pelo link de rastreio que a loja te enviou.</p></div>';
+  }
+  function renderMeusPedidosCliente(whatsapp) {
+    const conteudo = document.getElementById("rastreio-pub-conteudo");
+    if (!conteudo) return;
+    if (!whatsapp) {
+      conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><p class="rastreio-pub-status">N\xE3o encontramos um WhatsApp na sua conta.</p></div>';
+      return;
+    }
+    conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando seus pedidos...</div>';
+    obterClienteDb().ref("pedidosPorCliente/" + whatsapp).once("value").then((snap) => {
+      const dados = snap.val() || {};
+      const itens = Object.entries(dados).map(([token, info]) => ({ token, ...info })).sort((a, b) => (Number(b?.criadoEm) || 0) - (Number(a?.criadoEm) || 0));
+      if (!itens.length) {
+        conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><p class="rastreio-pub-status">Voc\xEA ainda n\xE3o tem nenhum pedido rastreado por aqui.</p></div>';
+        return;
+      }
+      const linhas = itens.map((item) => {
+        const dataTxt = item.criadoEm ? new Date(item.criadoEm).toLocaleDateString("pt-BR") : "--";
+        return `
+                <a class="meus-pedidos-item" href="#/rastreio/${encodeURIComponent(item.token)}">
+                    <div>
+                        <p class="meus-pedidos-loja">${escaparHtmlMarketplace(item.lojistaNome || "Loja")}</p>
+                        <p class="meus-pedidos-data">${dataTxt}</p>
+                    </div>
+                    <i data-lucide="chevron-right" size="18"></i>
+                </a>`;
+      }).join("");
+      conteudo.innerHTML = `<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><div class="meus-pedidos-lista">${linhas}</div></div>`;
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    }).catch(() => {
+      conteudo.innerHTML = '<div class="rastreio-pub-erro">N\xE3o foi poss\xEDvel carregar seus pedidos agora.</div>';
     });
   }
   async function exibirTelaRastreioPublico(token) {
@@ -7987,7 +8043,6 @@ ${url}`);
     const conteudo = document.getElementById("rastreio-pub-conteudo");
     if (!conteudo) return;
     if (!token) {
-      conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Bem-vindo(a) \xE0 Flex</p><p class="rastreio-pub-status">Entre com seu WhatsApp e senha pra acompanhar seus pedidos, ou acesse pelo link de rastreio que a loja te enviou.</p></div>';
       return;
     }
     carregarBannersRastreioPublico();
@@ -11039,15 +11094,25 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     el.innerHTML = pacotesDoRange.map((p) => {
       const statusNorm = normalizarStatusEnvioFiltro(p?.status || p?.statusRaw || "PACOTE_NOVO");
       const statusLabel = rotuloStatusEnvio(statusNorm);
+      const podeAvisar = p?.whatsapp && p?.tokenRastreio;
+      const btnAvisar = podeAvisar ? `<button type="button" class="tracking-parada-avisar-btn" onclick="avisarClienteStatusWhatsapp('${escaparHtmlMarketplace(p.whatsapp)}', '${escaparHtmlMarketplace(p.destinatario || "Cliente").replace(/'/g, "\\'")}', '${escaparHtmlMarketplace(statusLabel).replace(/'/g, "\\'")}', '${p.tokenRastreio}')">Avisar cliente</button>` : "";
       return `
             <div class="tracking-parada-info-item">
                 <strong>${escaparHtmlMarketplace(p?.destinatario || "Cliente")}</strong>
                 <span class="tracking-parada-info-status">${escaparHtmlMarketplace(statusLabel)}</span>
                 <small>${escaparHtmlMarketplace(p?.destinoEndereco || p?.destinoCompleto || "--")}</small>
+                ${btnAvisar}
             </div>
         `;
     }).join("");
     el.classList.remove("hidden");
+  }
+  function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
+    const link = `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
+    const msg = `Ol\xE1${nome ? ", " + nome.split(" ")[0] : ""}! Seu pedido est\xE1: ${statusLabel}.
+
+Acompanhe em tempo real: ${link}`;
+    window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, "_blank");
   }
   async function abrirModalTrackingLoja(rotaId) {
     if (!rotaId) return;

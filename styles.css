@@ -20,6 +20,12 @@
     /* aliases legacy */
     --brand-orange: var(--color-primary);
     --brand-orange-hover: var(--color-primary-strong);
+    /* --text-main/--text-sub nunca tinham sido declarados, só usados (~60
+       lugares) — sem alias, um var(--text-sub) inválido cai em "inherit" em
+       vez do cinza pretendido, o que explica parte do texto secundário
+       ficando com cor inconsistente pelo app. */
+    --text-main: var(--color-text);
+    --text-sub: var(--color-text-sub);
 
     /* radius */
     --radius-sm: 8px;
@@ -3261,6 +3267,16 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 .rastreio-auth-switch-link strong { color: var(--brand-orange); font-weight: 800; }
 .rastreio-auth-completar-hint { font-size: 12px; color: var(--text-sub); line-height: 1.4; margin: -6px 0 14px; }
 
+.meus-pedidos-lista { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.meus-pedidos-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 4px; border-bottom: 1px solid var(--color-border); text-decoration: none; color: inherit;
+}
+.meus-pedidos-item:last-child { border-bottom: none; }
+.meus-pedidos-item i { color: var(--text-sub); flex-shrink: 0; }
+.meus-pedidos-loja { font-size: 14px; font-weight: 800; color: var(--text-main); }
+.meus-pedidos-data { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+
 .rastreio-pub-loading, .rastreio-pub-erro {
     text-align: center; color: var(--text-sub); font-weight: 700; font-size: 14px;
     background: white; border-radius: 20px; padding: 30px 20px; box-shadow: 0 10px 25px rgba(15,23,42,0.04);
@@ -3566,6 +3582,14 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     font-size: 12px;
     font-weight: 700;
 }
+
+.home-gasto-mes-card {
+    display: flex; align-items: center; justify-content: space-between;
+    background: white; border-radius: 16px; padding: 16px 18px;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.05);
+}
+.home-gasto-mes-label { font-size: 13px; font-weight: 700; color: var(--text-sub); }
+.home-gasto-mes-valor { font-size: 18px; font-weight: 900; color: var(--text-main); }
 
 .home-current-card {
     width: 100%;
@@ -6067,6 +6091,10 @@ body.admin-mode { overflow: auto; }
 .tracking-parada-info-item strong { font-size: 13px; color: #0f172a; }
 .tracking-parada-info-item small { flex-basis: 100%; font-size: 11px; color: #64748b; }
 .tracking-parada-info-status { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #475569; background: #e2e8f0; padding: 2px 8px; border-radius: 999px; }
+.tracking-parada-avisar-btn {
+    flex-basis: 100%; margin-top: 4px; background: #25D366; color: white; border: none;
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
 .tracking-driver { margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:14px; padding:10px 12px; }
 .tracking-driver-dark { background:#f8fafc; border-color:#e5e7eb; }
 .tracking-driver-info { display:flex; align-items:center; gap:10px; }

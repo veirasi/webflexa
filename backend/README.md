@@ -7,15 +7,32 @@ Este backend cria o endpoint de produção:
 Ele:
 - valida acesso multi-tenant (`tenantId`)
 - busca o ponto A do lojista em `usuarios/{tenantId}/endereco`
-- geocodifica origem/destino com Nominatim
-- calcula rota com OSRM
+- geocodifica origem/destino com a Google Geocoding API
+- calcula rota com a Google Distance Matrix API
 - retorna `{ distanciaKm, duracaoMin }`
+
+(Nota: hoje o frontend não chama este endpoint — usa sua própria rotina de
+rota no navegador. Este endpoint fica pronto/mantido, mas não é dependência
+do fluxo em produção enquanto isso não mudar.)
 
 ## Pré-requisitos
 
 - Firebase CLI instalada
 - Projeto Firebase com Realtime Database habilitado
 - Usuários autenticando com Firebase Auth (ID token)
+- Plano Blaze habilitado no projeto (Secret Manager + Cloud Functions 2ª geração exigem isso)
+
+## Configurar o segredo da chave do Google Maps (uma vez, antes do primeiro deploy)
+
+```bash
+firebase functions:secrets:set GOOGLE_MAPS_SERVER_KEY
+```
+
+Cole a chave de API do Google Maps **do servidor** (Geocoding + Distance
+Matrix habilitadas, sem restrição de referrer HTTP — essa é a chave de
+servidor, diferente da `FLEXA_GOOGLE_MAPS_KEY` usada no navegador). Nunca
+cole essa chave direto no código-fonte — só via este comando, direto no seu
+terminal.
 
 ## Deploy
 
@@ -33,10 +50,10 @@ npm install
 cd ..
 ```
 
-3. (Opcional) Variáveis de ambiente:
+3. Variáveis de ambiente:
 
 - `REQUIRE_AUTH=true` (padrão)
-- `CORS_ORIGIN=https://seu-dominio.com`
+- `CORS_ORIGIN=https://seu-dominio.com,http://localhost:5501` — lista de origens permitidas separadas por vírgula. **Sem essa variável configurada, nenhuma origem é liberada** (antes o padrão era `'*'`, liberando qualquer site — travado antes do lançamento comercial). Configure com o domínio real de produção assim que ele existir.
 - `ROUTING_REGION=southamerica-east1`
 
 4. Deploy:
@@ -109,6 +126,9 @@ firebase functions:secrets:set MP_ACCESS_TOKEN
 Cole o *access token* do Mercado Pago quando o terminal pedir (começa com `TEST-` em ambiente de teste, ou `APP_USR-`/outro prefixo em produção). O valor fica guardado no Secret Manager do Google Cloud, nunca no código-fonte.
 
 ## Deploy
+
+`CORS_ORIGIN` (ver seção do endpoint de roteamento acima) é compartilhada
+por ambas as funções — configure uma vez, vale para as duas.
 
 ```bash
 cd backend

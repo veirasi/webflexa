@@ -1,0 +1,26 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "backend/**",
+      "src/**",
+      "backup/**",
+      "teste/**",
+      "node_modules/**",
+      "package.json",
+      "package-lock.json",
+      ".git/**",
+      ".claude/**",
+      ".gitignore",
+      ".gitattributes",
+      "**/.*"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

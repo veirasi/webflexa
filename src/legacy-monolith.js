@@ -2318,6 +2318,16 @@ function renderizarDashboard(user) {
     const envios = typeof coletarEnviosDaBase === 'function' ? coletarEnviosDaBase() : [];
     const recentes = envios.slice(0, 4);
 
+    // Resumo simples de gasto com frete no mês corrente — hoje só o admin
+    // master via essa soma, cada lojista não tinha como ver isso de relance
+    // sobre a própria conta.
+    const agoraGastoMes = new Date();
+    const gastoFreteMes = envios.reduce((acc, e) => {
+        const d = new Date(Number(e?.criadoEm) || 0);
+        const mesmoMes = d.getMonth() === agoraGastoMes.getMonth() && d.getFullYear() === agoraGastoMes.getFullYear();
+        return mesmoMes ? acc + Number(e?.valorFrete || 0) : acc;
+    }, 0);
+
     const rotas = Array.isArray(rotasHomeCache) ? rotasHomeCache : [];
     const rotasOrdenadas = [...rotas].sort((a, b) => Number(b?.atualizadoEm || b?.criadoEm || 0) - Number(a?.atualizadoEm || a?.criadoEm || 0));
     const rotasRecentes = rotasOrdenadas.slice(0, 3);
@@ -2508,6 +2518,11 @@ function renderizarDashboard(user) {
                     <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
                 </div>
                 <div class="home-recent-list">${listaRotasRecentes}</div>
+            </section>
+
+            <section class="home-gasto-mes-card">
+                <span class="home-gasto-mes-label">Gasto com frete este mês</span>
+                <strong class="home-gasto-mes-valor">R$ ${gastoFreteMes.toFixed(2)}</strong>
             </section>
         </div>
     `;
@@ -8683,10 +8698,12 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             const pacoteId = pacoteIds[idx];
             let destinatario = 'Cliente';
             let destinoChave = pacoteId; // fallback: se não achar endereço, cada pacote fica no seu próprio ponto
+            let whatsappCliente = '';
             try {
                 const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
                 const pac = snap.val() || {};
                 destinatario = (pac.destinatario || destinatario).toString();
+                whatsappCliente = normalizarWhatsapp(pac.whatsapp || '');
                 if (pac.tipoFluxo === 'coleta_reversa') tipoFluxoRota = 'coleta_reversa';
                 // Pacotes pro MESMO endereço viram um só ponto na timeline
                 // (pedido do dono 2026-09-21) — normaliza pra não separar por
@@ -8708,6 +8725,14 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             // detalhes (renderRotaDetalhePagina) conseguir mostrar o botão
             // "Copiar link" sem precisar de uma busca extra no banco.
             updates[`usuarios/${uidLojista}/rotas/${rota.id}/tokensRastreio/${pacoteId}`] = token;
+            // Índice mínimo pro cliente logado (ver contas do cliente final,
+            // src/legacy-monolith.js `renderMeusPedidosCliente`) achar seus
+            // próprios pedidos em QUALQUER loja, sem expor endereço/dados de
+            // outros clientes — mesmo padrão de índice mínimo já usado em
+            // clientesGlobais/telefoneParaEmail.
+            if (whatsappCliente) {
+                updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
+            }
             pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1 };
         }
 
@@ -8942,6 +8967,10 @@ function atualizarUiClienteAuth() {
     if (!user) {
         logado.style.display = 'none';
         deslogado.style.display = 'flex';
+        // Só a tela genérica #/cliente (sem token) mostra esse card de boas-vindas
+        // ou a lista de pedidos — uma tela de rastreio de verdade nunca é
+        // sobrescrita por aqui.
+        if (!tokenRastreioAtual) renderBemVindoClienteDeslogado();
         return;
     }
 
@@ -8950,6 +8979,57 @@ function atualizarUiClienteAuth() {
         if (nomeEl) nomeEl.innerText = dados?.nome ? dados.nome.split(' ')[0] : 'cliente';
         logado.style.display = 'flex';
         deslogado.style.display = 'none';
+        if (!tokenRastreioAtual) renderMeusPedidosCliente(dados?.whatsapp);
+    });
+}
+
+function renderBemVindoClienteDeslogado() {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+    conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Bem-vindo(a) à Flex</p><p class="rastreio-pub-status">Entre com seu WhatsApp e senha pra acompanhar seus pedidos, ou acesse pelo link de rastreio que a loja te enviou.</p></div>';
+}
+
+// "Meus pedidos": lista os pedidos do cliente logado em QUALQUER loja
+// parceira, usando o índice mínimo pedidosPorCliente (ver
+// criarLinksRastreioParaRota). Cada item é só um link pra tela de rastreio
+// já existente daquele pedido — não duplica nenhum dado sensível aqui.
+function renderMeusPedidosCliente(whatsapp) {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+    if (!whatsapp) {
+        conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><p class="rastreio-pub-status">Não encontramos um WhatsApp na sua conta.</p></div>';
+        return;
+    }
+
+    conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando seus pedidos...</div>';
+
+    obterClienteDb().ref('pedidosPorCliente/' + whatsapp).once('value').then((snap) => {
+        const dados = snap.val() || {};
+        const itens = Object.entries(dados)
+            .map(([token, info]) => ({ token, ...info }))
+            .sort((a, b) => (Number(b?.criadoEm) || 0) - (Number(a?.criadoEm) || 0));
+
+        if (!itens.length) {
+            conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><p class="rastreio-pub-status">Você ainda não tem nenhum pedido rastreado por aqui.</p></div>';
+            return;
+        }
+
+        const linhas = itens.map((item) => {
+            const dataTxt = item.criadoEm ? new Date(item.criadoEm).toLocaleDateString('pt-BR') : '--';
+            return `
+                <a class="meus-pedidos-item" href="#/rastreio/${encodeURIComponent(item.token)}">
+                    <div>
+                        <p class="meus-pedidos-loja">${escaparHtmlMarketplace(item.lojistaNome || 'Loja')}</p>
+                        <p class="meus-pedidos-data">${dataTxt}</p>
+                    </div>
+                    <i data-lucide="chevron-right" size="18"></i>
+                </a>`;
+        }).join('');
+
+        conteudo.innerHTML = `<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><div class="meus-pedidos-lista">${linhas}</div></div>`;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }).catch(() => {
+        conteudo.innerHTML = '<div class="rastreio-pub-erro">Não foi possível carregar seus pedidos agora.</div>';
     });
 }
 
@@ -8970,8 +9050,9 @@ async function exibirTelaRastreioPublico(token) {
 
     if (!token) {
         // Link genérico #/cliente (convite do lojista ou acesso direto, sem
-        // uma entrega específica por trás) — mesma tela, só sem timeline.
-        conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Bem-vindo(a) à Flex</p><p class="rastreio-pub-status">Entre com seu WhatsApp e senha pra acompanhar seus pedidos, ou acesse pelo link de rastreio que a loja te enviou.</p></div>';
+        // uma entrega específica por trás) — atualizarUiClienteAuth() logo
+        // acima já renderizou o conteúdo certo (boas-vindas se deslogado,
+        // "Meus pedidos" se logado).
         return;
     }
 
@@ -12759,15 +12840,33 @@ function mostrarInfoParadaTrackingLoja(rangeStart, rangeEnd) {
     el.innerHTML = pacotesDoRange.map((p) => {
         const statusNorm = normalizarStatusEnvioFiltro(p?.status || p?.statusRaw || 'PACOTE_NOVO');
         const statusLabel = rotuloStatusEnvio(statusNorm);
+        // Só mostra o botão de avisar quando dá pra montar um link de
+        // rastreio de verdade — pacotes antigos (modelo pré-rastreio-público)
+        // podem não ter tokenRastreio/whatsapp ainda.
+        const podeAvisar = p?.whatsapp && p?.tokenRastreio;
+        const btnAvisar = podeAvisar
+            ? `<button type="button" class="tracking-parada-avisar-btn" onclick="avisarClienteStatusWhatsapp('${escaparHtmlMarketplace(p.whatsapp)}', '${escaparHtmlMarketplace(p.destinatario || 'Cliente').replace(/'/g, "\\'")}', '${escaparHtmlMarketplace(statusLabel).replace(/'/g, "\\'")}', '${p.tokenRastreio}')">Avisar cliente</button>`
+            : '';
         return `
             <div class="tracking-parada-info-item">
                 <strong>${escaparHtmlMarketplace(p?.destinatario || 'Cliente')}</strong>
                 <span class="tracking-parada-info-status">${escaparHtmlMarketplace(statusLabel)}</span>
                 <small>${escaparHtmlMarketplace(p?.destinoEndereco || p?.destinoCompleto || '--')}</small>
+                ${btnAvisar}
             </div>
         `;
     }).join('');
     el.classList.remove('hidden');
+}
+
+// Abre o WhatsApp já com uma mensagem pronta avisando o cliente do status
+// atual do pedido + o link de rastreio dele — não é envio automático de
+// verdade (isso exigiria a API oficial do WhatsApp Business, paga e sujeita
+// a aprovação), é reduzir "escrever a mensagem do zero" pra "1 clique".
+function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
+    const link = `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
+    const msg = `Olá${nome ? ', ' + nome.split(' ')[0] : ''}! Seu pedido está: ${statusLabel}.\n\nAcompanhe em tempo real: ${link}`;
+    window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 async function abrirModalTrackingLoja(rotaId) {
@@ -13371,6 +13470,7 @@ export {
   atualizarStatusRotaMaster,
   atualizarUiClienteAuth,
   atualizarWalletChipEntregadorUI,
+  avisarClienteStatusWhatsapp,
   buscarCEP,
   buscarDadosDoBanco,
   buscarEndereco,
