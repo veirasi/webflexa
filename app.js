@@ -139,6 +139,7 @@
     confirmarPagamentoRota: () => confirmarPagamentoRota,
     confirmarRecebimentoDinheiro: () => confirmarRecebimentoDinheiro,
     confirmarRecebimentoTaxaEntregador: () => confirmarRecebimentoTaxaEntregador,
+    confirmarRetiradaPacoteAtual: () => confirmarRetiradaPacoteAtual,
     consultarPagamentoPixMercadoPago: () => consultarPagamentoPixMercadoPago,
     consultarPagamentoPixTesteClienteLocal: () => consultarPagamentoPixTesteClienteLocal,
     convidarClienteAtualParaApp: () => convidarClienteAtualParaApp,
@@ -255,6 +256,7 @@
     iniciarListenerNotificacoes: () => iniciarListenerNotificacoes,
     iniciarModalRota: () => iniciarModalRota,
     iniciarRastreioGpsEntregador: () => iniciarRastreioGpsEntregador,
+    iniciarRetiradaPacoteAtual: () => iniciarRetiradaPacoteAtual,
     iniciarSwipeEntSheet: () => iniciarSwipeEntSheet,
     iniciarSwipePaginaRota: () => iniciarSwipePaginaRota,
     initAdminCharts: () => initAdminCharts,
@@ -1242,6 +1244,19 @@
     const codigoPedido = `#${codigoConfirmacaoEntrega}`;
     const codigoEl = document.getElementById("codigo-pedido-solicitado");
     if (codigoEl) codigoEl.innerText = codigoPedido;
+    const ehColetaReversaCard = tipoFluxoEnvioAtual === "coleta_reversa";
+    const cardRetirada = document.getElementById("codigo-retirada-card");
+    const labelPedido = document.getElementById("codigo-pedido-label");
+    const hintPedido = document.getElementById("codigo-pedido-hint");
+    if (ehColetaReversaCard) {
+      if (cardRetirada) cardRetirada.classList.remove("hidden");
+      if (labelPedido) labelPedido.innerText = "C\xF3digo de confirma\xE7\xE3o de devolu\xE7\xE3o";
+      if (hintPedido) hintPedido.innerText = "Guarde esse c\xF3digo \u2014 voc\xEA mesmo confirma quando o entregador te devolver o pacote.";
+    } else {
+      if (cardRetirada) cardRetirada.classList.add("hidden");
+      if (labelPedido) labelPedido.innerText = "C\xF3digo de confirma\xE7\xE3o de entrega";
+      if (hintPedido) hintPedido.innerText = "Repasse esse c\xF3digo ao destinat\xE1rio. Ele ser\xE1 exigido do entregador para confirmar a entrega.";
+    }
     if (clienteSelecionadoId) {
       const idx = clientes.findIndex((c) => c.id === clienteSelecionadoId);
       if (idx >= 0) {
@@ -1262,9 +1277,15 @@
         const destinoClienteEndereco = resumoRevisaoAtual.destino || document.getElementById("card-endereco")?.innerText || "";
         const origemLojaGeo = resumoRevisaoAtual.origemGeo || null;
         const destinoClienteGeo = resumoRevisaoAtual.destinoGeo || null;
+        const codigoConfirmacaoRetirada = ehColetaReversa ? gerarCodigoConfirmacaoEntrega() : null;
+        if (ehColetaReversa) {
+          const codigoRetiradaEl = document.getElementById("codigo-retirada-solicitado");
+          if (codigoRetiradaEl) codigoRetiradaEl.innerText = `#${codigoConfirmacaoRetirada}`;
+        }
         const pacoteObj = {
           id: pedidoId,
           codigoConfirmacaoEntrega,
+          codigoConfirmacaoRetirada,
           criadoEm: Date.now(),
           descricao: desc,
           observacoes,
@@ -4171,6 +4192,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   }
   function rotaPrecisaConfirmarColeta(rotaObj) {
     if (!rotaObj) return false;
+    const ehColetaReversa = rotaEntSheetPacotes.some((p) => p?.tipoFluxo === "coleta_reversa");
+    if (ehColetaReversa) return false;
     const statusNorm = normalizarStatusRotaFiltro(rotaObj?.status || rotaObj?.pagamentoStatus || "CRIADA");
     return statusNorm === "EM_ROTA" && rotaObj?.coletaConfirmada !== true;
   }
@@ -4298,12 +4321,13 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const total = Math.max(1, rotaEntSheetPacotes.length);
     const statusNorm = normalizarStatusRotaFiltro(rotaObj?.status || rotaObj?.pagamentoStatus || "CRIADA");
     const statusVisual = getStatusVisualRota(statusNorm);
+    const emFaseRetiradaEndereco = pac?.tipoFluxo === "coleta_reversa" && !pac?.retiradaConfirmada;
     const logo = (pac?.lojistaLogo || rotaObj?.lojistaLogo || rotaObj?.foto || rotaObj?.lojistaFoto || rotaObj?.fotoLoja || "").toString().trim();
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rotaObj?.lojistaNome || "Loja")}" />` : `<span>${escaparHtmlMarketplace((rotaObj?.lojistaNome || "L").slice(0, 1).toUpperCase())}</span>`;
     const servicoLabel = (pac?.servico || pac?.servicoLabel || rotaObj?.servicoLabel || "standard").toString();
     const distanciaTxt = formatarDistancia(pac?.distanciaKm || rotaObj?.distanciaTotal || 0);
     const duracaoTxt = formatarDuracao(pac?.duracaoMin || rotaObj?.duracaoTotal || 0);
-    const enderecoCompleto = montarEnderecoCompletoPacote(pac, rotaObj) || "--";
+    const enderecoCompleto = emFaseRetiradaEndereco ? pac.origemCompleta || pac.origemEndereco || "--" : montarEnderecoCompletoPacote(pac, rotaObj) || "--";
     const cidadeTxt = extrairCidadeEnderecoSimples(enderecoCompleto || pac?.cidade || rotaObj?.destinoPrincipal || pac?.cidadeDestino || "");
     const complemento = pac?.complemento || pac?.destinoComplemento || "";
     const cep = formatarCep(pac?.destinoCep || pac?.cep || pac?.cepDestino || rotaObj?.destinoCep || rotaObj?.cep);
@@ -4313,13 +4337,14 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const estadoAtual = obterEstadoPacoteRota(rotaObj.id, pac, rotaEntSheetIndex);
     const bloqueado = rotaSheetBloqueada();
     const finalizado = estadoAtual.status === "concluido";
+    const emFaseRetirada = pac?.tipoFluxo === "coleta_reversa" && !pac?.retiradaConfirmada;
     const dots = Array.from({ length: total }).map(
       (_, idx) => `<span class="ent-sheet-dot ${idx === rotaEntSheetIndex ? "active" : ""} ${bloqueado ? "locked" : ""}"></span>`
     ).join("");
     const enderecoExtra = [complemento].filter(Boolean).join(" \u2022 ");
     const espera = pac?.esperaEntrega || {};
     let blocoEspera = "";
-    if (bloqueado && !finalizado && !espera.finalizada) {
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada) {
       if (!espera.chegouEm) {
         blocoEspera = `<button type="button" class="ent-sheet-cheguei-btn" onclick="confirmarCheguei()"><i data-lucide="map-pin" size="14"></i> Cheguei no local</button>`;
       } else {
@@ -4341,29 +4366,42 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         }
       }
     }
-    if (bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
       gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
     } else {
       pararListenerEsperaPacote();
     }
+    const ehColetaReversaLabel = pac?.tipoFluxo === "coleta_reversa";
     const codeBox = `
         <div class="ent-sheet-code-box">
             ${blocoEspera}
-            <label for="ent-sheet-code-input">Confirme a entrega</label>
+            <label for="ent-sheet-code-input">${ehColetaReversaLabel ? "Confirme a devolu\xE7\xE3o (c\xF3digo com o lojista)" : "Confirme a entrega"}</label>
             <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
             <div class="ent-sheet-actions-inline">
-                <button type="button" class="ent-sheet-primary small" onclick="confirmarEntregaPacoteAtual()">Confirmar entrega</button>
+                <button type="button" class="ent-sheet-primary small" onclick="confirmarEntregaPacoteAtual()">${ehColetaReversaLabel ? "Confirmar devolu\xE7\xE3o" : "Confirmar entrega"}</button>
+                <button type="button" class="ent-sheet-btn-ghost" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
+            </div>
+        </div>
+    `;
+    const codeBoxRetirada = `
+        <div class="ent-sheet-code-box">
+            <label for="ent-sheet-code-input">Confirme a retirada (c\xF3digo com o cliente)</label>
+            <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
+            <div class="ent-sheet-actions-inline">
+                <button type="button" class="ent-sheet-primary small" onclick="confirmarRetiradaPacoteAtual()">Confirmar retirada</button>
                 <button type="button" class="ent-sheet-btn-ghost" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
             </div>
         </div>
     `;
     const statusOk = `
-        <div class="ent-sheet-status-ok"><i data-lucide="check-circle-2"></i> Entrega confirmada</div>
+        <div class="ent-sheet-status-ok"><i data-lucide="check-circle-2"></i> ${ehColetaReversaLabel ? "Devolu\xE7\xE3o confirmada" : "Entrega confirmada"}</div>
         ${estadoAtual.codigoConfirmacao ? `<div class="ent-sheet-code-pill">C\xF3digo ${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao)}</div>` : ""}
     `;
-    const devolucaoStatus = pac?.devolucaoStatus || "";
+    const devolucaoStatus = emFaseRetirada ? "" : pac?.devolucaoStatus || "";
     let footerPrincipal;
-    if (devolucaoStatus === "DEVOLUCAO_SOLICITADA") {
+    if (emFaseRetirada) {
+      footerPrincipal = bloqueado ? codeBoxRetirada : `<button class="ent-sheet-primary" onclick="iniciarRetiradaPacoteAtual(this)"><span>Iniciar corrida (retirada)</span><span class="ent-sheet-arrow" style="font-size:22px;">\u203A</span></button>`;
+    } else if (devolucaoStatus === "DEVOLUCAO_SOLICITADA") {
       footerPrincipal = `<div class="ent-sheet-status-ok ent-sheet-status-aguardando"><i data-lucide="clock"></i> Aguardando o lojista confirmar a devolu\xE7\xE3o</div>`;
     } else if (devolucaoStatus === "DEVOLUCAO_CONFIRMADA") {
       footerPrincipal = `<div class="ent-sheet-status-ok ent-sheet-status-aguardando"><i data-lucide="clock"></i> Devolu\xE7\xE3o confirmada \u2014 aguardando o lojista pagar o Pix do frete de volta para liberar o c\xF3digo</div>`;
@@ -4378,7 +4416,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     } else {
       footerPrincipal = `<button class="ent-sheet-primary" onclick="iniciarCorridaPacoteAtual(this)"><span>Iniciar Corrida</span><span class="ent-sheet-arrow" style="font-size:22px;">\u203A</span></button>`;
     }
-    const podeSolicitarDevolucao = !devolucaoStatus && !finalizado;
+    const podeSolicitarDevolucao = !emFaseRetirada && !devolucaoStatus && !finalizado;
     content.innerHTML = `
     <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;" ontouchstart="iniciarSwipeEntSheet(event)" ontouchend="finalizarSwipeEntSheet(event)">
         <div class="ent-sheet-handle"></div>
@@ -4803,11 +4841,12 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (lojistaUidCorrida && pacoteIdCorrida) {
       db.ref(`usuarios/${lojistaUidCorrida}/pacotes/${pacoteIdCorrida}/corridaIniciadaEm`).set(Date.now()).catch(() => {
       });
+      const ehColetaReversaAviso = pac?.tipoFluxo === "coleta_reversa";
       const codigoEntregaAviso = obterCodigoConfirmacaoEsperado(pac);
       criarNotificacao(lojistaUidCorrida, {
         tipo: "corrida_iniciada",
-        titulo: "Entrega iniciada",
-        mensagem: codigoEntregaAviso ? `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. C\xF3digo de confirma\xE7\xE3o: ${codigoEntregaAviso} \u2014 repasse ao cliente, ele deve informar ao entregador na entrega.` : `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`,
+        titulo: ehColetaReversaAviso ? "Devolu\xE7\xE3o a caminho" : "Entrega iniciada",
+        mensagem: ehColetaReversaAviso ? `${window.usuarioLogado?.nome || "O entregador"} est\xE1 a caminho da loja pra devolver o pacote de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. C\xF3digo de confirma\xE7\xE3o: ${codigoEntregaAviso} \u2014 informe esse c\xF3digo a ele quando receber.` : codigoEntregaAviso ? `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. C\xF3digo de confirma\xE7\xE3o: ${codigoEntregaAviso} \u2014 repasse ao cliente, ele deve informar ao entregador na entrega.` : `${window.usuarioLogado?.nome || "O entregador"} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`,
         rotaId: String(rotaId)
       });
     }
@@ -4828,6 +4867,80 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
     const url = `https://www.google.com/maps/dir/?api=1&destination=${destino}`;
     setTimeout(() => window.open(url, "_blank"), 250);
+    renderSheetRotaEntregadorConteudo();
+  }
+  function iniciarRetiradaPacoteAtual(btn) {
+    const rotaId = rotaEntSheetRotaAtual?.id;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaId || !pac) return;
+    setEstadoPacoteRota(rotaId, pac, { status: "em_corrida" }, rotaEntSheetIndex);
+    if (btn) {
+      btn.classList.add("sliding");
+      setTimeout(() => btn.classList.remove("sliding"), 800);
+    }
+    let origem = "";
+    if (pac.origemGeo?.lat && pac.origemGeo?.lon) {
+      origem = `${pac.origemGeo.lat},${pac.origemGeo.lon}`;
+    } else {
+      origem = encodeURIComponent(pac.origemEndereco || pac.origemCompleta || "");
+    }
+    if (!origem) {
+      alert("Endere\xE7o do cliente n\xE3o informado.");
+      setEstadoPacoteRota(rotaId, pac, { status: "pendente" }, rotaEntSheetIndex);
+      return renderSheetRotaEntregadorConteudo();
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${origem}`;
+    setTimeout(() => window.open(url, "_blank"), 250);
+    renderSheetRotaEntregadorConteudo();
+  }
+  async function confirmarRetiradaPacoteAtual() {
+    const rotaId = rotaEntSheetRotaAtual?.id;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaId || !pac) return;
+    const estado = obterEstadoPacoteRota(rotaId, pac, rotaEntSheetIndex);
+    const codigo = (estado.codigoConfirmacao || "").trim();
+    if (!codigo) {
+      alert("Digite o c\xF3digo de retirada informado pelo cliente.");
+      return;
+    }
+    const codigoEsperado = String(pac?.codigoConfirmacaoRetirada || "").trim();
+    if (!codigoEsperado) {
+      alert("Pacote sem c\xF3digo de retirada gerado. Feche e reabra a rota.");
+      return;
+    }
+    if (normalizarCodigoConfirmacaoEntrega(codigo) !== normalizarCodigoConfirmacaoEntrega(codigoEsperado)) {
+      alert("C\xF3digo inv\xE1lido. Pe\xE7a o c\xF3digo de retirada ao cliente.");
+      return;
+    }
+    const lojistaUid = obterLojistaUidDaRota(rotaEntSheetRotaAtual, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+    try {
+      if (lojistaUid && envioId) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+          retiradaConfirmada: true,
+          retiradaConfirmadaEm: agora
+        });
+        criarNotificacao(lojistaUid, {
+          tipo: "retirada_confirmada",
+          titulo: "Pacote retirado",
+          mensagem: `${window.usuarioLogado?.nome || "O entregador"} retirou o pacote de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)} e est\xE1 a caminho da loja.`,
+          rotaId: String(rotaId)
+        });
+      }
+      if (envioId) {
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({
+          retiradaConfirmada: true
+        }).catch(() => {
+        });
+      }
+    } catch (err) {
+      console.warn("Falha ao confirmar retirada:", err);
+      alert("N\xE3o foi poss\xEDvel confirmar a retirada agora. Tente novamente.");
+      return;
+    }
+    pac.retiradaConfirmada = true;
+    setEstadoPacoteRota(rotaId, pac, { status: "pendente", codigoConfirmacao: "" }, rotaEntSheetIndex);
     renderSheetRotaEntregadorConteudo();
   }
   async function confirmarEntregaPacoteAtual() {
@@ -8088,12 +8201,14 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         let destinoChave = pacoteId;
         let whatsappCliente = "";
         let codigoConfirmacao = "";
+        let codigoRetirada = "";
         try {
           const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
           const pac = snap.val() || {};
           destinatario = (pac.destinatario || destinatario).toString();
           whatsappCliente = normalizarWhatsapp(pac.whatsapp || "");
           codigoConfirmacao = (pac.codigoConfirmacaoEntrega || "").toString();
+          codigoRetirada = (pac.codigoConfirmacaoRetirada || "").toString();
           if (pac.tipoFluxo === "coleta_reversa") tipoFluxoRota = "coleta_reversa";
           const campoEndereco = pac.tipoFluxo === "coleta_reversa" ? pac.origemCompleta || pac.origemEndereco : pac.destinoCompleto || pac.destinoEndereco;
           const enderecoBruto = (campoEndereco || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
@@ -8107,7 +8222,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         if (whatsappCliente) {
           updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
         }
-        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao };
+        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada };
       }
       updates[`rastreioPublico/${rota.id}`] = {
         lojaNome,
@@ -8431,7 +8546,14 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const mapaHtml = geo && geo.lat && geo.lng ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : "";
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";
-    const codigoHtml = pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" ? `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora d${ehColetaReversaTexto ? "a coleta" : "a entrega"}</small></div>` : "";
+    let codigoHtml = "";
+    if (ehColetaReversaTexto) {
+      if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
+        codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse c\xF3digo ao entregador na hora da retirada</small></div>`;
+      }
+    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
+      codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
+    }
     let subirHtml = "";
     if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
       const subirStatus = pacoteInfo.subirStatus || null;
@@ -8488,20 +8610,22 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     paradasBrutas.forEach((p) => {
       const chave = p.destinoChave || p.pacoteId;
       if (!porChave.has(chave)) {
-        const grupo2 = { destinoChave: chave, pacoteIds: [], destinatario: p.destinatario, statusPorPacote: [] };
+        const grupo2 = { destinoChave: chave, pacoteIds: [], destinatario: p.destinatario, statusPorPacote: [], retiradaPorPacote: [] };
         porChave.set(chave, grupo2);
         grupos.push(grupo2);
       }
       const grupo = porChave.get(chave);
       grupo.pacoteIds.push(p.pacoteId);
       grupo.statusPorPacote.push(p.status || "BUSCANDO");
+      grupo.retiradaPorPacote.push(p.retiradaConfirmada === true);
     });
     return grupos.map((g) => {
       const todosEntregues = g.statusPorPacote.every((s) => s === "ENTREGUE");
       const todosDevolvidos = g.statusPorPacote.every((s) => s === "DEVOLVIDO");
       return {
         ...g,
-        status: todosEntregues ? "ENTREGUE" : todosDevolvidos ? "DEVOLVIDO" : "BUSCANDO"
+        status: todosEntregues ? "ENTREGUE" : todosDevolvidos ? "DEVOLVIDO" : "BUSCANDO",
+        retiradaConfirmada: g.retiradaPorPacote.every(Boolean)
       };
     });
   }
@@ -8517,7 +8641,12 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             origem: false,
             label: ehMinha ? grupo.destinatario || "Cliente" : "",
             sub: ehMinha ? "Retirada com voc\xEA" : "",
-            done: grupo.status === "ENTREGUE",
+            // BUG CORRIGIDO 2026-09-26: antes só acendia quando o pacote
+            // inteiro virava ENTREGUE (ou seja, só depois de já ter
+            // chegado na loja também) — a retirada com o cliente é um
+            // marco à parte (confirmarRetiradaPacoteAtual), acontece
+            // bem antes disso.
+            done: grupo.retiradaConfirmada === true,
             devolvido: grupo.status === "DEVOLVIDO",
             atual: statusNorm === "EM_ROTA" && idx === idxAtual,
             voce: ehMinha

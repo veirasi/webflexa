@@ -1246,10 +1246,15 @@
                 <p style="font-size: 14px; color: var(--text-sub); max-width: 260px; margin: 0 auto 30px;">
                     O motorista mais próximo já foi notificado e está a caminho para a coleta.
                 </p>
+                <div id="codigo-retirada-card" class="hidden" style="background: white; padding: 15px; border-radius: 16px; border: 1px solid var(--border-color); display: inline-block; margin-bottom: 12px;">
+                    <span style="display:block; font-size:12px; color:var(--text-sub); text-transform:uppercase; font-weight:700; margin-bottom:5px;">Código de confirmação de retirada</span>
+                    <strong id="codigo-retirada-solicitado" style="font-size:18px;">#----</strong>
+                    <span style="display:block; font-size:11px; color:var(--text-sub); margin-top:6px; max-width:200px;">Repasse esse código ao CLIENTE. Ele deve informar ao entregador na hora da retirada.</span>
+                </div>
                 <div style="background: white; padding: 15px; border-radius: 16px; border: 1px solid var(--border-color); display: inline-block;">
-                    <span style="display:block; font-size:12px; color:var(--text-sub); text-transform:uppercase; font-weight:700; margin-bottom:5px;">Código de confirmação de entrega</span>
+                    <span id="codigo-pedido-label" style="display:block; font-size:12px; color:var(--text-sub); text-transform:uppercase; font-weight:700; margin-bottom:5px;">Código de confirmação de entrega</span>
                     <strong id="codigo-pedido-solicitado" style="font-size:18px;">#----</strong>
-                    <span style="display:block; font-size:11px; color:var(--text-sub); margin-top:6px; max-width:200px;">Repasse esse código ao destinatário. Ele será exigido do entregador para confirmar a entrega.</span>
+                    <span id="codigo-pedido-hint" style="display:block; font-size:11px; color:var(--text-sub); margin-top:6px; max-width:200px;">Repasse esse código ao destinatário. Ele será exigido do entregador para confirmar a entrega.</span>
                 </div>
                 <button class="btn-main" onclick="fecharModalEnvioDetalhes()" style="margin-top: 25px;">Voltar para o Início</button>
             </div>

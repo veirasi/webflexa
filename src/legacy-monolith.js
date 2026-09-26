@@ -647,6 +647,25 @@ function confirmarEnvioFinal() {
     const codigoEl = document.getElementById('codigo-pedido-solicitado');
     if (codigoEl) codigoEl.innerText = codigoPedido;
 
+    // Coleta reversa mostra os dois códigos aqui: o de retirada (repassar ao
+    // cliente) e o de devolução (o próprio lojista guarda e confirma quando
+    // o entregador voltar) — textos diferentes do fluxo normal. O valor do
+    // código de retirada em si é preenchido mais abaixo, junto com o resto
+    // do pacoteObj (é lá que ele é gerado).
+    const ehColetaReversaCard = tipoFluxoEnvioAtual === 'coleta_reversa';
+    const cardRetirada = document.getElementById('codigo-retirada-card');
+    const labelPedido = document.getElementById('codigo-pedido-label');
+    const hintPedido = document.getElementById('codigo-pedido-hint');
+    if (ehColetaReversaCard) {
+        if (cardRetirada) cardRetirada.classList.remove('hidden');
+        if (labelPedido) labelPedido.innerText = 'Código de confirmação de devolução';
+        if (hintPedido) hintPedido.innerText = 'Guarde esse código — você mesmo confirma quando o entregador te devolver o pacote.';
+    } else {
+        if (cardRetirada) cardRetirada.classList.add('hidden');
+        if (labelPedido) labelPedido.innerText = 'Código de confirmação de entrega';
+        if (hintPedido) hintPedido.innerText = 'Repasse esse código ao destinatário. Ele será exigido do entregador para confirmar a entrega.';
+    }
+
     if (clienteSelecionadoId) {
         const idx = clientes.findIndex((c) => c.id === clienteSelecionadoId);
         if (idx >= 0) {
@@ -678,10 +697,21 @@ function confirmarEnvioFinal() {
             const destinoClienteEndereco = resumoRevisaoAtual.destino || document.getElementById('card-endereco')?.innerText || '';
             const origemLojaGeo = resumoRevisaoAtual.origemGeo || null;
             const destinoClienteGeo = resumoRevisaoAtual.destinoGeo || null;
+            // Coleta reversa precisa de DOIS códigos, um por perna da viagem —
+            // codigoConfirmacaoEntrega já existente vira o código de
+            // "devolução" (2ª perna, na loja); este novo é o de "retirada" (1ª
+            // perna, com o cliente). Ver pedido do dono 2026-09-26 e
+            // renderSheetRotaEntregadorConteudo/confirmarRetiradaPacoteAtual.
+            const codigoConfirmacaoRetirada = ehColetaReversa ? gerarCodigoConfirmacaoEntrega() : null;
+            if (ehColetaReversa) {
+                const codigoRetiradaEl = document.getElementById('codigo-retirada-solicitado');
+                if (codigoRetiradaEl) codigoRetiradaEl.innerText = `#${codigoConfirmacaoRetirada}`;
+            }
 
             const pacoteObj = {
                 id: pedidoId,
                 codigoConfirmacaoEntrega,
+                codigoConfirmacaoRetirada,
                 criadoEm: Date.now(),
                 descricao: desc,
                 observacoes,
@@ -4259,6 +4289,13 @@ function rotaSheetBloqueada() {
 // pacotes fisicamente. Ver memoria project-flexa-cobranca-entrega-dinheiro.
 function rotaPrecisaConfirmarColeta(rotaObj) {
     if (!rotaObj) return false;
+    // Coleta reversa não passa por aqui (bug corrigido 2026-09-26): não tem
+    // nada pra retirar NA LOJA antes de sair — o entregador vai direto pro
+    // endereço de cada cliente. A "retirada" de cada pacote agora é
+    // confirmada individualmente, por pacote, dentro do sheet normal (ver
+    // renderSheetRotaEntregadorConteudo/confirmarRetiradaPacoteAtual).
+    const ehColetaReversa = rotaEntSheetPacotes.some((p) => p?.tipoFluxo === 'coleta_reversa');
+    if (ehColetaReversa) return false;
     const statusNorm = normalizarStatusRotaFiltro(rotaObj?.status || rotaObj?.pagamentoStatus || 'CRIADA');
     return statusNorm === 'EM_ROTA' && rotaObj?.coletaConfirmada !== true;
 }
@@ -4403,6 +4440,9 @@ function renderSheetRotaEntregadorConteudo() {
     const total = Math.max(1, rotaEntSheetPacotes.length);
     const statusNorm = normalizarStatusRotaFiltro(rotaObj?.status || rotaObj?.pagamentoStatus || 'CRIADA');
     const statusVisual = getStatusVisualRota(statusNorm);
+    // Calculado aqui em cima (não só mais abaixo, junto de bloqueado/estadoAtual)
+    // porque o endereço mostrado no card já precisa saber a fase certa.
+    const emFaseRetiradaEndereco = pac?.tipoFluxo === 'coleta_reversa' && !pac?.retiradaConfirmada;
 
     const logo = (pac?.lojistaLogo
         || rotaObj?.lojistaLogo
@@ -4417,7 +4457,12 @@ function renderSheetRotaEntregadorConteudo() {
     const servicoLabel = (pac?.servico || pac?.servicoLabel || rotaObj?.servicoLabel || 'standard').toString();
     const distanciaTxt = formatarDistancia(pac?.distanciaKm || rotaObj?.distanciaTotal || 0);
     const duracaoTxt = formatarDuracao(pac?.duracaoMin || rotaObj?.duracaoTotal || 0);
-    const enderecoCompleto = montarEnderecoCompletoPacote(pac, rotaObj) || '--';
+    // Coleta reversa, fase 1 (retirada): mostra o endereço do CLIENTE (é pra
+    // lá que o entregador vai agora), não o da loja — bug corrigido
+    // 2026-09-26, montarEnderecoCompletoPacote só olhava campos de destino.
+    const enderecoCompleto = emFaseRetiradaEndereco
+        ? (pac.origemCompleta || pac.origemEndereco || '--')
+        : (montarEnderecoCompletoPacote(pac, rotaObj) || '--');
     const cidadeTxt = extrairCidadeEnderecoSimples(enderecoCompleto || pac?.cidade || rotaObj?.destinoPrincipal || pac?.cidadeDestino || '');
     const complemento = pac?.complemento || pac?.destinoComplemento || '';
     const cep = formatarCep(pac?.destinoCep || pac?.cep || pac?.cepDestino || rotaObj?.destinoCep || rotaObj?.cep);
@@ -4435,6 +4480,15 @@ function renderSheetRotaEntregadorConteudo() {
     const estadoAtual = obterEstadoPacoteRota(rotaObj.id, pac, rotaEntSheetIndex);
     const bloqueado = rotaSheetBloqueada();
     const finalizado = estadoAtual.status === 'concluido';
+    // Coleta reversa (pedido do dono 2026-09-26): antes de qualquer outra
+    // coisa, o pacote precisa ser "retirado com o cliente" — reaproveita a
+    // MESMA máquina de estado (obterEstadoPacoteRota/rotaSheetBloqueada) já
+    // usada pra "iniciar corrida"/"confirmar entrega", só que apontando pra
+    // ORIGEM (o cliente) em vez do destino, com o código de retirada em vez
+    // do de entrega. Uma vez confirmada, esse estado reseta (ver
+    // confirmarRetiradaPacoteAtual) e o pacote cai no fluxo normal abaixo,
+    // dessa vez indo pro destino real (a loja) com o código de devolução.
+    const emFaseRetirada = pac?.tipoFluxo === 'coleta_reversa' && !pac?.retiradaConfirmada;
 
     const dots = Array.from({ length: total }).map((_, idx) =>
         `<span class=\"ent-sheet-dot ${idx === rotaEntSheetIndex ? 'active' : ''} ${bloqueado ? 'locked' : ''}\"></span>`
@@ -4448,7 +4502,7 @@ function renderSheetRotaEntregadorConteudo() {
     // chamada na hora de confirmar a entrega).
     const espera = pac?.esperaEntrega || {};
     let blocoEspera = '';
-    if (bloqueado && !finalizado && !espera.finalizada) {
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada) {
         if (!espera.chegouEm) {
             blocoEspera = `<button type=\"button\" class=\"ent-sheet-cheguei-btn\" onclick=\"confirmarCheguei()\"><i data-lucide=\"map-pin\" size=\"14\"></i> Cheguei no local</button>`;
         } else {
@@ -4473,34 +4527,58 @@ function renderSheetRotaEntregadorConteudo() {
 
     // Só fica ouvindo pedido de subida enquanto ele ainda pode acontecer
     // (já chegou, ainda não respondeu sim/não) — evita listener aberto à toa.
-    if (bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
         gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
     } else {
         pararListenerEsperaPacote();
     }
 
+    // Coleta reversa (perna 2, "devolução" na loja) usa rótulos diferentes —
+    // é o LOJISTA quem confirma o recebimento aqui, não repassa a ninguém.
+    const ehColetaReversaLabel = pac?.tipoFluxo === 'coleta_reversa';
     const codeBox = `
         <div class=\"ent-sheet-code-box\">
             ${blocoEspera}
-            <label for=\"ent-sheet-code-input\">Confirme a entrega</label>
+            <label for=\"ent-sheet-code-input\">${ehColetaReversaLabel ? 'Confirme a devolução (código com o lojista)' : 'Confirme a entrega'}</label>
             <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
             <div class=\"ent-sheet-actions-inline\">
-                <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarEntregaPacoteAtual()\">Confirmar entrega</button>
+                <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarEntregaPacoteAtual()\">${ehColetaReversaLabel ? 'Confirmar devolução' : 'Confirmar entrega'}</button>
+                <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
+            </div>
+        </div>
+    `;
+
+    // Fase 1 da coleta reversa: retirar com o cliente (código com o CLIENTE,
+    // não com o lojista). Reaproveita a mesma máquina de estado (bloqueado
+    // aqui é sempre relativo a essa 1ª perna, já que emFaseRetirada some
+    // depois que confirmarRetiradaPacoteAtual reseta o estado do pacote).
+    const codeBoxRetirada = `
+        <div class=\"ent-sheet-code-box\">
+            <label for=\"ent-sheet-code-input\">Confirme a retirada (código com o cliente)</label>
+            <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
+            <div class=\"ent-sheet-actions-inline\">
+                <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarRetiradaPacoteAtual()\">Confirmar retirada</button>
                 <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
             </div>
         </div>
     `;
 
     const statusOk = `
-        <div class=\"ent-sheet-status-ok\"><i data-lucide=\"check-circle-2\"></i> Entrega confirmada</div>
+        <div class=\"ent-sheet-status-ok\"><i data-lucide=\"check-circle-2\"></i> ${ehColetaReversaLabel ? 'Devolução confirmada' : 'Entrega confirmada'}</div>
         ${estadoAtual.codigoConfirmacao ? `<div class=\"ent-sheet-code-pill\">Código ${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao)}</div>` : ''}
     `;
 
     // Devolução por entrega falhou (ver project-flexa-cobranca-entrega-dinheiro):
     // tem prioridade sobre o fluxo normal de entrega assim que solicitada.
-    const devolucaoStatus = pac?.devolucaoStatus || '';
+    // Não se aplica enquanto ainda estiver na fase de retirada da coleta
+    // reversa (não tem "entrega" nenhuma pra falhar ainda).
+    const devolucaoStatus = emFaseRetirada ? '' : (pac?.devolucaoStatus || '');
     let footerPrincipal;
-    if (devolucaoStatus === 'DEVOLUCAO_SOLICITADA') {
+    if (emFaseRetirada) {
+        footerPrincipal = bloqueado
+            ? codeBoxRetirada
+            : `<button class=\"ent-sheet-primary\" onclick=\"iniciarRetiradaPacoteAtual(this)\"><span>Iniciar corrida (retirada)</span><span class=\"ent-sheet-arrow\" style=\"font-size:22px;\">›</span></button>`;
+    } else if (devolucaoStatus === 'DEVOLUCAO_SOLICITADA') {
         footerPrincipal = `<div class=\"ent-sheet-status-ok ent-sheet-status-aguardando\"><i data-lucide=\"clock\"></i> Aguardando o lojista confirmar a devolução</div>`;
     } else if (devolucaoStatus === 'DEVOLUCAO_CONFIRMADA') {
         // Lojista confirmou que a devolução é real e o Pix do frete de volta já foi
@@ -4519,7 +4597,7 @@ function renderSheetRotaEntregadorConteudo() {
     } else {
         footerPrincipal = `<button class=\"ent-sheet-primary\" onclick=\"iniciarCorridaPacoteAtual(this)\"><span>Iniciar Corrida</span><span class=\"ent-sheet-arrow\" style=\"font-size:22px;\">›</span></button>`;
     }
-    const podeSolicitarDevolucao = !devolucaoStatus && !finalizado;
+    const podeSolicitarDevolucao = !emFaseRetirada && !devolucaoStatus && !finalizado;
 
     content.innerHTML = `
     <div class=\"sheet-buscar modal-ent-sheet\" style=\"background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;\" ontouchstart=\"iniciarSwipeEntSheet(event)\" ontouchend=\"finalizarSwipeEntSheet(event)\">
@@ -5038,13 +5116,19 @@ function iniciarCorridaPacoteAtual(btn) {
         // cliente perto da hora da entrega, não semanas antes. Pedido do dono,
         // 2026-09-19. O código NUNCA aparece pro entregador em lugar nenhum —
         // só o cliente/lojista sabem, o entregador tem que perguntar na porta.
+        // Coleta reversa (2ª perna, indo devolver na loja): quem confirma
+        // aqui é o próprio LOJISTA, não repassa código a ninguém — mensagem
+        // diferente da entrega normal (pedido do dono 2026-09-26).
+        const ehColetaReversaAviso = pac?.tipoFluxo === 'coleta_reversa';
         const codigoEntregaAviso = obterCodigoConfirmacaoEsperado(pac);
         criarNotificacao(lojistaUidCorrida, {
             tipo: 'corrida_iniciada',
-            titulo: 'Entrega iniciada',
-            mensagem: codigoEntregaAviso
-                ? `${window.usuarioLogado?.nome || 'O entregador'} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. Código de confirmação: ${codigoEntregaAviso} — repasse ao cliente, ele deve informar ao entregador na entrega.`
-                : `${window.usuarioLogado?.nome || 'O entregador'} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`,
+            titulo: ehColetaReversaAviso ? 'Devolução a caminho' : 'Entrega iniciada',
+            mensagem: ehColetaReversaAviso
+                ? `${window.usuarioLogado?.nome || 'O entregador'} está a caminho da loja pra devolver o pacote de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. Código de confirmação: ${codigoEntregaAviso} — informe esse código a ele quando receber.`
+                : (codigoEntregaAviso
+                    ? `${window.usuarioLogado?.nome || 'O entregador'} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}. Código de confirmação: ${codigoEntregaAviso} — repasse ao cliente, ele deve informar ao entregador na entrega.`
+                    : `${window.usuarioLogado?.nome || 'O entregador'} iniciou a entrega do pedido de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)}.`),
             rotaId: String(rotaId)
         });
     }
@@ -5067,6 +5151,103 @@ function iniciarCorridaPacoteAtual(btn) {
     }
     const url = `https://www.google.com/maps/dir/?api=1&destination=${destino}`;
     setTimeout(() => window.open(url, '_blank'), 250);
+    renderSheetRotaEntregadorConteudo();
+}
+
+// Fase 1 da coleta reversa: ir até o CLIENTE retirar o pacote (equivalente
+// ao "Iniciar Corrida" normal, mas navegando pra ORIGEM — que pra um pacote
+// coleta_reversa é o endereço do cliente, já invertido desde a criação do
+// envio, ver confirmarEnvioFinal). Pedido do dono 2026-09-26.
+function iniciarRetiradaPacoteAtual(btn) {
+    const rotaId = rotaEntSheetRotaAtual?.id;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaId || !pac) return;
+
+    setEstadoPacoteRota(rotaId, pac, { status: 'em_corrida' }, rotaEntSheetIndex);
+
+    if (btn) {
+        btn.classList.add('sliding');
+        setTimeout(() => btn.classList.remove('sliding'), 800);
+    }
+
+    let origem = '';
+    if (pac.origemGeo?.lat && pac.origemGeo?.lon) {
+        origem = `${pac.origemGeo.lat},${pac.origemGeo.lon}`;
+    } else {
+        origem = encodeURIComponent(pac.origemEndereco || pac.origemCompleta || '');
+    }
+    if (!origem) {
+        alert('Endereço do cliente não informado.');
+        setEstadoPacoteRota(rotaId, pac, { status: 'pendente' }, rotaEntSheetIndex);
+        return renderSheetRotaEntregadorConteudo();
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${origem}`;
+    setTimeout(() => window.open(url, '_blank'), 250);
+    renderSheetRotaEntregadorConteudo();
+}
+
+// Confirma a retirada com o cliente (código de retirada, informado pelo
+// CLIENTE) — ao confirmar, marca a bolinha da timeline pública como
+// retirada (verde) e RESETA o estado local do pacote, pra ele cair no fluxo
+// normal de "Iniciar Corrida" logo em seguida, dessa vez indo pro destino
+// real (a loja) com o código de devolução.
+async function confirmarRetiradaPacoteAtual() {
+    const rotaId = rotaEntSheetRotaAtual?.id;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    if (!rotaId || !pac) return;
+
+    const estado = obterEstadoPacoteRota(rotaId, pac, rotaEntSheetIndex);
+    const codigo = (estado.codigoConfirmacao || '').trim();
+    if (!codigo) {
+        alert('Digite o código de retirada informado pelo cliente.');
+        return;
+    }
+
+    const codigoEsperado = String(pac?.codigoConfirmacaoRetirada || '').trim();
+    if (!codigoEsperado) {
+        alert('Pacote sem código de retirada gerado. Feche e reabra a rota.');
+        return;
+    }
+    if (normalizarCodigoConfirmacaoEntrega(codigo) !== normalizarCodigoConfirmacaoEntrega(codigoEsperado)) {
+        alert('Código inválido. Peça o código de retirada ao cliente.');
+        return;
+    }
+
+    const lojistaUid = obterLojistaUidDaRota(rotaEntSheetRotaAtual, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+
+    try {
+        if (lojistaUid && envioId) {
+            await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+                retiradaConfirmada: true,
+                retiradaConfirmadaEm: agora
+            });
+            criarNotificacao(lojistaUid, {
+                tipo: 'retirada_confirmada',
+                titulo: 'Pacote retirado',
+                mensagem: `${window.usuarioLogado?.nome || 'O entregador'} retirou o pacote de ${obterNomeDestinatarioPacote(pac, rotaEntSheetRotaAtual)} e está a caminho da loja.`,
+                rotaId: String(rotaId)
+            });
+        }
+        // Bolinha da timeline pública fica verde aqui — mesmo padrão já usado
+        // pra coletaConfirmada (confirmarColetaPacotes) e chegada (confirmarCheguei).
+        if (envioId) {
+            await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({
+                retiradaConfirmada: true
+            }).catch(() => {});
+        }
+    } catch (err) {
+        console.warn('Falha ao confirmar retirada:', err);
+        alert('Não foi possível confirmar a retirada agora. Tente novamente.');
+        return;
+    }
+
+    pac.retiradaConfirmada = true;
+    // Reseta o estado local desse pacote — a partir daqui ele cai no fluxo
+    // normal (iniciarCorridaPacoteAtual/confirmarEntregaPacoteAtual), como se
+    // fosse uma entrega comum, só que rumo à loja com o código de devolução.
+    setEstadoPacoteRota(rotaId, pac, { status: 'pendente', codigoConfirmacao: '' }, rotaEntSheetIndex);
     renderSheetRotaEntregadorConteudo();
 }
 
@@ -9063,6 +9244,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             let destinoChave = pacoteId; // fallback: se não achar endereço, cada pacote fica no seu próprio ponto
             let whatsappCliente = '';
             let codigoConfirmacao = '';
+            let codigoRetirada = '';
             try {
                 const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
                 const pac = snap.val() || {};
@@ -9074,6 +9256,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
                 // desse pacote consegue ver, mesmo nível de acesso que já
                 // existe pro resto dos dados aqui.
                 codigoConfirmacao = (pac.codigoConfirmacaoEntrega || '').toString();
+                codigoRetirada = (pac.codigoConfirmacaoRetirada || '').toString();
                 if (pac.tipoFluxo === 'coleta_reversa') tipoFluxoRota = 'coleta_reversa';
                 // Pacotes pro MESMO endereço viram um só ponto na timeline
                 // (pedido do dono 2026-09-21) — normaliza pra não separar por
@@ -9103,7 +9286,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             if (whatsappCliente) {
                 updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
             }
-            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao };
+            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada };
         }
 
         updates[`rastreioPublico/${rota.id}`] = {
@@ -9571,14 +9754,21 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : '';
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : '';
 
-    // Código de confirmação de entrega, sempre visível na própria tela
-    // (bug corrigido 2026-09-26: antes só ia na mensagem de WhatsApp — se o
-    // cliente perdesse essa mensagem, não tinha como saber o código de
-    // outro jeito). Só aparece enquanto o pedido ainda não foi
-    // entregue/devolvido.
-    const codigoHtml = (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO')
-        ? `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora d${ehColetaReversaTexto ? 'a coleta' : 'a entrega'}</small></div>`
-        : '';
+    // Código de confirmação, sempre visível na própria tela (bug corrigido
+    // 2026-09-26: antes só ia na mensagem de WhatsApp — se o cliente
+    // perdesse essa mensagem, não tinha como saber o código de outro jeito).
+    // Coleta reversa mostra o código de RETIRADA (é o cliente quem confirma
+    // essa perna) só até ele entregar o pacote ao entregador — a 2ª perna
+    // (devolução na loja) é confirmada pelo LOJISTA, não pelo cliente, então
+    // nenhum código aparece mais aqui depois da retirada.
+    let codigoHtml = '';
+    if (ehColetaReversaTexto) {
+        if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
+            codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse código ao entregador na hora da retirada</small></div>`;
+        }
+    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO') {
+        codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora da entrega</small></div>`;
+    }
 
     // Taxa de subida (pedido do dono 2026-09-25): só aparece depois que o
     // entregador confirma "Cheguei" (entregadorChegou, espelhado aqui em
@@ -9642,13 +9832,18 @@ function agruparParadasPorEndereco(paradasBrutas) {
     paradasBrutas.forEach((p) => {
         const chave = p.destinoChave || p.pacoteId;
         if (!porChave.has(chave)) {
-            const grupo = { destinoChave: chave, pacoteIds: [], destinatario: p.destinatario, statusPorPacote: [] };
+            const grupo = { destinoChave: chave, pacoteIds: [], destinatario: p.destinatario, statusPorPacote: [], retiradaPorPacote: [] };
             porChave.set(chave, grupo);
             grupos.push(grupo);
         }
         const grupo = porChave.get(chave);
         grupo.pacoteIds.push(p.pacoteId);
         grupo.statusPorPacote.push(p.status || 'BUSCANDO');
+        // Retirada (coleta reversa) é um marco à parte de "status" — ver
+        // montarTimelineParadasRastreio, a bolinha do cliente fica verde
+        // assim que ele entrega o pacote ao entregador, bem antes do pacote
+        // "chegar" na loja (status só vira ENTREGUE lá no fim).
+        grupo.retiradaPorPacote.push(p.retiradaConfirmada === true);
     });
 
     return grupos.map((g) => {
@@ -9656,7 +9851,8 @@ function agruparParadasPorEndereco(paradasBrutas) {
         const todosDevolvidos = g.statusPorPacote.every((s) => s === 'DEVOLVIDO');
         return {
             ...g,
-            status: todosEntregues ? 'ENTREGUE' : (todosDevolvidos ? 'DEVOLVIDO' : 'BUSCANDO')
+            status: todosEntregues ? 'ENTREGUE' : (todosDevolvidos ? 'DEVOLVIDO' : 'BUSCANDO'),
+            retiradaConfirmada: g.retiradaPorPacote.every(Boolean)
         };
     });
 }
@@ -9692,7 +9888,12 @@ function montarTimelineParadasRastreio(dados, paradas, pacoteId, statusNorm) {
                     origem: false,
                     label: ehMinha ? (grupo.destinatario || 'Cliente') : '',
                     sub: ehMinha ? 'Retirada com você' : '',
-                    done: grupo.status === 'ENTREGUE',
+                    // BUG CORRIGIDO 2026-09-26: antes só acendia quando o pacote
+                    // inteiro virava ENTREGUE (ou seja, só depois de já ter
+                    // chegado na loja também) — a retirada com o cliente é um
+                    // marco à parte (confirmarRetiradaPacoteAtual), acontece
+                    // bem antes disso.
+                    done: grupo.retiradaConfirmada === true,
                     devolvido: grupo.status === 'DEVOLVIDO',
                     atual: statusNorm === 'EM_ROTA' && idx === idxAtual,
                     voce: ehMinha
@@ -14117,6 +14318,7 @@ export {
   confirmarPagamentoRota,
   confirmarRecebimentoDinheiro,
   confirmarRecebimentoTaxaEntregador,
+  confirmarRetiradaPacoteAtual,
   consultarPagamentoPixMercadoPago,
   consultarPagamentoPixTesteClienteLocal,
   convidarClienteAtualParaApp,
@@ -14233,6 +14435,7 @@ export {
   iniciarListenerNotificacoes,
   iniciarModalRota,
   iniciarRastreioGpsEntregador,
+  iniciarRetiradaPacoteAtual,
   iniciarSwipeEntSheet,
   iniciarSwipePaginaRota,
   initAdminCharts,
