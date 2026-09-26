@@ -46,6 +46,7 @@
     abrirThreadChat: () => abrirThreadChat,
     acaoPrincipalModalRota: () => acaoPrincipalModalRota,
     aceitarRotaMarketplaceEntregador: () => aceitarRotaMarketplaceEntregador,
+    aceitarSolicitacaoSubida: () => aceitarSolicitacaoSubida,
     adminAlterarStatusPacotes: () => adminAlterarStatusPacotes,
     adminCarregarPacotes: () => adminCarregarPacotes,
     adminCreateField: () => adminCreateField,
@@ -126,6 +127,7 @@
     coletarEnviosPendentesParaRota: () => coletarEnviosPendentesParaRota,
     compartilharLinkRastreioWhatsapp: () => compartilharLinkRastreioWhatsapp,
     completarCadastroClienteRastreio: () => completarCadastroClienteRastreio,
+    confirmarCheguei: () => confirmarCheguei,
     confirmarCodigoDevolucaoPacoteAtual: () => confirmarCodigoDevolucaoPacoteAtual,
     confirmarColetaPacotes: () => confirmarColetaPacotes,
     confirmarDevolucaoComoLojista: () => confirmarDevolucaoComoLojista,
@@ -136,6 +138,7 @@
     confirmarPagamentoMistoCobranca: () => confirmarPagamentoMistoCobranca,
     confirmarPagamentoRota: () => confirmarPagamentoRota,
     confirmarRecebimentoDinheiro: () => confirmarRecebimentoDinheiro,
+    confirmarRecebimentoTaxaEntregador: () => confirmarRecebimentoTaxaEntregador,
     consultarPagamentoPixMercadoPago: () => consultarPagamentoPixMercadoPago,
     consultarPagamentoPixTesteClienteLocal: () => consultarPagamentoPixTesteClienteLocal,
     convidarClienteAtualParaApp: () => convidarClienteAtualParaApp,
@@ -364,6 +367,7 @@
     previewImagem: () => previewImagem,
     proximaPaginaDetalheRota: () => proximaPaginaDetalheRota,
     recuperarSenhaReal: () => recuperarSenhaReal,
+    recusarSolicitacaoSubida: () => recusarSolicitacaoSubida,
     registrarEstadosPacotesRota: () => registrarEstadosPacotesRota,
     registrarPresencaUsuario: () => registrarPresencaUsuario,
     registrarTransacaoFinanceira: () => registrarTransacaoFinanceira,
@@ -429,6 +433,7 @@
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
     solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
     solicitarSaque: () => solicitarSaque,
+    solicitarSubidaCliente: () => solicitarSubidaCliente,
     switchAdminTab: () => switchAdminTab,
     telaInicialPorTipoUsuario: () => telaInicialPorTipoUsuario,
     telaPerfilPorTipoUsuario: () => telaPerfilPorTipoUsuario,
@@ -736,6 +741,8 @@
   var rotaEntSheetRotaAtual = null;
   var rotaEntSheetTouchStartX = 0;
   var rotaEntSheetTouchStartY = 0;
+  var rotaEntSheetEsperaListenerRef = null;
+  var rotaEntSheetEsperaListenerChave = "";
   var pixCobrancaEntregaAtual = null;
   var pixCobrancaEntregaPollTimer = null;
   var lojistaLogoCache = {};
@@ -1648,6 +1655,9 @@
     freteTesteOverride: null
   };
   var TAXA_MINIMA = { Standard: 5, Flash: 9 };
+  var TAXA_ESPERA_GRACE_MIN = 4;
+  var TAXA_ESPERA_POR_MIN = 1;
+  var TAXA_SUBIR_FIXA = 6;
   var TAXA_POR_KM = { Standard: 1.1, Flash: 1.99 };
   var DISTANCIA_MINIMA_KM = 4;
   var AJUSTE_VEICULO_POR_SERVICO = {
@@ -2813,6 +2823,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                 </button>
             </div>
 
+            <div id="dividas-entregador-lojista-home" class="dividas-entregador-card hidden"></div>
+
             <div id="banner-lojista-home" class="rastreio-pub-banners hidden"></div>
 
             <div class="home-quick-grid">
@@ -2844,6 +2856,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
     carregarBannersPorPublico("lojista", "banner-lojista-home");
+    carregarDividasEntregadorLojistaHome();
     if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
       dashboardRotasSincronizadas = true;
       carregarRotasDoBanco().then((rotasDb) => {
@@ -3731,6 +3744,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     pararRastreioGpsEntregador();
     pararPollingPixCobrancaEntrega();
     pixCobrancaEntregaAtual = null;
+    pararListenerEsperaPacote();
   }
   var geoRastreioWatchId = null;
   var geoRastreioUltimoEnvio = 0;
@@ -4303,8 +4317,38 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       (_, idx) => `<span class="ent-sheet-dot ${idx === rotaEntSheetIndex ? "active" : ""} ${bloqueado ? "locked" : ""}"></span>`
     ).join("");
     const enderecoExtra = [complemento].filter(Boolean).join(" \u2022 ");
+    const espera = pac?.esperaEntrega || {};
+    let blocoEspera = "";
+    if (bloqueado && !finalizado && !espera.finalizada) {
+      if (!espera.chegouEm) {
+        blocoEspera = `<button type="button" class="ent-sheet-cheguei-btn" onclick="confirmarCheguei()"><i data-lucide="map-pin" size="14"></i> Cheguei no local</button>`;
+      } else {
+        const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4));
+        blocoEspera = `<div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosDesde - TAXA_ESPERA_GRACE_MIN} min j\xE1 geram taxa)` : ""}</div>`;
+        if (espera.subirStatus === "pendente") {
+          blocoEspera += `
+                    <div class="ent-sheet-subir-pedido">
+                        <span>Cliente pediu pra voc\xEA subir at\xE9 o apartamento</span>
+                        <div class="ent-sheet-actions-inline">
+                            <button type="button" class="ent-sheet-primary small" onclick="aceitarSolicitacaoSubida()">Aceitar (+R$ 6,00)</button>
+                            <button type="button" class="ent-sheet-btn-ghost" onclick="recusarSolicitacaoSubida()">Recusar</button>
+                        </div>
+                    </div>`;
+        } else if (espera.subirStatus === "aceito") {
+          blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Subida aceita (+R$ 6,00)</div>`;
+        } else if (espera.subirStatus === "recusado") {
+          blocoEspera += `<div class="ent-sheet-subir-recusado">Voc\xEA recusou subir dessa vez</div>`;
+        }
+      }
+    }
+    if (bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
+      gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
+    } else {
+      pararListenerEsperaPacote();
+    }
     const codeBox = `
         <div class="ent-sheet-code-box">
+            ${blocoEspera}
             <label for="ent-sheet-code-input">Confirme a entrega</label>
             <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
             <div class="ent-sheet-actions-inline">
@@ -4809,6 +4853,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       alert("C\xF3digo inv\xE1lido para este pacote. Pe\xE7a o c\xF3digo de confirma\xE7\xE3o ao destinat\xE1rio.");
       return;
     }
+    try {
+      await resolverTaxaEsperaSubidaAntesDeEntregar(rotaEntSheetRotaAtual, pac);
+    } catch (err) {
+      console.warn("Falha ao resolver taxa de espera/subida:", err);
+    }
     let resultadoPersist = null;
     try {
       resultadoPersist = await persistirEntregaPacoteAtual(rotaEntSheetRotaAtual, pac, codigo);
@@ -4864,6 +4913,178 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     if (!rotaId || !pac) return;
     setEstadoPacoteRota(rotaId, pac, { codigoConfirmacao: valor }, rotaEntSheetIndex);
+  }
+  async function confirmarCheguei() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const rotaId = rotaObj?.id;
+    if (!rotaId || !pac) return;
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+    try {
+      if (lojistaUid && envioId) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, { "esperaEntrega/chegouEm": agora });
+      }
+      await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({
+        entregadorChegou: true,
+        chegouEm: agora
+      }).catch(() => {
+      });
+      pac.esperaEntrega = { ...pac.esperaEntrega || {}, chegouEm: agora };
+      renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+      console.warn("Falha ao registrar chegada:", err);
+      alert("N\xE3o foi poss\xEDvel registrar sua chegada agora. Tente de novo.");
+    }
+  }
+  async function responderSolicitacaoSubida(aceitar) {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const rotaId = rotaObj?.id;
+    if (!rotaId || !pac) return;
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const novoStatus = aceitar ? "aceito" : "recusado";
+    try {
+      if (lojistaUid && envioId) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, { "esperaEntrega/subirStatus": novoStatus, "esperaEntrega/subirRespondidoEm": Date.now() });
+      }
+      await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({ subirStatus: novoStatus }).catch(() => {
+      });
+      pac.esperaEntrega = { ...pac.esperaEntrega || {}, subirStatus: novoStatus };
+      pararListenerEsperaPacote();
+      renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+      console.warn("Falha ao responder pedido de subida:", err);
+      alert("N\xE3o foi poss\xEDvel registrar sua resposta agora. Tente de novo.");
+    }
+  }
+  function aceitarSolicitacaoSubida() {
+    responderSolicitacaoSubida(true);
+  }
+  function recusarSolicitacaoSubida() {
+    responderSolicitacaoSubida(false);
+  }
+  function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
+    const chave = `${rotaId}|${pacoteId}`;
+    if (rotaEntSheetEsperaListenerChave === chave && rotaEntSheetEsperaListenerRef) return;
+    pararListenerEsperaPacote();
+    if (!rotaId || !pacoteId) return;
+    rotaEntSheetEsperaListenerChave = chave;
+    rotaEntSheetEsperaListenerRef = db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`);
+    rotaEntSheetEsperaListenerRef.on("value", (snap) => {
+      const dados = snap.val() || {};
+      const pacAtual = rotaEntSheetPacotes[rotaEntSheetIndex];
+      if (!pacAtual || obterIdPacoteConfirmacao(pacAtual) !== pacoteId) return;
+      if ((dados.subirStatus || null) === (pacAtual.esperaEntrega?.subirStatus || null)) return;
+      pacAtual.esperaEntrega = { ...pacAtual.esperaEntrega || {}, subirStatus: dados.subirStatus || null };
+      renderSheetRotaEntregadorConteudo();
+    });
+  }
+  function pararListenerEsperaPacote() {
+    if (rotaEntSheetEsperaListenerRef) {
+      rotaEntSheetEsperaListenerRef.off();
+      rotaEntSheetEsperaListenerRef = null;
+    }
+    rotaEntSheetEsperaListenerChave = "";
+  }
+  async function resolverTaxaEsperaSubidaAntesDeEntregar(rotaObj, pac) {
+    const espera = pac?.esperaEntrega || {};
+    if (espera.finalizada) return;
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    if (!lojistaUid || !envioId) return;
+    const chegouEm = Number(espera.chegouEm) || 0;
+    const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
+    const valorEspera = Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubir = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+    const valorTaxaTotal = Number((valorEspera + valorSubir).toFixed(2));
+    if (valorTaxaTotal <= 0) {
+      if (chegouEm) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+          "esperaEntrega/finalizada": true,
+          "esperaEntrega/minutosEspera": minutosEspera,
+          "esperaEntrega/valorEspera": 0,
+          "esperaEntrega/valorSubir": 0,
+          "esperaEntrega/valorTaxaTotal": 0
+        }).catch(() => {
+        });
+      }
+      return;
+    }
+    const partes = [];
+    if (valorEspera > 0) partes.push(`${minutosEspera} min de espera (${precoParaMoeda(valorEspera)})`);
+    if (valorSubir > 0) partes.push(`subida no local (${precoParaMoeda(valorSubir)})`);
+    const motivo = partes.join(" + ");
+    const recebeuEmDinheiro = window.confirm(
+      `Taxa extra pra voc\xEA: ${precoParaMoeda(valorTaxaTotal)} (${motivo}).
+
+Voc\xEA recebeu esse valor EM DINHEIRO do cliente agora?
+
+OK = recebi em dinheiro (fica com voc\xEA)
+Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
+    );
+    if (recebeuEmDinheiro) {
+      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+        "esperaEntrega/finalizada": true,
+        "esperaEntrega/minutosEspera": minutosEspera,
+        "esperaEntrega/valorEspera": valorEspera,
+        "esperaEntrega/valorSubir": valorSubir,
+        "esperaEntrega/valorTaxaTotal": valorTaxaTotal,
+        "esperaEntrega/formaCobranca": "dinheiro_direto",
+        "esperaEntrega/taxaPaga": true,
+        "esperaEntrega/taxaPagoEm": Date.now()
+      }).catch(() => {
+      });
+      return;
+    }
+    await criarDividaLojistaEntregador({
+      lojistaUid,
+      uidEntregador: getUsuarioIdAtual(),
+      rotaId: rotaObj?.id,
+      envioId,
+      valor: valorTaxaTotal,
+      motivo
+    });
+    await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+      "esperaEntrega/finalizada": true,
+      "esperaEntrega/minutosEspera": minutosEspera,
+      "esperaEntrega/valorEspera": valorEspera,
+      "esperaEntrega/valorSubir": valorSubir,
+      "esperaEntrega/valorTaxaTotal": valorTaxaTotal,
+      "esperaEntrega/formaCobranca": "divida_lojista",
+      "esperaEntrega/taxaPaga": false
+    }).catch(() => {
+    });
+  }
+  async function criarDividaLojistaEntregador({ lojistaUid, uidEntregador, rotaId, envioId, valor, motivo }) {
+    if (!lojistaUid || !uidEntregador || !(Number(valor) > 0)) return;
+    try {
+      const finSnap = await db.ref(`usuarios/${uidEntregador}/financeiro`).once("value");
+      const fin = finSnap.val() || {};
+      const id = db.ref().push().key;
+      const registro = {
+        id,
+        lojistaUid,
+        entregadorUid: uidEntregador,
+        entregadorNome: window.usuarioLogado?.nome || "Entregador",
+        valor: Number(valor),
+        motivo: motivo || "Taxa de espera/subida",
+        rotaId: String(rotaId || ""),
+        envioId: String(envioId || ""),
+        criadoEm: Date.now(),
+        pixTipo: fin?.pix?.tipo || "",
+        pixChave: fin?.pix?.chave || "",
+        status: "pendente"
+      };
+      const updates = {};
+      updates[`usuarios/${lojistaUid}/dividasEntregador/${id}`] = registro;
+      updates[`usuarios/${uidEntregador}/taxasAReceber/${id}`] = registro;
+      await db.ref().update(updates);
+    } catch (err) {
+      console.warn("Falha ao criar d\xEDvida lojista->entregador:", err);
+    }
   }
   async function relatarProblemaRota() {
     const rotaObj = rotaEntSheetRotaAtual;
@@ -8133,14 +8354,14 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       if (rastreioPublicoListenerRef) rastreioPublicoListenerRef.off();
       rastreioPublicoListenerRef = db.ref(`rastreioPublico/${tokenInfo.rotaId}`);
       rastreioPublicoListenerRef.on("value", (snap) => {
-        renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId);
+        renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId, tokenInfo.rotaId);
       });
     } catch (err) {
       console.warn("Falha ao carregar rastreio p\xFAblico:", err);
       conteudo.innerHTML = '<div class="rastreio-pub-erro">N\xE3o foi poss\xEDvel carregar o rastreio agora. Tente novamente em instantes.</div>';
     }
   }
-  function renderConteudoRastreioPublico(dados, pacoteId) {
+  function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const conteudo = document.getElementById("rastreio-pub-conteudo");
     if (!conteudo) return;
     if (!dados) {
@@ -8199,6 +8420,23 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const mapaHtml = geo && geo.lat && geo.lng ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : "";
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";
+    let subirHtml = "";
+    if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
+      const subirStatus = pacoteInfo.subirStatus || null;
+      if (subirStatus === "aceito") {
+        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou: vai subir at\xE9 voc\xEA.</div>`;
+      } else if (subirStatus === "recusado") {
+        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que n\xE3o vai poder subir dessa vez.</div>`;
+      } else if (subirStatus === "pendente") {
+        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar a subida...</div>`;
+      } else {
+        subirHtml = `
+                <div class="rastreio-pub-subir">
+                    <p>O entregador chegou! Precisa que ele suba at\xE9 voc\xEA?</p>
+                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Solicitar subida (R$ 6,00)</button>
+                </div>`;
+      }
+    }
     conteudo.innerHTML = `
         <div class="rastreio-pub-card">
             <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || "Loja")}</span>
@@ -8208,10 +8446,28 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             ${timelineHtml}
             ${paradaInfoHtml}
             ${distTxt || durTxt ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(" \u2022 "))}</div>` : ""}
+            ${subirHtml}
         </div>
         ${mapaHtml}
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  function solicitarSubidaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Enviando...";
+    }
+    db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({
+      subirStatus: "pendente",
+      subirSolicitadoEm: Date.now()
+    }).catch(() => {
+      alert("N\xE3o foi poss\xEDvel enviar o pedido agora. Tente de novo.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Solicitar subida (R$ 6,00)";
+      }
+    });
   }
   function agruparParadasPorEndereco(paradasBrutas) {
     const grupos = [];
@@ -8789,13 +9045,121 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       alert("Erro ao salvar: " + error.message);
     });
   }
-  function abrirSeletorCliente() {
+  async function abrirSeletorCliente() {
+    const bloqueio = await obterBloqueioNovoEnvioPorDividaEntregador();
+    if (bloqueio) {
+      alert(`Voc\xEA tem uma taxa de espera/subida pendente com ${bloqueio.entregadorNome} (${precoParaMoeda(bloqueio.valor)}).
+
+Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirmar o recebimento \u2014 s\xF3 assim "Novo Envio" libera de novo.`);
+      return;
+    }
     const modal = document.getElementById("modal-seletor-cliente");
     if (!modal) return;
     modal.style.display = "flex";
     requestAnimationFrame(() => modal.classList.add("is-open"));
     renderClientesSelector(document.getElementById("buscar-cliente")?.value || "");
     if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  async function obterBloqueioNovoEnvioPorDividaEntregador() {
+    const uid = getUsuarioIdAtual();
+    if (!uid) return null;
+    try {
+      const snap = await db.ref(`usuarios/${uid}/dividasEntregador`).once("value");
+      const dados = snap.val() || {};
+      return Object.values(dados).find((d) => d?.status === "pendente") || null;
+    } catch (err) {
+      console.warn("Falha ao checar d\xEDvidas com entregadores:", err);
+      return null;
+    }
+  }
+  async function carregarDividasEntregadorLojistaHome() {
+    const uid = getUsuarioIdAtual();
+    const container = document.getElementById("dividas-entregador-lojista-home");
+    if (!uid || !container) return;
+    try {
+      const snap = await db.ref(`usuarios/${uid}/dividasEntregador`).once("value");
+      const dados = snap.val() || {};
+      const pendentes = Object.values(dados).filter((d) => d?.status === "pendente");
+      if (!pendentes.length) {
+        container.classList.add("hidden");
+        container.innerHTML = "";
+        return;
+      }
+      const total = pendentes.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+      const linhas = pendentes.map((d) => `
+            <div class="dividas-entregador-item">
+                <div>
+                    <p class="dividas-entregador-nome">${escaparHtmlMarketplace(d.entregadorNome || "Entregador")}</p>
+                    <p class="dividas-entregador-motivo">${escaparHtmlMarketplace(d.motivo || "")}</p>
+                    <p class="dividas-entregador-pix">${escaparHtmlMarketplace(String(d.pixTipo || "").toUpperCase())}: ${escaparHtmlMarketplace(d.pixChave || "--")}</p>
+                </div>
+                <strong>${escaparHtmlMarketplace(precoParaMoeda(Number(d.valor || 0)))}</strong>
+            </div>
+        `).join("");
+      container.innerHTML = `
+            <p class="dividas-entregador-titulo">Taxas pendentes a entregadores \u2014 ${escaparHtmlMarketplace(precoParaMoeda(total))}</p>
+            <p class="dividas-entregador-aviso">"Novo Envio" fica bloqueado at\xE9 o entregador confirmar o recebimento.</p>
+            ${linhas}
+        `;
+      container.classList.remove("hidden");
+    } catch (err) {
+      console.warn("Falha ao carregar d\xEDvidas com entregadores:", err);
+    }
+  }
+  async function carregarTaxasAReceberEntregadorHome() {
+    const uid = getUsuarioIdAtual();
+    const container = document.getElementById("taxas-receber-entregador-home");
+    if (!uid || !container) return;
+    try {
+      const snap = await db.ref(`usuarios/${uid}/taxasAReceber`).once("value");
+      const dados = snap.val() || {};
+      const pendentes = Object.entries(dados).filter(([, d]) => d?.status === "pendente");
+      if (!pendentes.length) {
+        container.classList.add("hidden");
+        container.innerHTML = "";
+        return;
+      }
+      const total = pendentes.reduce((acc, [, d]) => acc + Number(d.valor || 0), 0);
+      const linhas = pendentes.map(([id, d]) => `
+            <div class="taxas-receber-item">
+                <div>
+                    <p class="taxas-receber-nome">${escaparHtmlMarketplace(d.motivo || "Taxa de espera/subida")}</p>
+                    <p class="taxas-receber-valor">${escaparHtmlMarketplace(precoParaMoeda(Number(d.valor || 0)))}</p>
+                </div>
+                <button type="button" class="btn-chip btn-chip-primary" onclick="confirmarRecebimentoTaxaEntregador('${escaparHtmlMarketplace(id)}')">Confirmar recebimento</button>
+            </div>
+        `).join("");
+      container.innerHTML = `
+            <p class="taxas-receber-titulo">A receber da loja \u2014 ${escaparHtmlMarketplace(precoParaMoeda(total))}</p>
+            ${linhas}
+        `;
+      container.classList.remove("hidden");
+    } catch (err) {
+      console.warn("Falha ao carregar taxas a receber:", err);
+    }
+  }
+  async function confirmarRecebimentoTaxaEntregador(id) {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !id) return;
+    try {
+      const snap = await db.ref(`usuarios/${uid}/taxasAReceber/${id}`).once("value");
+      const registro = snap.val();
+      if (!registro) return;
+      if (!window.confirm(`Confirmar que voc\xEA recebeu ${precoParaMoeda(Number(registro.valor || 0))} da loja via Pix?`)) return;
+      const agora = Date.now();
+      const updates = {};
+      updates[`usuarios/${uid}/taxasAReceber/${id}/status`] = "confirmado";
+      updates[`usuarios/${uid}/taxasAReceber/${id}/confirmadoEm`] = agora;
+      if (registro.lojistaUid) {
+        updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/status`] = "confirmado";
+        updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/confirmadoEm`] = agora;
+      }
+      await db.ref().update(updates);
+      carregarTaxasAReceberEntregadorHome();
+    } catch (err) {
+      console.warn("Falha ao confirmar recebimento da taxa:", err);
+      alert("N\xE3o foi poss\xEDvel confirmar agora. Tente de novo.");
+    }
   }
   function fecharSeletorCliente() {
     const modal = document.getElementById("modal-seletor-cliente");
@@ -10987,6 +11351,8 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
         <div class="pb-28">
             <div id="banner-entregador-home" class="rastreio-pub-banners hidden mb-3"></div>
 
+            <div id="taxas-receber-entregador-home" class="taxas-receber-card hidden"></div>
+
             <div class="mb-3 rounded-3xl bg-white p-3 shadow-sm entregador-dia-card">
                 <div class="dash-meta-head">
                     <div class="dash-meta-title">\u2022 Meta do dia (${Math.max(0, Math.min(100, progressoPct))}% concluido)</div>
@@ -11043,6 +11409,7 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
     carregarBannersPorPublico("entregador", "banner-entregador-home");
+    carregarTaxasAReceberEntregadorHome();
   }
   function abrirSheetRotaEntregadorHome(rotaId) {
     abrirSheetRotaEntregador(rotaId, { refetchPacotes: true });

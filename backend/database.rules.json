@@ -113,6 +113,21 @@
         "saques": {
           ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'",
           ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || root.child('usuarios').child(auth.uid).child('tipo').val() === 'admin'"
+        },
+
+        // Taxa de espera/subida (2026-09-25, ver criarDividaLojistaEntregador):
+        // o ENTREGADOR grava aqui (na conta do LOJISTA) quando o cliente não
+        // paga a taxa em dinheiro na hora — por isso não pode ser só o dono
+        // escrevendo, igual pacotes/rotas logo abaixo.
+        "dividasEntregador": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        // Espelho do lado do entregador — ele mesmo cria (ao gerar a dívida
+        // acima) e confirma quando recebe (ver confirmarRecebimentoTaxaEntregador).
+        "taxasAReceber": {
+          ".read": "auth != null",
+          ".write": "auth != null"
         }
       }
     },
@@ -174,7 +189,20 @@
     "rastreioPublico": {
       "$rotaId": {
         ".read": true,
-        ".write": "auth != null"
+        ".write": "auth != null",
+
+        // Taxa de subida (2026-09-25): o CLIENTE pede pelo link público, sem
+        // login nenhum — por isso esses dois campos específicos precisam
+        // aceitar escrita sem auth (o resto do nó continua exigindo login,
+        // igual antes). Só um booleano + timestamp; nenhum dado sensível ou
+        // financeiro real muda de mãos aqui, o valor em si só é cobrado
+        // depois que o ENTREGADOR aceita, do lado dele.
+        "pacotes": {
+          "$pacoteId": {
+            "subirStatus": { ".write": true },
+            "subirSolicitadoEm": { ".write": true }
+          }
+        }
       }
     },
 

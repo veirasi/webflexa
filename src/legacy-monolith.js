@@ -60,6 +60,11 @@ let rotaEntSheetIndex = 0;
 let rotaEntSheetRotaAtual = null;
 let rotaEntSheetTouchStartX = 0;
 let rotaEntSheetTouchStartY = 0;
+// Taxa de espera/subida (ver confirmarCheguei/aceitarSolicitacaoSubida) —
+// listener ao vivo no pacote público pra pegar pedido de subida do cliente
+// sem precisar reabrir a rota.
+let rotaEntSheetEsperaListenerRef = null;
+let rotaEntSheetEsperaListenerChave = '';
 // Pix da cobrança na entrega (ver project-flexa-cobranca-entrega-dinheiro)
 let pixCobrancaEntregaAtual = null;
 let pixCobrancaEntregaPollTimer = null;
@@ -1148,6 +1153,13 @@ let resumoRevisaoAtual = {
 
 
 const TAXA_MINIMA = { Standard: 5.0, Flash: 9.0 };
+// Taxa de espera/subida (pedido do dono 2026-09-25): 100% do entregador, a
+// plataforma não fica com nada. Ver criarDividaLojistaEntregador/
+// resolverTaxaEsperaSubidaAntesDeEntregar.
+const TAXA_ESPERA_GRACE_MIN = 4;
+const TAXA_ESPERA_POR_MIN = 1;
+const TAXA_SUBIR_FIXA = 6;
+
 const TAXA_POR_KM = { Standard: 1.10, Flash: 1.99 };
 const DISTANCIA_MINIMA_KM = 4;
 const AJUSTE_VEICULO_POR_SERVICO = {
@@ -2569,6 +2581,8 @@ function renderizarDashboard(user) {
                 </button>
             </div>
 
+            <div id="dividas-entregador-lojista-home" class="dividas-entregador-card hidden"></div>
+
             <div id="banner-lojista-home" class="rastreio-pub-banners hidden"></div>
 
             <div class="home-quick-grid">
@@ -2601,6 +2615,7 @@ function renderizarDashboard(user) {
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
     carregarBannersPorPublico('lojista', 'banner-lojista-home');
+    carregarDividasEntregadorLojistaHome();
 
     if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
         dashboardRotasSincronizadas = true;
@@ -3691,6 +3706,7 @@ function fecharSheetRotaEntregador() {
     pararRastreioGpsEntregador();
     pararPollingPixCobrancaEntrega();
     pixCobrancaEntregaAtual = null;
+    pararListenerEsperaPacote();
 }
 
 // ===== [RASTREIO GPS DO ENTREGADOR] =====
@@ -4425,8 +4441,47 @@ function renderSheetRotaEntregadorConteudo() {
     ).join('');
 
     const enderecoExtra = [complemento].filter(Boolean).join(' • ');
+
+    // Taxa de espera/subida (pedido do dono 2026-09-25) — só aparece depois
+    // que o pacote está "bloqueado" (corrida iniciada, indo pro destino) e
+    // enquanto não foi finalizada (ver resolverTaxaEsperaSubidaAntesDeEntregar,
+    // chamada na hora de confirmar a entrega).
+    const espera = pac?.esperaEntrega || {};
+    let blocoEspera = '';
+    if (bloqueado && !finalizado && !espera.finalizada) {
+        if (!espera.chegouEm) {
+            blocoEspera = `<button type=\"button\" class=\"ent-sheet-cheguei-btn\" onclick=\"confirmarCheguei()\"><i data-lucide=\"map-pin\" size=\"14\"></i> Cheguei no local</button>`;
+        } else {
+            const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000));
+            blocoEspera = `<div class=\"ent-sheet-aguardando\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosDesde - TAXA_ESPERA_GRACE_MIN} min já geram taxa)` : ''}</div>`;
+            if (espera.subirStatus === 'pendente') {
+                blocoEspera += `
+                    <div class=\"ent-sheet-subir-pedido\">
+                        <span>Cliente pediu pra você subir até o apartamento</span>
+                        <div class=\"ent-sheet-actions-inline\">
+                            <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"aceitarSolicitacaoSubida()\">Aceitar (+R$ 6,00)</button>
+                            <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"recusarSolicitacaoSubida()\">Recusar</button>
+                        </div>
+                    </div>`;
+            } else if (espera.subirStatus === 'aceito') {
+                blocoEspera += `<div class=\"ent-sheet-subir-aceito\"><i data-lucide=\"check\" size=\"14\"></i> Subida aceita (+R$ 6,00)</div>`;
+            } else if (espera.subirStatus === 'recusado') {
+                blocoEspera += `<div class=\"ent-sheet-subir-recusado\">Você recusou subir dessa vez</div>`;
+            }
+        }
+    }
+
+    // Só fica ouvindo pedido de subida enquanto ele ainda pode acontecer
+    // (já chegou, ainda não respondeu sim/não) — evita listener aberto à toa.
+    if (bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
+        gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
+    } else {
+        pararListenerEsperaPacote();
+    }
+
     const codeBox = `
         <div class=\"ent-sheet-code-box\">
+            ${blocoEspera}
             <label for=\"ent-sheet-code-input\">Confirme a entrega</label>
             <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
             <div class=\"ent-sheet-actions-inline\">
@@ -5043,6 +5098,16 @@ async function confirmarEntregaPacoteAtual() {
         return;
     }
 
+    // Taxa de espera/subida (ver ponto 5, pedido do dono 2026-09-25) — melhor
+    // esforço: nunca deve travar a confirmação da entrega em si, só registra
+    // o que der (mesma filosofia de isolar side-effects já usada em
+    // confirmarExclusaoEnvio, ver project-flexa-cobranca-entrega-dinheiro).
+    try {
+        await resolverTaxaEsperaSubidaAntesDeEntregar(rotaEntSheetRotaAtual, pac);
+    } catch (err) {
+        console.warn('Falha ao resolver taxa de espera/subida:', err);
+    }
+
     let resultadoPersist = null;
     try {
         resultadoPersist = await persistirEntregaPacoteAtual(rotaEntSheetRotaAtual, pac, codigo);
@@ -5105,6 +5170,212 @@ function atualizarCodigoConfirmacaoAtual(valor) {
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     if (!rotaId || !pac) return;
     setEstadoPacoteRota(rotaId, pac, { codigoConfirmacao: valor }, rotaEntSheetIndex);
+}
+
+// ===== [TAXA DE ESPERA / SUBIDA] (2026-09-25) =====
+// Ponto 5 do pedido do dono: entregador aperta "Cheguei", cliente pode pedir
+// pra ele subir até o apartamento. 100% do valor é do entregador — nunca da
+// plataforma. Se o cliente pagar em dinheiro na hora, o entregador só fica
+// com o dinheiro (nenhum lançamento). Se não (Pix junto com outra cobrança,
+// ou corrida já paga), vira uma dívida do LOJISTA pro ENTREGADOR — o lojista
+// paga por fora usando a chave Pix do entregador (mesmo modelo do saque:
+// mostra os dados, a pessoa paga manual, confirma depois) e fica com "Novo
+// Envio" bloqueado até o próprio entregador confirmar que recebeu.
+
+async function confirmarCheguei() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const rotaId = rotaObj?.id;
+    if (!rotaId || !pac) return;
+
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+
+    try {
+        if (lojistaUid && envioId) {
+            await sincronizarCamposEnvioLojista(lojistaUid, envioId, { 'esperaEntrega/chegouEm': agora });
+        }
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({
+            entregadorChegou: true,
+            chegouEm: agora
+        }).catch(() => {});
+
+        pac.esperaEntrega = { ...(pac.esperaEntrega || {}), chegouEm: agora };
+        renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+        console.warn('Falha ao registrar chegada:', err);
+        alert('Não foi possível registrar sua chegada agora. Tente de novo.');
+    }
+}
+
+async function responderSolicitacaoSubida(aceitar) {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const rotaId = rotaObj?.id;
+    if (!rotaId || !pac) return;
+
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const novoStatus = aceitar ? 'aceito' : 'recusado';
+
+    try {
+        if (lojistaUid && envioId) {
+            await sincronizarCamposEnvioLojista(lojistaUid, envioId, { 'esperaEntrega/subirStatus': novoStatus, 'esperaEntrega/subirRespondidoEm': Date.now() });
+        }
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({ subirStatus: novoStatus }).catch(() => {});
+
+        pac.esperaEntrega = { ...(pac.esperaEntrega || {}), subirStatus: novoStatus };
+        pararListenerEsperaPacote();
+        renderSheetRotaEntregadorConteudo();
+    } catch (err) {
+        console.warn('Falha ao responder pedido de subida:', err);
+        alert('Não foi possível registrar sua resposta agora. Tente de novo.');
+    }
+}
+
+function aceitarSolicitacaoSubida() {
+    responderSolicitacaoSubida(true);
+}
+
+function recusarSolicitacaoSubida() {
+    responderSolicitacaoSubida(false);
+}
+
+function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
+    const chave = `${rotaId}|${pacoteId}`;
+    if (rotaEntSheetEsperaListenerChave === chave && rotaEntSheetEsperaListenerRef) return;
+    pararListenerEsperaPacote();
+    if (!rotaId || !pacoteId) return;
+
+    rotaEntSheetEsperaListenerChave = chave;
+    rotaEntSheetEsperaListenerRef = db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`);
+    rotaEntSheetEsperaListenerRef.on('value', (snap) => {
+        const dados = snap.val() || {};
+        const pacAtual = rotaEntSheetPacotes[rotaEntSheetIndex];
+        if (!pacAtual || obterIdPacoteConfirmacao(pacAtual) !== pacoteId) return;
+        if ((dados.subirStatus || null) === (pacAtual.esperaEntrega?.subirStatus || null)) return;
+        pacAtual.esperaEntrega = { ...(pacAtual.esperaEntrega || {}), subirStatus: dados.subirStatus || null };
+        renderSheetRotaEntregadorConteudo();
+    });
+}
+
+function pararListenerEsperaPacote() {
+    if (rotaEntSheetEsperaListenerRef) {
+        rotaEntSheetEsperaListenerRef.off();
+        rotaEntSheetEsperaListenerRef = null;
+    }
+    rotaEntSheetEsperaListenerChave = '';
+}
+
+// Calcula e resolve a taxa de espera/subida na hora de confirmar a entrega
+// (chamada de dentro de confirmarEntregaPacoteAtual, antes de persistir a
+// entrega em si). Pergunta ao entregador se recebeu em dinheiro; se não,
+// vira dívida do lojista com ele.
+async function resolverTaxaEsperaSubidaAntesDeEntregar(rotaObj, pac) {
+    const espera = pac?.esperaEntrega || {};
+    if (espera.finalizada) return;
+
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    if (!lojistaUid || !envioId) return;
+
+    const chegouEm = Number(espera.chegouEm) || 0;
+    const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
+    const valorEspera = Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubir = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+    const valorTaxaTotal = Number((valorEspera + valorSubir).toFixed(2));
+
+    if (valorTaxaTotal <= 0) {
+        if (chegouEm) {
+            await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+                'esperaEntrega/finalizada': true,
+                'esperaEntrega/minutosEspera': minutosEspera,
+                'esperaEntrega/valorEspera': 0,
+                'esperaEntrega/valorSubir': 0,
+                'esperaEntrega/valorTaxaTotal': 0
+            }).catch(() => {});
+        }
+        return;
+    }
+
+    const partes = [];
+    if (valorEspera > 0) partes.push(`${minutosEspera} min de espera (${precoParaMoeda(valorEspera)})`);
+    if (valorSubir > 0) partes.push(`subida no local (${precoParaMoeda(valorSubir)})`);
+    const motivo = partes.join(' + ');
+
+    const recebeuEmDinheiro = window.confirm(
+        `Taxa extra pra você: ${precoParaMoeda(valorTaxaTotal)} (${motivo}).\n\n` +
+        `Você recebeu esse valor EM DINHEIRO do cliente agora?\n\n` +
+        `OK = recebi em dinheiro (fica com você)\nCancelar = não recebi (a loja te paga via Pix depois)`
+    );
+
+    if (recebeuEmDinheiro) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+            'esperaEntrega/finalizada': true,
+            'esperaEntrega/minutosEspera': minutosEspera,
+            'esperaEntrega/valorEspera': valorEspera,
+            'esperaEntrega/valorSubir': valorSubir,
+            'esperaEntrega/valorTaxaTotal': valorTaxaTotal,
+            'esperaEntrega/formaCobranca': 'dinheiro_direto',
+            'esperaEntrega/taxaPaga': true,
+            'esperaEntrega/taxaPagoEm': Date.now()
+        }).catch(() => {});
+        return;
+    }
+
+    await criarDividaLojistaEntregador({
+        lojistaUid,
+        uidEntregador: getUsuarioIdAtual(),
+        rotaId: rotaObj?.id,
+        envioId,
+        valor: valorTaxaTotal,
+        motivo
+    });
+
+    await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
+        'esperaEntrega/finalizada': true,
+        'esperaEntrega/minutosEspera': minutosEspera,
+        'esperaEntrega/valorEspera': valorEspera,
+        'esperaEntrega/valorSubir': valorSubir,
+        'esperaEntrega/valorTaxaTotal': valorTaxaTotal,
+        'esperaEntrega/formaCobranca': 'divida_lojista',
+        'esperaEntrega/taxaPaga': false
+    }).catch(() => {});
+}
+
+// Cria a dívida lojista->entregador nos dois lados (o lojista vê "quanto deve
+// e pra qual chave Pix pagar"; o entregador vê "quanto vai receber e de quem"
+// e é ele quem confirma quando o dinheiro realmente cair, ver
+// confirmarRecebimentoTaxaEntregador).
+async function criarDividaLojistaEntregador({ lojistaUid, uidEntregador, rotaId, envioId, valor, motivo }) {
+    if (!lojistaUid || !uidEntregador || !(Number(valor) > 0)) return;
+    try {
+        const finSnap = await db.ref(`usuarios/${uidEntregador}/financeiro`).once('value');
+        const fin = finSnap.val() || {};
+        const id = db.ref().push().key;
+        const registro = {
+            id,
+            lojistaUid,
+            entregadorUid: uidEntregador,
+            entregadorNome: window.usuarioLogado?.nome || 'Entregador',
+            valor: Number(valor),
+            motivo: motivo || 'Taxa de espera/subida',
+            rotaId: String(rotaId || ''),
+            envioId: String(envioId || ''),
+            criadoEm: Date.now(),
+            pixTipo: fin?.pix?.tipo || '',
+            pixChave: fin?.pix?.chave || '',
+            status: 'pendente'
+        };
+
+        const updates = {};
+        updates[`usuarios/${lojistaUid}/dividasEntregador/${id}`] = registro;
+        updates[`usuarios/${uidEntregador}/taxasAReceber/${id}`] = registro;
+        await db.ref().update(updates);
+    } catch (err) {
+        console.warn('Falha ao criar dívida lojista->entregador:', err);
+    }
 }
 
 async function relatarProblemaRota() {
@@ -9173,7 +9444,7 @@ async function exibirTelaRastreioPublico(token) {
         if (rastreioPublicoListenerRef) rastreioPublicoListenerRef.off();
         rastreioPublicoListenerRef = db.ref(`rastreioPublico/${tokenInfo.rotaId}`);
         rastreioPublicoListenerRef.on('value', (snap) => {
-            renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId);
+            renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId, tokenInfo.rotaId);
         });
     } catch (err) {
         console.warn('Falha ao carregar rastreio público:', err);
@@ -9181,7 +9452,7 @@ async function exibirTelaRastreioPublico(token) {
     }
 }
 
-function renderConteudoRastreioPublico(dados, pacoteId) {
+function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const conteudo = document.getElementById('rastreio-pub-conteudo');
     if (!conteudo) return;
 
@@ -9279,6 +9550,29 @@ function renderConteudoRastreioPublico(dados, pacoteId) {
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : '';
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : '';
 
+    // Taxa de subida (pedido do dono 2026-09-25): só aparece depois que o
+    // entregador confirma "Cheguei" (entregadorChegou, espelhado aqui em
+    // rastreioPublico) e enquanto o pacote ainda não foi entregue/devolvido.
+    // A escrita de subirSolicitado é pública (sem exigir conta de cliente) —
+    // ver regra em backend/database.rules.json.
+    let subirHtml = '';
+    if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO') {
+        const subirStatus = pacoteInfo.subirStatus || null;
+        if (subirStatus === 'aceito') {
+            subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou: vai subir até você.</div>`;
+        } else if (subirStatus === 'recusado') {
+            subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que não vai poder subir dessa vez.</div>`;
+        } else if (subirStatus === 'pendente') {
+            subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar a subida...</div>`;
+        } else {
+            subirHtml = `
+                <div class="rastreio-pub-subir">
+                    <p>O entregador chegou! Precisa que ele suba até você?</p>
+                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Solicitar subida (R$ 6,00)</button>
+                </div>`;
+        }
+    }
+
     conteudo.innerHTML = `
         <div class="rastreio-pub-card">
             <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || 'Loja')}</span>
@@ -9288,10 +9582,23 @@ function renderConteudoRastreioPublico(dados, pacoteId) {
             ${timelineHtml}
             ${paradaInfoHtml}
             ${(distTxt || durTxt) ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(' • '))}</div>` : ''}
+            ${subirHtml}
         </div>
         ${mapaHtml}
     `;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function solicitarSubidaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId) return;
+    if (btn) { btn.disabled = true; btn.innerText = 'Enviando...'; }
+    db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({
+        subirStatus: 'pendente',
+        subirSolicitadoEm: Date.now()
+    }).catch(() => {
+        alert('Não foi possível enviar o pedido agora. Tente de novo.');
+        if (btn) { btn.disabled = false; btn.innerText = 'Solicitar subida (R$ 6,00)'; }
+    });
 }
 
 // Agrupa pacotes com o mesmo destinoChave (mesmo endereço) num único "ponto
@@ -10039,13 +10346,147 @@ async function salvarEndereco() {
 
 
 /* ===== New Envio Home + Client Sheet ===== */
-function abrirSeletorCliente() {
+async function abrirSeletorCliente() {
+    // Bloqueio parcial (pedido do dono 2026-09-25): enquanto o lojista deve
+    // uma taxa de espera/subida a algum entregador, "Novo Envio" fica
+    // travado — o resto do app continua funcionando normal. Desbloqueia
+    // quando o PRÓPRIO entregador confirma que recebeu (ver
+    // confirmarRecebimentoTaxaEntregador), não o lojista.
+    const bloqueio = await obterBloqueioNovoEnvioPorDividaEntregador();
+    if (bloqueio) {
+        alert(`Você tem uma taxa de espera/subida pendente com ${bloqueio.entregadorNome} (${precoParaMoeda(bloqueio.valor)}).\n\nPague usando a chave Pix dele (veja no início da tela) e aguarde ele confirmar o recebimento — só assim "Novo Envio" libera de novo.`);
+        return;
+    }
+
     const modal = document.getElementById('modal-seletor-cliente');
     if (!modal) return;
     modal.style.display = 'flex';
     requestAnimationFrame(() => modal.classList.add('is-open'));
     renderClientesSelector(document.getElementById('buscar-cliente')?.value || '');
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function obterBloqueioNovoEnvioPorDividaEntregador() {
+    const uid = getUsuarioIdAtual();
+    if (!uid) return null;
+    try {
+        const snap = await db.ref(`usuarios/${uid}/dividasEntregador`).once('value');
+        const dados = snap.val() || {};
+        return Object.values(dados).find((d) => d?.status === 'pendente') || null;
+    } catch (err) {
+        console.warn('Falha ao checar dívidas com entregadores:', err);
+        return null;
+    }
+}
+
+// Card na home do lojista listando taxas de espera/subida pendentes de
+// repasse a entregadores — mostra a chave Pix de cada um pra pagar por
+// fora (mesmo modelo do saque: mostra os dados, a pessoa paga manual).
+async function carregarDividasEntregadorLojistaHome() {
+    const uid = getUsuarioIdAtual();
+    const container = document.getElementById('dividas-entregador-lojista-home');
+    if (!uid || !container) return;
+
+    try {
+        const snap = await db.ref(`usuarios/${uid}/dividasEntregador`).once('value');
+        const dados = snap.val() || {};
+        const pendentes = Object.values(dados).filter((d) => d?.status === 'pendente');
+
+        if (!pendentes.length) {
+            container.classList.add('hidden');
+            container.innerHTML = '';
+            return;
+        }
+
+        const total = pendentes.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+        const linhas = pendentes.map((d) => `
+            <div class="dividas-entregador-item">
+                <div>
+                    <p class="dividas-entregador-nome">${escaparHtmlMarketplace(d.entregadorNome || 'Entregador')}</p>
+                    <p class="dividas-entregador-motivo">${escaparHtmlMarketplace(d.motivo || '')}</p>
+                    <p class="dividas-entregador-pix">${escaparHtmlMarketplace(String(d.pixTipo || '').toUpperCase())}: ${escaparHtmlMarketplace(d.pixChave || '--')}</p>
+                </div>
+                <strong>${escaparHtmlMarketplace(precoParaMoeda(Number(d.valor || 0)))}</strong>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+            <p class="dividas-entregador-titulo">Taxas pendentes a entregadores — ${escaparHtmlMarketplace(precoParaMoeda(total))}</p>
+            <p class="dividas-entregador-aviso">"Novo Envio" fica bloqueado até o entregador confirmar o recebimento.</p>
+            ${linhas}
+        `;
+        container.classList.remove('hidden');
+    } catch (err) {
+        console.warn('Falha ao carregar dívidas com entregadores:', err);
+    }
+}
+
+// Espelho do card acima, do lado do entregador: lista o que ele tem a
+// receber de taxas de espera/subida, e é ELE quem confirma quando o Pix cai
+// (pedido do dono 2026-09-25: "o próprio entregador confirma"), não o
+// lojista nem o master.
+async function carregarTaxasAReceberEntregadorHome() {
+    const uid = getUsuarioIdAtual();
+    const container = document.getElementById('taxas-receber-entregador-home');
+    if (!uid || !container) return;
+
+    try {
+        const snap = await db.ref(`usuarios/${uid}/taxasAReceber`).once('value');
+        const dados = snap.val() || {};
+        const pendentes = Object.entries(dados).filter(([, d]) => d?.status === 'pendente');
+
+        if (!pendentes.length) {
+            container.classList.add('hidden');
+            container.innerHTML = '';
+            return;
+        }
+
+        const total = pendentes.reduce((acc, [, d]) => acc + Number(d.valor || 0), 0);
+        const linhas = pendentes.map(([id, d]) => `
+            <div class="taxas-receber-item">
+                <div>
+                    <p class="taxas-receber-nome">${escaparHtmlMarketplace(d.motivo || 'Taxa de espera/subida')}</p>
+                    <p class="taxas-receber-valor">${escaparHtmlMarketplace(precoParaMoeda(Number(d.valor || 0)))}</p>
+                </div>
+                <button type="button" class="btn-chip btn-chip-primary" onclick="confirmarRecebimentoTaxaEntregador('${escaparHtmlMarketplace(id)}')">Confirmar recebimento</button>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+            <p class="taxas-receber-titulo">A receber da loja — ${escaparHtmlMarketplace(precoParaMoeda(total))}</p>
+            ${linhas}
+        `;
+        container.classList.remove('hidden');
+    } catch (err) {
+        console.warn('Falha ao carregar taxas a receber:', err);
+    }
+}
+
+async function confirmarRecebimentoTaxaEntregador(id) {
+    const uid = getUsuarioIdAtual();
+    if (!uid || !id) return;
+
+    try {
+        const snap = await db.ref(`usuarios/${uid}/taxasAReceber/${id}`).once('value');
+        const registro = snap.val();
+        if (!registro) return;
+
+        if (!window.confirm(`Confirmar que você recebeu ${precoParaMoeda(Number(registro.valor || 0))} da loja via Pix?`)) return;
+
+        const agora = Date.now();
+        const updates = {};
+        updates[`usuarios/${uid}/taxasAReceber/${id}/status`] = 'confirmado';
+        updates[`usuarios/${uid}/taxasAReceber/${id}/confirmadoEm`] = agora;
+        if (registro.lojistaUid) {
+            updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/status`] = 'confirmado';
+            updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/confirmadoEm`] = agora;
+        }
+        await db.ref().update(updates);
+        carregarTaxasAReceberEntregadorHome();
+    } catch (err) {
+        console.warn('Falha ao confirmar recebimento da taxa:', err);
+        alert('Não foi possível confirmar agora. Tente de novo.');
+    }
 }
 
 function fecharSeletorCliente() {
@@ -12738,6 +13179,8 @@ function renderizarDashboardEntregador(payloadUsuario = null) {
         <div class="pb-28">
             <div id="banner-entregador-home" class="rastreio-pub-banners hidden mb-3"></div>
 
+            <div id="taxas-receber-entregador-home" class="taxas-receber-card hidden"></div>
+
             <div class="mb-3 rounded-3xl bg-white p-3 shadow-sm entregador-dia-card">
                 <div class="dash-meta-head">
                     <div class="dash-meta-title">• Meta do dia (${Math.max(0, Math.min(100, progressoPct))}% concluido)</div>
@@ -12795,6 +13238,7 @@ function renderizarDashboardEntregador(payloadUsuario = null) {
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
     carregarBannersPorPublico('entregador', 'banner-entregador-home');
+    carregarTaxasAReceberEntregadorHome();
 }
 
 function abrirSheetRotaEntregadorHome(rotaId) {
@@ -13526,6 +13970,7 @@ export {
   abrirThreadChat,
   acaoPrincipalModalRota,
   aceitarRotaMarketplaceEntregador,
+  aceitarSolicitacaoSubida,
   adminAlterarStatusPacotes,
   adminCarregarPacotes,
   adminCreateField,
@@ -13606,6 +14051,7 @@ export {
   coletarEnviosPendentesParaRota,
   compartilharLinkRastreioWhatsapp,
   completarCadastroClienteRastreio,
+  confirmarCheguei,
   confirmarCodigoDevolucaoPacoteAtual,
   confirmarColetaPacotes,
   confirmarDevolucaoComoLojista,
@@ -13616,6 +14062,7 @@ export {
   confirmarPagamentoMistoCobranca,
   confirmarPagamentoRota,
   confirmarRecebimentoDinheiro,
+  confirmarRecebimentoTaxaEntregador,
   consultarPagamentoPixMercadoPago,
   consultarPagamentoPixTesteClienteLocal,
   convidarClienteAtualParaApp,
@@ -13844,6 +14291,7 @@ export {
   previewImagem,
   proximaPaginaDetalheRota,
   recuperarSenhaReal,
+  recusarSolicitacaoSubida,
   registrarEstadosPacotesRota,
   registrarPresencaUsuario,
   registrarTransacaoFinanceira,
@@ -13909,6 +14357,7 @@ export {
   sincronizarDropdownBuscaEntregador,
   solicitarDevolucaoPacoteAtual,
   solicitarSaque,
+  solicitarSubidaCliente,
   switchAdminTab,
   telaInicialPorTipoUsuario,
   telaPerfilPorTipoUsuario,

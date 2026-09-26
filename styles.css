@@ -5759,6 +5759,55 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-status-aguardando i { color: #b45309; }
 .ent-sheet-motivo-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .ent-sheet-motivo-btn { width: 100%; text-align: left; }
+
+/* Taxa de espera/subida (2026-09-25) */
+.ent-sheet-cheguei-btn {
+    width: 100%; background: #0f172a; color: #fff; border: none; border-radius: 12px;
+    padding: 12px; font-weight: 800; font-size: 14px; margin-bottom: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.ent-sheet-aguardando {
+    width: 100%; border-radius: 12px; padding: 10px 12px; background: #fffaf5; color: #b45309;
+    border: 1px solid #fde3c8; font-weight: 700; font-size: 12px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+}
+.ent-sheet-subir-pedido {
+    width: 100%; border-radius: 14px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa;
+    margin-bottom: 12px; box-sizing: border-box;
+}
+.ent-sheet-subir-pedido span { display: block; font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 10px; }
+.ent-sheet-subir-aceito, .ent-sheet-subir-recusado {
+    width: 100%; border-radius: 12px; padding: 10px 12px; font-weight: 700; font-size: 12px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+}
+.ent-sheet-subir-aceito { background: #ecfdf3; color: #15803d; }
+.ent-sheet-subir-recusado { background: #f1f5f9; color: #64748b; }
+
+.rastreio-pub-subir { margin-top: 14px; padding: 14px; border-radius: 16px; background: #fff7ed; border: 1px solid #fed7aa; }
+.rastreio-pub-subir p { font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 10px; }
+.rastreio-pub-subir .btn-main { padding: 12px; font-size: 14px; }
+.rastreio-pub-subir-ok, .rastreio-pub-subir-neg, .rastreio-pub-subir-aguardando {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+    background: transparent; border: none; padding: 0;
+}
+.rastreio-pub-subir-ok { color: #15803d; }
+.rastreio-pub-subir-neg { color: #64748b; }
+.rastreio-pub-subir-aguardando { color: #b45309; }
+
+.dividas-entregador-card, .taxas-receber-card {
+    background: #fff7ed; border: 1px solid #fed7aa; border-radius: 18px; padding: 16px;
+}
+.dividas-entregador-card.hidden, .taxas-receber-card.hidden { display: none; }
+.dividas-entregador-titulo, .taxas-receber-titulo { font-size: 13px; font-weight: 900; color: #9a3412; margin-bottom: 2px; }
+.dividas-entregador-aviso { font-size: 11px; color: #b45309; margin-bottom: 10px; }
+.dividas-entregador-item, .taxas-receber-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: white; border-radius: 12px; padding: 10px 12px; margin-top: 8px;
+}
+.dividas-entregador-nome, .taxas-receber-nome { font-size: 13px; font-weight: 800; color: var(--text-main); }
+.dividas-entregador-motivo { font-size: 11px; color: var(--text-sub); margin-top: 1px; }
+.dividas-entregador-pix { font-size: 11px; color: var(--brand-orange); font-weight: 700; margin-top: 3px; }
+.taxas-receber-valor { font-size: 13px; font-weight: 900; color: var(--brand-orange); margin-top: 2px; }
 @keyframes entArrowSlide { 0% { transform: translateX(0); } 50% { transform: translateX(10px);} 100% { transform: translateX(0);} }
 .sheet-block p { margin: 0; color: var(--text-sub); font-weight: 700; font-size: 13px; }
 .sheet-actions { position: absolute; left: 16px; right: 16px; bottom: 16px; background: transparent; padding: 0; margin-top: 0; }
