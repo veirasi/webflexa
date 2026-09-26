@@ -7424,8 +7424,8 @@ function renderRotaDetalhePagina() {
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}')"><i data-lucide="link" size="14"></i> Copiar link</button>
-                ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
             </div>
         </div>
     ` : '';
@@ -7460,14 +7460,20 @@ function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
 }
 
-function copiarLinkRastreioPacote(token) {
+function copiarLinkRastreioPacote(token, codigoConfirmacao) {
     const url = montarUrlRastreioPublico(token);
+    // O código vai junto porque é o cliente quem confirma a entrega direto
+    // com o entregador na porta — sem o código na mensagem, o lojista tinha
+    // que procurar e repassar isso à parte (pedido do dono, 2026-09-25).
+    const texto = codigoConfirmacao
+        ? `${url}\n\nCódigo pra confirmar com o entregador na entrega: ${codigoConfirmacao}`
+        : url;
     if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(url)
+        navigator.clipboard.writeText(texto)
             .then(() => notificarSucesso('Link de rastreio copiado.'))
-            .catch(() => alert(`Copie o link manualmente:\n${url}`));
+            .catch(() => alert(`Copie o link manualmente:\n${texto}`));
     } else {
-        alert(`Copie o link manualmente:\n${url}`);
+        alert(`Copie o link manualmente:\n${texto}`);
     }
 }
 
@@ -7482,10 +7488,16 @@ function paraWhatsappInternacional(whatsapp) {
     return digits.length <= 11 ? '55' + digits : digits;
 }
 
-function compartilharLinkRastreioWhatsapp(token, whatsapp) {
+function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
     const url = montarUrlRastreioPublico(token);
     const numero = paraWhatsappInternacional(whatsapp);
-    const texto = encodeURIComponent(`Acompanhe sua entrega em tempo real: ${url}`);
+    // Código junto na mensagem: é o cliente quem confirma a entrega com o
+    // entregador na porta, então ele precisa desse código em mãos (pedido do
+    // dono, 2026-09-25) — antes só ia o link, o código ficava só com o lojista.
+    const msg = codigoConfirmacao
+        ? `Acompanhe sua entrega em tempo real: ${url}\n\nQuando o entregador chegar, informe este código pra confirmar: ${codigoConfirmacao}`
+        : `Acompanhe sua entrega em tempo real: ${url}`;
+    const texto = encodeURIComponent(msg);
     window.open(`https://wa.me/${numero}?text=${texto}`, '_blank');
 }
 
@@ -8937,12 +8949,18 @@ async function completarCadastroClienteRastreio() {
         const whatsapp = dadosAntes.whatsapp || '';
 
         await user.updatePassword(novaSenha);
-        if (email) await user.updateEmail(email);
 
+        // NÃO troca o e-mail de autenticação do Firebase aqui — updateEmail
+        // exige que o e-mail novo já esteja verificado (auth/operation-not-allowed
+        // senão, bug real encontrado 2026-09-25: travava o cadastro inteiro,
+        // inclusive nome/senha, por causa só do e-mail opcional falhar). O
+        // e-mail de login continua sendo o placeholder gerado no convite
+        // (cliente.{whatsapp}@flex.local) — funciona porque o login é sempre
+        // por WhatsApp (telefoneParaEmail), nunca por e-mail digitado. O que
+        // a pessoa digitar aqui vira só um contato informativo.
         const updates = { nome, cadastroCompleto: true };
-        if (email) updates.email = email;
+        if (email) updates.emailContato = email;
         await db2.ref('usuarios/' + user.uid).update(updates);
-        if (email && whatsapp) await db2.ref('telefoneParaEmail/' + whatsapp).set(email);
         if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp });
 
         fecharModalClienteAuth();
@@ -8976,6 +8994,20 @@ function atualizarUiClienteAuth() {
 
     obterClienteDb().ref('usuarios/' + user.uid).once('value').then((snap) => {
         const dados = snap.val();
+
+        // Conta autenticada mas com senha temporária de convite ainda não
+        // confirmada (ver completarCadastroClienteRastreio) não conta como
+        // "logada" pra fins de UI — bug real encontrado 2026-09-25: o
+        // cabeçalho mostrava "Olá, Nome" e a lista de Meus Pedidos mesmo
+        // com o cadastro incompleto (ou tendo dado erro no meio), porque
+        // aqui só checava "existe usuário autenticado", nunca cadastroCompleto.
+        if (dados?.cadastroCompleto === false) {
+            logado.style.display = 'none';
+            deslogado.style.display = 'flex';
+            if (!tokenRastreioAtual) renderBemVindoClienteDeslogado();
+            return;
+        }
+
         if (nomeEl) nomeEl.innerText = dados?.nome ? dados.nome.split(' ')[0] : 'cliente';
         logado.style.display = 'flex';
         deslogado.style.display = 'none';

@@ -6780,8 +6780,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}')"><i data-lucide="link" size="14"></i> Copiar link</button>
-                ${p.whatsapp && p.whatsapp !== "--" ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ""}
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                ${p.whatsapp && p.whatsapp !== "--" ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ""}
             </div>
         </div>
     ` : "";
@@ -6812,24 +6812,30 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
   }
-  function copiarLinkRastreioPacote(token) {
+  function copiarLinkRastreioPacote(token, codigoConfirmacao) {
     const url = montarUrlRastreioPublico(token);
+    const texto = codigoConfirmacao ? `${url}
+
+C\xF3digo pra confirmar com o entregador na entrega: ${codigoConfirmacao}` : url;
     if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(url).then(() => notificarSucesso("Link de rastreio copiado.")).catch(() => alert(`Copie o link manualmente:
-${url}`));
+      navigator.clipboard.writeText(texto).then(() => notificarSucesso("Link de rastreio copiado.")).catch(() => alert(`Copie o link manualmente:
+${texto}`));
     } else {
       alert(`Copie o link manualmente:
-${url}`);
+${texto}`);
     }
   }
   function paraWhatsappInternacional(whatsapp) {
     const digits = normalizarWhatsapp(whatsapp);
     return digits.length <= 11 ? "55" + digits : digits;
   }
-  function compartilharLinkRastreioWhatsapp(token, whatsapp) {
+  function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
     const url = montarUrlRastreioPublico(token);
     const numero = paraWhatsappInternacional(whatsapp);
-    const texto = encodeURIComponent(`Acompanhe sua entrega em tempo real: ${url}`);
+    const msg = codigoConfirmacao ? `Acompanhe sua entrega em tempo real: ${url}
+
+Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfirmacao}` : `Acompanhe sua entrega em tempo real: ${url}`;
+    const texto = encodeURIComponent(msg);
     window.open(`https://wa.me/${numero}?text=${texto}`, "_blank");
   }
   function abrirModalDetalheRota(rotaId) {
@@ -7960,11 +7966,9 @@ ${url}`);
       const dadosAntes = (await db2.ref("usuarios/" + user.uid).once("value")).val() || {};
       const whatsapp = dadosAntes.whatsapp || "";
       await user.updatePassword(novaSenha);
-      if (email) await user.updateEmail(email);
       const updates = { nome, cadastroCompleto: true };
-      if (email) updates.email = email;
+      if (email) updates.emailContato = email;
       await db2.ref("usuarios/" + user.uid).update(updates);
-      if (email && whatsapp) await db2.ref("telefoneParaEmail/" + whatsapp).set(email);
       if (whatsapp) await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp });
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
@@ -7990,6 +7994,12 @@ ${url}`);
     }
     obterClienteDb().ref("usuarios/" + user.uid).once("value").then((snap) => {
       const dados = snap.val();
+      if (dados?.cadastroCompleto === false) {
+        logado.style.display = "none";
+        deslogado.style.display = "flex";
+        if (!tokenRastreioAtual) renderBemVindoClienteDeslogado();
+        return;
+      }
       if (nomeEl) nomeEl.innerText = dados?.nome ? dados.nome.split(" ")[0] : "cliente";
       logado.style.display = "flex";
       deslogado.style.display = "none";
