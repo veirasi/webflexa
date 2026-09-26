@@ -11,6 +11,7 @@
     abrirAjuda: () => abrirAjuda,
     abrirChatDaRota: () => abrirChatDaRota,
     abrirCriarRota: () => abrirCriarRota,
+    abrirEdicaoDestinoEnvio: () => abrirEdicaoDestinoEnvio,
     abrirEditarCliente: () => abrirEditarCliente,
     abrirFaleConosco: () => abrirFaleConosco,
     abrirHistoricoDoClienteAtual: () => abrirHistoricoDoClienteAtual,
@@ -108,6 +109,7 @@
     calcularValorCreditoRota: () => calcularValorCreditoRota,
     caminhoFinanceiroUsuario: () => caminhoFinanceiroUsuario,
     cancelarCorridaPacoteAtual: () => cancelarCorridaPacoteAtual,
+    cancelarEdicaoDestinoEnvio: () => cancelarEdicaoDestinoEnvio,
     carregarChatsAtivos: () => carregarChatsAtivos,
     carregarDadosPagamento: () => carregarDadosPagamento,
     carregarExtratoPagamento: () => carregarExtratoPagamento,
@@ -398,6 +400,7 @@
     sairClienteRastreio: () => sairClienteRastreio,
     salvarBannerAdmin: () => salvarBannerAdmin,
     salvarDadosPagamento: () => salvarDadosPagamento,
+    salvarEdicaoDestinoEnvio: () => salvarEdicaoDestinoEnvio,
     salvarEndereco: () => salvarEndereco,
     salvarMetaDiaEntregador: () => salvarMetaDiaEntregador,
     salvarNovoCliente: () => salvarNovoCliente,
@@ -1156,6 +1159,9 @@
     resumoRevisaoAtual.descricao = "";
     resumoRevisaoAtual.observacoes = "";
     resumoRevisaoAtual.cobrancaEntrega = null;
+    resumoRevisaoAtual.destinoPersonalizado = false;
+    document.getElementById("destino-personalizado-badge")?.classList.add("hidden");
+    document.getElementById("edicao-destino-envio")?.classList.add("hidden");
     const inputDesc = document.getElementById("input-desc");
     const inputValor = document.getElementById("input-valor");
     const inputObs = document.getElementById("input-obs-envio");
@@ -1270,6 +1276,7 @@
           origemGeo: ehColetaReversa ? destinoClienteGeo : origemLojaGeo,
           destinoGeo: ehColetaReversa ? origemLojaGeo : destinoClienteGeo,
           status: "PACOTE_NOVO",
+          destinoPersonalizado: Boolean(resumoRevisaoAtual.destinoPersonalizado),
           clienteId: clientes[idx].id,
           destinatario: clientes[idx].nome || "Cliente",
           whatsapp: clientes[idx].whatsapp || "",
@@ -2092,6 +2099,66 @@
       resumoRevisaoAtual.duracaoMin = null;
     }
     return estimativa;
+  }
+  function abrirEdicaoDestinoEnvio() {
+    const cliente = getClienteById(clienteSelecionadoId);
+    const campos = extrairCamposEnderecoCliente(cliente || {});
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || "";
+    };
+    setVal("dest-edit-rua", campos.rua);
+    setVal("dest-edit-num", campos.num);
+    setVal("dest-edit-bairro", campos.bairro);
+    setVal("dest-edit-comp", campos.comp);
+    setVal("dest-edit-cidade", campos.cidade);
+    setVal("dest-edit-uf", campos.estado);
+    setVal("dest-edit-cep", campos.cep);
+    document.getElementById("edicao-destino-envio")?.classList.remove("hidden");
+  }
+  function cancelarEdicaoDestinoEnvio() {
+    document.getElementById("edicao-destino-envio")?.classList.add("hidden");
+  }
+  async function salvarEdicaoDestinoEnvio() {
+    const campos = {
+      rua: (document.getElementById("dest-edit-rua")?.value || "").trim(),
+      num: (document.getElementById("dest-edit-num")?.value || "").trim(),
+      bairro: (document.getElementById("dest-edit-bairro")?.value || "").trim(),
+      comp: (document.getElementById("dest-edit-comp")?.value || "").trim(),
+      cidade: (document.getElementById("dest-edit-cidade")?.value || "").trim(),
+      estado: (document.getElementById("dest-edit-uf")?.value || "").trim(),
+      cep: (document.getElementById("dest-edit-cep")?.value || "").trim()
+    };
+    if (!campos.rua || !campos.num || !campos.cidade) {
+      alert("Preencha ao menos rua, n\xFAmero e cidade.");
+      return;
+    }
+    const btn = document.getElementById("dest-edit-salvar-btn");
+    const textoOriginalBtn = btn?.innerText;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Calculando...";
+    }
+    try {
+      const geo = await geocodificarPorCampos(campos);
+      if (!geo) {
+        alert("N\xE3o conseguimos localizar esse endere\xE7o. Confira os dados e tente de novo.");
+        return;
+      }
+      const enderecoFormatado = montarEnderecoCliente(campos);
+      resumoRevisaoAtual.destino = enderecoFormatado;
+      resumoRevisaoAtual.destinoGeo = geo;
+      resumoRevisaoAtual.destinoPersonalizado = true;
+      const enderecoEl = document.getElementById("card-endereco");
+      if (enderecoEl) enderecoEl.innerText = enderecoFormatado;
+      document.getElementById("destino-personalizado-badge")?.classList.remove("hidden");
+      cancelarEdicaoDestinoEnvio();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = textoOriginalBtn || "Salvar endere\xE7o deste envio";
+      }
+    }
   }
   async function estimarRotaEntrega(origemEndereco, destinoEndereco, origemGeo = null, destinoGeo = null) {
     limparUltimoErroRota();

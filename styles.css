@@ -373,6 +373,28 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
         .destinatario-nome { font-size: 12px; font-weight: 800; color: #0f172a; display: block; }
         .destinatario-info { font-size: 14px; color: #64748b; margin-top: 1px; display: block; }
 
+.destino-personalizado-badge {
+    display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 800;
+    color: var(--brand-orange); background: #fff7ed; padding: 3px 9px; border-radius: 999px;
+}
+.destino-personalizado-badge.hidden { display: none; }
+.destinatario-editar-endereco-btn {
+    display: block; margin-top: 10px; background: none; border: none; padding: 0;
+    font-size: 12px; font-weight: 700; color: var(--brand-orange); cursor: pointer; text-decoration: underline;
+}
+.edicao-destino-form {
+    background: white; border-radius: 20px; padding: 16px 18px; margin: -12px 0 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+}
+.edicao-destino-form.hidden { display: none; }
+.edicao-destino-hint { font-size: 12px; color: var(--text-sub); margin-bottom: 14px; line-height: 1.4; }
+.edicao-destino-form .mini-form-row { display: flex; gap: 10px; }
+.edicao-destino-form .mini-form-row .form-group { flex: 1; min-width: 0; }
+.edicao-destino-form .form-group-num { flex: 0 0 90px; }
+.edicao-destino-form .form-group-uf { flex: 0 0 70px; }
+.edicao-destino-actions { display: flex; gap: 10px; margin-top: 6px; }
+.edicao-destino-actions .btn-chip { flex: 1; text-align: center; justify-content: center; }
+
         .section-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 15px; display: block; }
 
         /* Grid de Sele��o (Servi�o e Tamanho) */

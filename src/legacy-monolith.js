@@ -554,6 +554,9 @@ function irParaPasso2(id, nome, endereco, whats) {
     resumoRevisaoAtual.descricao = '';
     resumoRevisaoAtual.observacoes = '';
     resumoRevisaoAtual.cobrancaEntrega = null;
+    resumoRevisaoAtual.destinoPersonalizado = false;
+    document.getElementById('destino-personalizado-badge')?.classList.add('hidden');
+    document.getElementById('edicao-destino-envio')?.classList.add('hidden');
 
     const inputDesc = document.getElementById('input-desc');
     const inputValor = document.getElementById('input-valor');
@@ -692,6 +695,7 @@ function confirmarEnvioFinal() {
                 origemGeo: ehColetaReversa ? destinoClienteGeo : origemLojaGeo,
                 destinoGeo: ehColetaReversa ? origemLojaGeo : destinoClienteGeo,
                 status: 'PACOTE_NOVO',
+                destinoPersonalizado: Boolean(resumoRevisaoAtual.destinoPersonalizado),
                 clienteId: clientes[idx].id,
                 destinatario: clientes[idx].nome || 'Cliente',
                 whatsapp: clientes[idx].whatsapp || '',
@@ -1694,6 +1698,74 @@ async function garantirEstimativaAtual() {
         resumoRevisaoAtual.duracaoMin = null;
     }
     return estimativa;
+}
+
+// ===== [ENDEREÇO PERSONALIZADO POR ENVIO] (2026-09-25) =====
+// Deixa o lojista entregar num endereço diferente do cadastro do cliente,
+// só pra este envio (pedido do dono: "e se o cliente quiser entregar em
+// outro endereço?"). NÃO toca no cadastro do cliente — só sobrescreve
+// resumoRevisaoAtual.destino/destinoGeo, que é exatamente o que
+// garantirEstimativaAtual() já usa quando destinoGeo está preenchido (pula
+// o geocode do cliente, ver ali embaixo). Isso garante que a distância e o
+// preço saem da MESMA fórmula/regras de sempre (calcularFreteEstimado,
+// R$1,10/km Standard etc.) — só o ENDEREÇO em si é diferente.
+function abrirEdicaoDestinoEnvio() {
+    const cliente = getClienteById(clienteSelecionadoId);
+    const campos = extrairCamposEnderecoCliente(cliente || {});
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('dest-edit-rua', campos.rua);
+    setVal('dest-edit-num', campos.num);
+    setVal('dest-edit-bairro', campos.bairro);
+    setVal('dest-edit-comp', campos.comp);
+    setVal('dest-edit-cidade', campos.cidade);
+    setVal('dest-edit-uf', campos.estado);
+    setVal('dest-edit-cep', campos.cep);
+    document.getElementById('edicao-destino-envio')?.classList.remove('hidden');
+}
+
+function cancelarEdicaoDestinoEnvio() {
+    document.getElementById('edicao-destino-envio')?.classList.add('hidden');
+}
+
+async function salvarEdicaoDestinoEnvio() {
+    const campos = {
+        rua: (document.getElementById('dest-edit-rua')?.value || '').trim(),
+        num: (document.getElementById('dest-edit-num')?.value || '').trim(),
+        bairro: (document.getElementById('dest-edit-bairro')?.value || '').trim(),
+        comp: (document.getElementById('dest-edit-comp')?.value || '').trim(),
+        cidade: (document.getElementById('dest-edit-cidade')?.value || '').trim(),
+        estado: (document.getElementById('dest-edit-uf')?.value || '').trim(),
+        cep: (document.getElementById('dest-edit-cep')?.value || '').trim()
+    };
+    if (!campos.rua || !campos.num || !campos.cidade) {
+        alert('Preencha ao menos rua, número e cidade.');
+        return;
+    }
+
+    const btn = document.getElementById('dest-edit-salvar-btn');
+    const textoOriginalBtn = btn?.innerText;
+    if (btn) { btn.disabled = true; btn.innerText = 'Calculando...'; }
+
+    try {
+        const geo = await geocodificarPorCampos(campos);
+        if (!geo) {
+            alert('Não conseguimos localizar esse endereço. Confira os dados e tente de novo.');
+            return;
+        }
+
+        const enderecoFormatado = montarEnderecoCliente(campos);
+        resumoRevisaoAtual.destino = enderecoFormatado;
+        resumoRevisaoAtual.destinoGeo = geo;
+        resumoRevisaoAtual.destinoPersonalizado = true;
+
+        const enderecoEl = document.getElementById('card-endereco');
+        if (enderecoEl) enderecoEl.innerText = enderecoFormatado;
+        document.getElementById('destino-personalizado-badge')?.classList.remove('hidden');
+
+        cancelarEdicaoDestinoEnvio();
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerText = textoOriginalBtn || 'Salvar endereço deste envio'; }
+    }
 }
 
 async function estimarRotaEntrega(origemEndereco, destinoEndereco, origemGeo = null, destinoGeo = null) {
@@ -13419,6 +13491,7 @@ export {
   abrirAjuda,
   abrirChatDaRota,
   abrirCriarRota,
+  abrirEdicaoDestinoEnvio,
   abrirEditarCliente,
   abrirFaleConosco,
   abrirHistoricoDoClienteAtual,
@@ -13516,6 +13589,7 @@ export {
   calcularValorCreditoRota,
   caminhoFinanceiroUsuario,
   cancelarCorridaPacoteAtual,
+  cancelarEdicaoDestinoEnvio,
   carregarChatsAtivos,
   carregarDadosPagamento,
   carregarExtratoPagamento,
@@ -13806,6 +13880,7 @@ export {
   sairClienteRastreio,
   salvarBannerAdmin,
   salvarDadosPagamento,
+  salvarEdicaoDestinoEnvio,
   salvarEndereco,
   salvarMetaDiaEntregador,
   salvarNovoCliente,
