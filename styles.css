@@ -158,6 +158,38 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .container { width: 100%; max-width: 420px; min-height: 100vh; min-height: 100dvh; padding: 24px 10px 80px 10px; position: relative; z-index: 1; }
 .container { background: var(--ui-color-bg, transparent); }
+
+/* Bloqueio de tela grande — pedido do dono 2026-09-26: o app é só pra
+   celular, então em tablet/notebook/PC/TV mostra um aviso em vez do layout
+   mobile espremido no meio da tela. Um layout dedicado pra telas grandes
+   fica pra um projeto à parte, mais pra frente. Não bloqueia o painel admin
+   nem o link público de rastreio (WhatsApp Web etc.) — essas duas fazem
+   sentido serem abertas num computador. */
+#tela-bloqueio-desktop {
+    display: none;
+}
+@media (min-width: 768px) {
+    body:not(.admin-mode):not(.modo-rastreio-publico) #tela-bloqueio-desktop {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 40px;
+        text-align: center;
+        background: var(--color-bg, #f5f7fa);
+    }
+    body:not(.admin-mode):not(.modo-rastreio-publico) #tela-bloqueio-desktop ~ * {
+        display: none !important;
+    }
+}
+.bloqueio-desktop-logo { height: 34px; margin-bottom: 10px; }
+#tela-bloqueio-desktop { color: var(--brand-orange); }
+#tela-bloqueio-desktop h2 { color: var(--text-main, #0f172a); font-size: 22px; font-weight: 800; margin: 0; }
+#tela-bloqueio-desktop p { font-size: 15px; color: var(--text-sub, #64748b); max-width: 360px; margin: 0; }
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
         .view.active { display: block !important; }
@@ -857,7 +889,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 /* --- TELA PERFIL FLEXA (REFEITA) --- */
 
 #view-perfil {
-    padding: 0 0 120px 0 !important;
+    padding: 0 0 90px 0 !important;
     background-color: transparent !important; /* Mostra o fundo do projeto */
 }
 
@@ -985,10 +1017,10 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 /* Ponto 3: Bot�o Logout (Dentro do Fluxo) */
 
-.perfil-footer { 
+.perfil-footer {
     padding: 0 2px; /* Mesma folga lateral dos cards (.perfil-content) */
     margin-top: 10px;
-    margin-bottom: 30px; /* Garante que n�o fique colado na tab bar */
+    margin-bottom: 16px; /* Só o suficiente pra não colar na tab bar flutuante */
 }
 
 .btn-logout {
@@ -1365,6 +1397,13 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     padding: 12px 15px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.02);
     min-height: var(--input-height-modal);
+}
+
+.wa-icon-input {
+    width: 20px;
+    height: 20px;
+    color: var(--text-sub);
+    flex-shrink: 0;
 }
 
 .modal-perfil-body input {
@@ -3223,6 +3262,17 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     color: #64748b;
 }
 
+.rastrear-track-fill {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    height: 2px;
+    background: linear-gradient(90deg, #f97316, #fb923c);
+    transform: translateY(-50%);
+    border-radius: 999px;
+    z-index: 1;
+}
+
 .rastrear-track-line {
     position: absolute;
     left: 10px;
@@ -3380,7 +3430,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 .rastrear-track-bike {
     position: absolute;
     top: 50%;
-    right: 14px;
+    left: 0;
     transform: translateY(-54%);
     width: 20px;
     height: 20px;
@@ -3392,6 +3442,8 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     justify-content: center;
     color: #da6f18;
     z-index: 3;
+    pointer-events: none;
+    transition: left 0.4s ease;
 }
 
 .rastrear-card-footer {
@@ -3604,14 +3656,6 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     font-size: 12px;
     font-weight: 700;
 }
-
-.home-gasto-mes-card {
-    display: flex; align-items: center; justify-content: space-between;
-    background: white; border-radius: 16px; padding: 16px 18px;
-    box-shadow: 0 4px 14px rgba(15,23,42,0.05);
-}
-.home-gasto-mes-label { font-size: 13px; font-weight: 700; color: var(--text-sub); }
-.home-gasto-mes-valor { font-size: 18px; font-weight: 900; color: var(--text-main); }
 
 .home-current-card {
     width: 100%;
@@ -4743,7 +4787,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 /* ===================== [PERFIL ENTREGADOR + PERMISSOES] ===================== */
 #view-perfil-entregador {
-    padding: 0 0 120px 0 !important;
+    padding: 0 0 90px 0 !important;
     background-color: transparent !important;
 }
 

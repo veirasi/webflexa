@@ -229,7 +229,6 @@
     gerarPixQuitacaoDivida: () => gerarPixQuitacaoDivida,
     getChavePacoteRota: () => getChavePacoteRota,
     getClienteById: () => getClienteById,
-    getEtapaRastreamento: () => getEtapaRastreamento,
     getGeoCliente: () => getGeoCliente,
     getPacotesDaRota: () => getPacotesDaRota,
     getServicoSelecionadoAtual: () => getServicoSelecionadoAtual,
@@ -302,7 +301,6 @@
     montarMapaPacotesUsuarioMarketplace: () => montarMapaPacotesUsuarioMarketplace,
     montarOptionsDropdownBusca: () => montarOptionsDropdownBusca,
     montarOptionsFiltroMarketplace: () => montarOptionsFiltroMarketplace,
-    montarTimelineRastreamento: () => montarTimelineRastreamento,
     montarWaypointRota: () => montarWaypointRota,
     mostrarInfoParadaTrackingLoja: () => mostrarInfoParadaTrackingLoja,
     mostrarTelaAdminDashboard: () => mostrarTelaAdminDashboard,
@@ -823,6 +821,7 @@
     const ehLinkClienteGenerico = /^#\/cliente\/?$/.test(hash);
     if (match || ehLinkClienteGenerico) {
       modoRastreioPublico = true;
+      document.body.classList.add("modo-rastreio-publico");
       tokenRastreioAtual = match ? match[1] : "";
       if (document.readyState !== "loading") {
         exibirTelaRastreioPublico(tokenRastreioAtual);
@@ -2622,7 +2621,18 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             registrarPresencaUsuario(user.uid);
           }
           const tipo = obterTipoUsuarioAtual();
-          if (tipo === "master" || modoAdmin) {
+          if (modoAdmin && tipo !== "master") {
+            modoAdmin = false;
+            document.body.classList.remove("admin-mode");
+            firebase.auth().signOut().catch(() => {
+            });
+            alert("Esta conta n\xE3o tem permiss\xE3o de administrador.");
+            mostrarTelaAdminLogin();
+            if (tabbar) tabbar.style.display = "none";
+            finalizarSplash(splash);
+            return;
+          }
+          if (tipo === "master") {
             modoAdmin = true;
             document.body.classList.add("admin-mode");
             atualizarTopoAdmin(userData.nome, userData.email || user.email || "--");
@@ -2696,12 +2706,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const localColeta = obterCidadeUfUsuarioLogado() || "Defina o endereco";
     const envios = typeof coletarEnviosDaBase === "function" ? coletarEnviosDaBase() : [];
     const recentes = envios.slice(0, 4);
-    const agoraGastoMes = /* @__PURE__ */ new Date();
-    const gastoFreteMes = envios.reduce((acc, e) => {
-      const d = new Date(Number(e?.criadoEm) || 0);
-      const mesmoMes = d.getMonth() === agoraGastoMes.getMonth() && d.getFullYear() === agoraGastoMes.getFullYear();
-      return mesmoMes ? acc + Number(e?.valorFrete || 0) : acc;
-    }, 0);
     const rotas = Array.isArray(rotasHomeCache) ? rotasHomeCache : [];
     const rotasOrdenadas = [...rotas].sort((a, b) => Number(b?.atualizadoEm || b?.criadoEm || 0) - Number(a?.atualizadoEm || a?.criadoEm || 0));
     const rotasRecentes = rotasOrdenadas.slice(0, 3);
@@ -2734,30 +2738,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       etapaAtual = statusNorm === "CONCLUIDO" ? 4 : statusNorm === "EM_ROTA" ? 3 : statusNorm === "BUSCANDO" ? 2 : 1;
       if (statusNorm === "CONCLUIDO") progressoPctRota = 100;
       if (statusNorm === "BUSCANDO") progressoPctRota = 0;
-      if (statusNorm === "EM_ROTA" && progressoPctRota === 0) progressoPctRota = 0;
-      const CAP_DOTS_VISIVEIS = 6;
-      const totalPontos = Math.max(1, totalPacotes || 1);
-      const pacotesOrdenados = pacotes.length ? pacotes : Array.from({ length: totalPontos });
-      const pacoteEstaConcluido = (p) => {
-        if (!p) return false;
-        const st = normalizarStatusEnvioFiltro(p?.status || p?.statusRaw || "");
-        return st === "ENTREGUE" || st === "CANCELADO";
-      };
-      if (totalPontos <= CAP_DOTS_VISIVEIS) {
-        timelineHtml = pacotesOrdenados.slice(0, totalPontos).map(
-          (p) => `<span class="home-route-dot ${pacoteEstaConcluido(p) ? "done" : ""}"></span>`
-        ).join("");
-      } else {
-        const visiveis = pacotesOrdenados.slice(0, CAP_DOTS_VISIVEIS - 1);
-        const restantes = pacotesOrdenados.slice(CAP_DOTS_VISIVEIS - 1);
-        const restantesDoneCount = restantes.filter(pacoteEstaConcluido).length;
-        const restantesPct = restantes.length ? Math.round(restantesDoneCount / restantes.length * 100) : 0;
-        const dotsVisiveisHtml = visiveis.map(
-          (p) => `<span class="home-route-dot ${pacoteEstaConcluido(p) ? "done" : ""}"></span>`
-        ).join("");
-        const moreHtml = `<span class="home-route-more" style="background:linear-gradient(90deg, #da6f18 ${restantesPct}%, #d6deea ${restantesPct}%);" title="${restantesDoneCount}/${restantes.length} entregues">+${restantes.length}</span>`;
-        timelineHtml = dotsVisiveisHtml + moreHtml;
-      }
+      const realRota = montarTimelineRealRota(pacotes, totalPacotes, "home-route-dot");
+      timelineHtml = realRota.html;
     }
     const statusTagHome = statusRotaVisual.label === "BUSCANDO" ? "Buscando" : statusRotaVisual.label === "EM ROTA" ? "Em rota" : statusRotaVisual.label === "CONCLUIDA" ? "Concluida" : statusRotaVisual.label;
     const statusRecenteClass = (statusTxt) => {
@@ -2867,11 +2849,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                     <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
                 </div>
                 <div class="home-recent-list">${listaRotasRecentes}</div>
-            </section>
-
-            <section class="home-gasto-mes-card">
-                <span class="home-gasto-mes-label">Gasto com frete este m\xEAs</span>
-                <strong class="home-gasto-mes-valor">R$ ${gastoFreteMes.toFixed(2)}</strong>
             </section>
         </div>
     `;
@@ -5803,20 +5780,34 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     }
     openModal();
   }
-  function getEtapaRastreamento(statusNorm) {
-    if (statusNorm === "CONCLUIDO") return 4;
-    if (statusNorm === "EM_ROTA") return 3;
-    if (statusNorm === "BUSCANDO") return 2;
-    if (statusNorm === "CANCELADO") return 1;
-    return 1;
-  }
-  function montarTimelineRastreamento(statusNorm) {
-    const etapaAtual = getEtapaRastreamento(statusNorm);
-    return [1, 2, 3, 4].map((etapa) => {
-      const done = etapa <= etapaAtual;
-      const current = etapa === etapaAtual;
-      return `<span class="rastrear-dot ${done ? "done" : ""} ${current ? "current" : ""}"></span>`;
-    }).join("");
+  function montarTimelineRealRota(pacotes, totalFallback, dotClass) {
+    const CAP_DOTS_VISIVEIS = 6;
+    const pacoteEstaConcluido = (p) => {
+      if (!p) return false;
+      const st = normalizarStatusEnvioFiltro(p?.status || p?.statusRaw || "");
+      return st === "ENTREGUE" || st === "CANCELADO";
+    };
+    const totalPacotes = pacotes.length || Math.max(1, Number(totalFallback || 0)) || 1;
+    const pacotesOrdenados = pacotes.length ? pacotes : Array.from({ length: totalPacotes });
+    const concluidos = pacotesOrdenados.filter(pacoteEstaConcluido).length;
+    const progressoPct = totalPacotes > 0 ? Math.max(0, Math.min(100, Math.round(concluidos / totalPacotes * 100))) : 0;
+    let html;
+    if (totalPacotes <= CAP_DOTS_VISIVEIS) {
+      html = pacotesOrdenados.slice(0, totalPacotes).map(
+        (p) => `<span class="${dotClass} ${pacoteEstaConcluido(p) ? "done" : ""}"></span>`
+      ).join("");
+    } else {
+      const visiveis = pacotesOrdenados.slice(0, CAP_DOTS_VISIVEIS - 1);
+      const restantes = pacotesOrdenados.slice(CAP_DOTS_VISIVEIS - 1);
+      const restantesDoneCount = restantes.filter(pacoteEstaConcluido).length;
+      const restantesPct = restantes.length ? Math.round(restantesDoneCount / restantes.length * 100) : 0;
+      const dotsVisiveisHtml = visiveis.map(
+        (p) => `<span class="${dotClass} ${pacoteEstaConcluido(p) ? "done" : ""}"></span>`
+      ).join("");
+      const moreHtml = `<span class="home-route-more" style="background:linear-gradient(90deg, #da6f18 ${restantesPct}%, #d6deea ${restantesPct}%);" title="${restantesDoneCount}/${restantes.length} entregues">+${restantes.length}</span>`;
+      html = dotsVisiveisHtml + moreHtml;
+    }
+    return { html, progressoPct };
   }
   async function renderListaModalRastrearRotas() {
     const list = document.getElementById("rastrear-rota-list");
@@ -5840,6 +5831,10 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       const dur = pacotes.reduce((acc, p) => acc + (Number.isFinite(Number(p?.duracaoMin)) ? Number(p.duracaoMin) : 0), 0);
       const qtd = Number(rota?.quantidade || pacotes.length || 0);
       const tempoHint = statusNorm === "CONCLUIDO" ? "Rota concluida" : statusNorm === "EM_ROTA" ? `${Math.max(1, Math.round((dur || 0) * 0.5))} min restantes` : statusNorm === "CANCELADO" ? "Rota cancelada" : "Aguardando entregador";
+      let { html: dotsHtml, progressoPct } = montarTimelineRealRota(pacotes, qtd, "rastrear-dot");
+      if (statusNorm === "CONCLUIDO") progressoPct = 100;
+      if (statusNorm === "BUSCANDO") progressoPct = 0;
+      const bikeLeft = `clamp(0px, calc(${progressoPct}% - 10px), calc(100% - 20px))`;
       return `
             <button type="button" class="rastrear-card" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
                 <div class="rastrear-card-head">
@@ -5849,9 +5844,10 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
                 <div class="rastrear-card-meta">${qtd} pacote(s) \u2022 ${resumoCidade.principal || "--"} \u2022 ${precoParaMoeda(Number(rota?.totalFrete || 0))}</div>
                 <div class="rastrear-track-wrap">
                     <span class="rastrear-track-time">${tempoHint}</span>
+                    <div class="rastrear-track-fill" style="width:${progressoPct}%;"></div>
                     <div class="rastrear-track-line"></div>
-                    <div class="rastrear-track-dots">${montarTimelineRastreamento(statusNorm)}</div>
-                    <span class="rastrear-track-bike"><i data-lucide="bike"></i></span>
+                    <div class="rastrear-track-dots">${dotsHtml}</div>
+                    <span class="rastrear-track-bike" style="left:${bikeLeft};"><i data-lucide="bike"></i></span>
                 </div>
                 <div class="rastrear-card-footer">
                     <span>${formatarDistancia(dist)}</span>
@@ -8202,11 +8198,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         let whatsappCliente = "";
         let codigoConfirmacao = "";
         let codigoRetirada = "";
+        let pontoGeo = null;
         try {
           const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
           const pac = snap.val() || {};
           destinatario = (pac.destinatario || destinatario).toString();
           whatsappCliente = normalizarWhatsapp(pac.whatsapp || "");
+          pontoGeo = pac.tipoFluxo === "coleta_reversa" ? pac.origemGeo || null : pac.destinoGeo || null;
           codigoConfirmacao = (pac.codigoConfirmacaoEntrega || "").toString();
           codigoRetirada = (pac.codigoConfirmacaoRetirada || "").toString();
           if (pac.tipoFluxo === "coleta_reversa") tipoFluxoRota = "coleta_reversa";
@@ -8222,7 +8220,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         if (whatsappCliente) {
           updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
         }
-        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada };
+        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo };
       }
       updates[`rastreioPublico/${rota.id}`] = {
         lojaNome,
@@ -8507,12 +8505,34 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const idxProximaParadaPendente = paradas.findIndex((grupo) => grupo.status !== "ENTREGUE" && grupo.status !== "DEVOLVIDO");
     const souAProximaParada = idxProximaParadaPendente >= 0 && idxProximaParadaPendente === minhaParadaIdx;
     const ehColetaReversaTexto = dados.tipoFluxo === "coleta_reversa";
+    const nomeEnt = dados.entregadorNome || "O entregador";
+    const VELOCIDADE_MEDIA_ENTREGA_KMH = 22;
+    let etaMin = null;
+    if (statusNorm === "EM_ROTA" && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" && souAProximaParada) {
+      const geoEnt = dados.entregadorGeo;
+      const geoDestino = pacoteInfo.geo;
+      if (geoEnt && geoDestino && Number.isFinite(Number(geoDestino.lat)) && Number.isFinite(Number(geoDestino.lon))) {
+        const distKm = distanciaHaversineKm({ lat: geoEnt.lat, lon: geoEnt.lng }, geoDestino);
+        if (Number.isFinite(distKm)) {
+          etaMin = Math.max(1, Math.round(distKm / VELOCIDADE_MEDIA_ENTREGA_KMH * 60));
+        }
+      }
+    }
+    if (etaMin === null && statusNorm === "EM_ROTA" && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" && minhaOrdem > 0 && Number(dados.duracaoMin) > 0) {
+      etaMin = Math.max(1, Math.round(minhaOrdem / totalParadas * Number(dados.duracaoMin)));
+    }
     let statusTexto;
     if (ehColetaReversaTexto) {
       if (pacoteInfo.status === "ENTREGUE") {
         statusTexto = "Pedido recolhido! Est\xE1 a caminho da loja.";
       } else if (statusNorm === "EM_ROTA") {
-        statusTexto = souAProximaParada ? dados.entregadorNome ? `${dados.entregadorNome} est\xE1 a caminho para buscar com voc\xEA.` : "Um entregador est\xE1 a caminho para buscar seu pedido." : dados.entregadorNome ? `${dados.entregadorNome} est\xE1 em rota \u2014 ainda tem parada(s) antes da sua.` : "O entregador est\xE1 em rota \u2014 ainda tem parada(s) antes da sua.";
+        if (!souAProximaParada && paradas.length > 1) {
+          statusTexto = `${nomeEnt} est\xE1 em rota fazendo outras coletas antes da sua.`;
+        } else if (souAProximaParada && etaMin) {
+          statusTexto = `${nomeEnt} est\xE1 indo at\xE9 voc\xEA nos pr\xF3ximos ${formatarDuracao(etaMin)} pra buscar seu pedido. Fique atento!`;
+        } else {
+          statusTexto = `${nomeEnt} est\xE1 a caminho para buscar com voc\xEA.`;
+        }
       } else if (statusNorm === "CONCLUIDO") {
         statusTexto = "Coleta conclu\xEDda \u2014 o pedido j\xE1 chegou na loja.";
       } else if (statusNorm === "CANCELADO") {
@@ -8524,21 +8544,26 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       statusTexto = "Pedido entregue!";
     } else if (pacoteInfo.status === "DEVOLVIDO") {
       statusTexto = "Esse pedido foi devolvido para a loja.";
-    } else if (statusNorm === "EM_ROTA" && paradas.length > 1) {
-      statusTexto = souAProximaParada ? dados.entregadorNome ? `${dados.entregadorNome} est\xE1 a caminho com o seu pedido.` : "Seu pedido est\xE1 a caminho." : dados.entregadorNome ? `${dados.entregadorNome} est\xE1 em rota \u2014 ainda tem parada(s) antes da sua.` : "O entregador est\xE1 em rota \u2014 ainda tem parada(s) antes da sua.";
+    } else if (statusNorm === "EM_ROTA") {
+      if (!dados.coletaConfirmada) {
+        statusTexto = `${nomeEnt} est\xE1 indo coletar seu pedido com ${dados.lojaNome || "a loja"}.`;
+      } else if (!souAProximaParada && paradas.length > 1) {
+        statusTexto = `${nomeEnt} est\xE1 em rota fazendo outras entregas antes da sua.`;
+      } else if (souAProximaParada && etaMin) {
+        statusTexto = `${nomeEnt} est\xE1 indo at\xE9 voc\xEA nos pr\xF3ximos ${formatarDuracao(etaMin)}. Fique atento!`;
+      } else {
+        statusTexto = `${nomeEnt} est\xE1 a caminho com o seu pedido.`;
+      }
+    } else if (statusNorm === "BUSCANDO") {
+      statusTexto = "Procurando um entregador para a sua entrega...";
+    } else if (statusNorm === "CANCELADO") {
+      statusTexto = "Essa entrega foi cancelada.";
     } else {
-      const textosPorStatus = {
-        BUSCANDO: "Procurando um entregador para a sua entrega...",
-        EM_ROTA: dados.entregadorNome ? `${dados.entregadorNome} est\xE1 a caminho com o seu pedido.` : "Seu pedido est\xE1 a caminho.",
-        CONCLUIDO: "Pedido entregue!",
-        CANCELADO: "Essa entrega foi cancelada."
-      };
-      statusTexto = textosPorStatus[statusNorm] || "";
+      statusTexto = "";
     }
     const paradaInfoHtml = totalParadas > 1 && minhaOrdem > 0 ? `<p class="rastreio-pub-parada-info">Sua parada \xE9 a <strong>${minhaOrdem}\xAA de ${totalParadas}</strong></p>` : "";
     let etaHtml = "";
-    if (statusNorm === "EM_ROTA" && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" && minhaOrdem > 0 && Number(dados.duracaoMin) > 0) {
-      const etaMin = Math.max(1, Math.round(minhaOrdem / totalParadas * Number(dados.duracaoMin)));
+    if (etaMin) {
       const etaTxt = formatarDuracao(etaMin);
       etaHtml = ehColetaReversaTexto ? `<p class="rastreio-pub-eta"><i data-lucide="clock" size="14"></i> Previs\xE3o de coleta em <strong>${escaparHtmlMarketplace(etaTxt)}</strong></p>` : `<p class="rastreio-pub-eta"><i data-lucide="clock" size="14"></i> Seu pedido chega em <strong>${escaparHtmlMarketplace(etaTxt)}</strong></p>`;
     }
@@ -8695,7 +8720,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       const classes = ["parada-v-item"];
       if (pt.done) classes.push("done");
       if (pt.devolvido) classes.push("devolvido");
-      if (pt.atual) classes.push("atual");
+      if (pt.atual && !pt.done) classes.push("atual");
       if (pt.voce) classes.push("voce");
       if (!pt.label) classes.push("anonima");
       if (idx === pontos.length - 1) classes.push("ultimo");
