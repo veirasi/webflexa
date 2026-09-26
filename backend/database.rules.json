@@ -221,9 +221,16 @@
     // pedidos, que continuam isolados em usuarios/{lojistaUid}/clientes. É a
     // base pra, no futuro, virar login de cliente único multi-loja sem
     // precisar remodelar tudo de novo.
+    // LEITURA pública (2026-09-26, bug corrigido): convidarClienteParaApp/
+    // cadastrarClienteRastreio precisam checar isso ANTES de logar em
+    // qualquer conta na instância secundária (ver obterClienteAuth) — nesse
+    // momento ela está deslogada, então "auth != null" negava a leitura
+    // silenciosamente e travava o reenvio de convite. Não é dado sensível
+    // (só nome+whatsapp+uid+status), mesmo nível de exposição que
+    // telefoneParaEmail/rastreioToken logo abaixo.
     "clientesGlobais": {
       "$telefone": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": "auth != null"
       }
     },

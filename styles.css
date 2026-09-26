@@ -5783,6 +5783,14 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-subir-aceito { background: #ecfdf3; color: #15803d; }
 .ent-sheet-subir-recusado { background: #f1f5f9; color: #64748b; }
 
+.rastreio-pub-codigo {
+    margin-top: 12px; padding: 14px; border-radius: 16px; background: #f0fdf4; border: 1px solid #bbf7d0;
+    text-align: center;
+}
+.rastreio-pub-codigo span { display: block; font-size: 11px; font-weight: 800; color: #15803d; text-transform: uppercase; letter-spacing: 0.04em; }
+.rastreio-pub-codigo strong { display: block; font-size: 28px; font-weight: 900; color: #0f172a; letter-spacing: 0.08em; margin: 4px 0; }
+.rastreio-pub-codigo small { display: block; font-size: 11px; color: var(--text-sub); }
+
 .rastreio-pub-subir { margin-top: 14px; padding: 14px; border-radius: 16px; background: #fff7ed; border: 1px solid #fed7aa; }
 .rastreio-pub-subir p { font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 10px; }
 .rastreio-pub-subir .btn-main { padding: 12px; font-size: 14px; }

@@ -8079,11 +8079,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         let destinatario = "Cliente";
         let destinoChave = pacoteId;
         let whatsappCliente = "";
+        let codigoConfirmacao = "";
         try {
           const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
           const pac = snap.val() || {};
           destinatario = (pac.destinatario || destinatario).toString();
           whatsappCliente = normalizarWhatsapp(pac.whatsapp || "");
+          codigoConfirmacao = (pac.codigoConfirmacaoEntrega || "").toString();
           if (pac.tipoFluxo === "coleta_reversa") tipoFluxoRota = "coleta_reversa";
           const campoEndereco = pac.tipoFluxo === "coleta_reversa" ? pac.origemCompleta || pac.origemEndereco : pac.destinoCompleto || pac.destinoEndereco;
           const enderecoBruto = (campoEndereco || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
@@ -8097,7 +8099,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         if (whatsappCliente) {
           updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
         }
-        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1 };
+        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao };
       }
       updates[`rastreioPublico/${rota.id}`] = {
         lojaNome,
@@ -8190,8 +8192,8 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const auth2 = obterClienteAuth();
     const db2 = obterClienteDb();
     try {
-      const telefoneJaUsado = (await db2.ref("telefoneParaEmail/" + whatsapp).once("value")).val();
-      if (telefoneJaUsado) {
+      const globalExistente = (await db2.ref("clientesGlobais/" + whatsapp).once("value")).val();
+      if (globalExistente?.cadastroCompleto === true) {
         alert('Esse n\xFAmero de WhatsApp j\xE1 tem conta. Toque em "Entrar".');
         return;
       }
@@ -8201,10 +8203,11 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         email,
         whatsapp,
         tipo: "cliente",
-        criadoEm: Date.now()
+        criadoEm: Date.now(),
+        cadastroCompleto: true
       });
       await db2.ref("telefoneParaEmail/" + whatsapp).set(email);
-      await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp });
+      await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp, uid: cred.user.uid, cadastroCompleto: true });
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
     } catch (error) {
@@ -8257,7 +8260,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       const updates = { nome, cadastroCompleto: true };
       if (email) updates.emailContato = email;
       await db2.ref("usuarios/" + user.uid).update(updates);
-      if (whatsapp) await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp });
+      if (whatsapp) await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
       alert("Cadastro completo! Sua conta Flex j\xE1 est\xE1 ativa em todas as lojas parceiras.");
@@ -8420,6 +8423,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const mapaHtml = geo && geo.lat && geo.lng ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : "";
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";
+    const codigoHtml = pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" ? `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora d${ehColetaReversaTexto ? "a coleta" : "a entrega"}</small></div>` : "";
     let subirHtml = "";
     if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
       const subirStatus = pacoteInfo.subirStatus || null;
@@ -8443,6 +8447,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             <h2 class="rastreio-pub-titulo">Ol\xE1, ${escaparHtmlMarketplace(destinatario)}!</h2>
             <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
             ${etaHtml}
+            ${codigoHtml}
             ${timelineHtml}
             ${paradaInfoHtml}
             ${distTxt || durTxt ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(" \u2022 "))}</div>` : ""}
@@ -9284,17 +9289,17 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
     const auth2 = obterClienteAuth();
     const db2 = obterClienteDb();
     try {
-      const emailExistente = (await db2.ref("telefoneParaEmail/" + whatsapp).once("value")).val();
-      if (emailExistente) {
-        if (!cliente.contaClienteUid) {
-          clientes[idx] = { ...clientes[idx], contaClienteUid: "externo" };
-          await saveClientes();
-        }
-        alert("Esse cliente j\xE1 tem uma conta no Flex (pr\xF3pria ou de outra loja). N\xE3o \xE9 poss\xEDvel reenviar um convite de senha tempor\xE1ria.");
+      const globalExistente = (await db2.ref("clientesGlobais/" + whatsapp).once("value")).val();
+      const jaConcluiu = globalExistente?.cadastroCompleto === true;
+      const ehReenvio = Boolean(globalExistente) && !jaConcluiu;
+      if (jaConcluiu) {
+        clientes[idx] = { ...clientes[idx], contaClienteUid: globalExistente.uid || "externo" };
+        await saveClientes();
+        alert("Esse cliente j\xE1 tem uma conta ativa no Flex (pr\xF3pria ou de outra loja). N\xE3o \xE9 poss\xEDvel reenviar convite de senha tempor\xE1ria.");
         return;
       }
       const senhaTemp = gerarSenhaTemporaria();
-      const emailConvite = `cliente.${whatsapp}@flex.local`;
+      const emailConvite = ehReenvio ? `cliente.${whatsapp}.${Date.now()}@flex.local` : `cliente.${whatsapp}@flex.local`;
       const cred = await auth2.createUserWithEmailAndPassword(emailConvite, senhaTemp);
       await db2.ref("usuarios/" + cred.user.uid).set({
         nome: cliente.nome || "",
@@ -9306,12 +9311,17 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
         cadastroCompleto: false
       });
       await db2.ref("telefoneParaEmail/" + whatsapp).set(emailConvite);
-      await db2.ref("clientesGlobais/" + whatsapp).set({ nome: cliente.nome || "", whatsapp });
+      await db2.ref("clientesGlobais/" + whatsapp).set({ nome: cliente.nome || "", whatsapp, uid: cred.user.uid, cadastroCompleto: false });
       await auth2.signOut();
       clientes[idx] = { ...clientes[idx], contaClienteUid: cred.user.uid, contaClienteConvidadaEm: Date.now() };
       await saveClientes();
       const link = `${window.location.origin}${window.location.pathname}#/cliente`;
-      const msg = `Ol\xE1${cliente.nome ? ", " + cliente.nome.split(" ")[0] : ""}! Agora voc\xEA pode acompanhar seus pedidos pela Flex.
+      const msg = ehReenvio ? `Ol\xE1${cliente.nome ? ", " + cliente.nome.split(" ")[0] : ""}! Reenviando seu acesso \xE0 Flex (o convite anterior ainda n\xE3o tinha sido usado).
+
+Acesse: ${link}
+Seu login \xE9 o seu WhatsApp e a senha tempor\xE1ria \xE9: *${senhaTemp}*
+
+No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.` : `Ol\xE1${cliente.nome ? ", " + cliente.nome.split(" ")[0] : ""}! Agora voc\xEA pode acompanhar seus pedidos pela Flex.
 
 Acesse: ${link}
 Seu login \xE9 o seu WhatsApp e a senha tempor\xE1ria \xE9: *${senhaTemp}*

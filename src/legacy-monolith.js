@@ -9054,11 +9054,18 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             let destinatario = 'Cliente';
             let destinoChave = pacoteId; // fallback: se não achar endereço, cada pacote fica no seu próprio ponto
             let whatsappCliente = '';
+            let codigoConfirmacao = '';
             try {
                 const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
                 const pac = snap.val() || {};
                 destinatario = (pac.destinatario || destinatario).toString();
                 whatsappCliente = normalizarWhatsapp(pac.whatsapp || '');
+                // Código de confirmação também vai pro nó público — é o que
+                // permite a tela de rastreio mostrar "seu código é X" (pedido
+                // do dono 2026-09-25). Só quem tem o link/token específico
+                // desse pacote consegue ver, mesmo nível de acesso que já
+                // existe pro resto dos dados aqui.
+                codigoConfirmacao = (pac.codigoConfirmacaoEntrega || '').toString();
                 if (pac.tipoFluxo === 'coleta_reversa') tipoFluxoRota = 'coleta_reversa';
                 // Pacotes pro MESMO endereço viram um só ponto na timeline
                 // (pedido do dono 2026-09-21) — normaliza pra não separar por
@@ -9088,7 +9095,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             if (whatsappCliente) {
                 updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
             }
-            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1 };
+            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao };
         }
 
         updates[`rastreioPublico/${rota.id}`] = {
@@ -9214,22 +9221,26 @@ async function cadastrarClienteRastreio() {
     const auth2 = obterClienteAuth();
     const db2 = obterClienteDb();
     try {
-        const telefoneJaUsado = (await db2.ref('telefoneParaEmail/' + whatsapp).once('value')).val();
-        if (telefoneJaUsado) {
+        // BUG CORRIGIDO 2026-09-26: só bloqueia se a conta existente
+        // realmente foi CONCLUÍDA — um convite de senha temporária do
+        // lojista que a pessoa nunca chegou a usar não deveria travar o
+        // autocadastro dela aqui (mesma raiz do bug em convidarClienteParaApp).
+        const globalExistente = (await db2.ref('clientesGlobais/' + whatsapp).once('value')).val();
+        if (globalExistente?.cadastroCompleto === true) {
             alert('Esse número de WhatsApp já tem conta. Toque em "Entrar".');
             return;
         }
 
         const cred = await auth2.createUserWithEmailAndPassword(email, senha);
         await db2.ref('usuarios/' + cred.user.uid).set({
-            nome, email, whatsapp, tipo: 'cliente', criadoEm: Date.now()
+            nome, email, whatsapp, tipo: 'cliente', criadoEm: Date.now(), cadastroCompleto: true
         });
         await db2.ref('telefoneParaEmail/' + whatsapp).set(email);
         // Mesmo índice usado pela busca de cliente do lojista (ver
         // salvarNovoCliente) — assim uma loja que já tinha esse número
         // cadastrado manualmente passa a enxergar o mesmo nome que o
         // cliente confirmou na própria conta.
-        await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp });
+        await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp, uid: cred.user.uid, cadastroCompleto: true });
 
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
@@ -9304,7 +9315,9 @@ async function completarCadastroClienteRastreio() {
         const updates = { nome, cadastroCompleto: true };
         if (email) updates.emailContato = email;
         await db2.ref('usuarios/' + user.uid).update(updates);
-        if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp });
+        // uid + cadastroCompleto:true aqui é o que permite convidarClienteParaApp
+        // diferenciar "já tem conta ativa" de "convite antigo nunca concluído".
+        if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
 
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
@@ -9550,6 +9563,15 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : '';
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : '';
 
+    // Código de confirmação de entrega, sempre visível na própria tela
+    // (bug corrigido 2026-09-26: antes só ia na mensagem de WhatsApp — se o
+    // cliente perdesse essa mensagem, não tinha como saber o código de
+    // outro jeito). Só aparece enquanto o pedido ainda não foi
+    // entregue/devolvido.
+    const codigoHtml = (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO')
+        ? `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora d${ehColetaReversaTexto ? 'a coleta' : 'a entrega'}</small></div>`
+        : '';
+
     // Taxa de subida (pedido do dono 2026-09-25): só aparece depois que o
     // entregador confirma "Cheguei" (entregadorChegou, espelhado aqui em
     // rastreioPublico) e enquanto o pacote ainda não foi entregue/devolvido.
@@ -9579,6 +9601,7 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
             <h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace(destinatario)}!</h2>
             <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
             ${etaHtml}
+            ${codigoHtml}
             ${timelineHtml}
             ${paradaInfoHtml}
             ${(distTxt || durTxt) ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(' • '))}</div>` : ''}
@@ -10638,21 +10661,35 @@ async function convidarClienteParaApp(clienteId) {
     const db2 = obterClienteDb();
 
     try {
-        const emailExistente = (await db2.ref('telefoneParaEmail/' + whatsapp).once('value')).val();
-        if (emailExistente) {
-            if (!cliente.contaClienteUid) {
-                clientes[idx] = { ...clientes[idx], contaClienteUid: 'externo' };
-                await saveClientes();
-            }
-            alert('Esse cliente já tem uma conta no Flex (própria ou de outra loja). Não é possível reenviar um convite de senha temporária.');
+        // BUG CORRIGIDO 2026-09-26: antes checava só telefoneParaEmail
+        // existir — mas isso também é verdade pra um convite anterior que
+        // nunca foi concluído (cadastroCompleto:false), bloqueando
+        // "reenviar convite" pra sempre mesmo quando o cliente nunca chegou
+        // a usar a senha temporária (perdeu a mensagem, não viu, etc.).
+        // clientesGlobais agora carrega esse status (ver
+        // completarCadastroClienteRastreio/cadastrarClienteRastreio) — só
+        // bloqueia de verdade quando o cadastro foi CONCLUÍDO.
+        const globalExistente = (await db2.ref('clientesGlobais/' + whatsapp).once('value')).val();
+        const jaConcluiu = globalExistente?.cadastroCompleto === true;
+        const ehReenvio = Boolean(globalExistente) && !jaConcluiu;
+
+        if (jaConcluiu) {
+            clientes[idx] = { ...clientes[idx], contaClienteUid: globalExistente.uid || 'externo' };
+            await saveClientes();
+            alert('Esse cliente já tem uma conta ativa no Flex (própria ou de outra loja). Não é possível reenviar convite de senha temporária.');
             return;
         }
 
         const senhaTemp = gerarSenhaTemporaria();
         // E-mail fictício — Firebase Auth exige um, mas o convite não depende
         // do cliente ter e-mail; ele pode informar um de verdade ao
-        // completar o cadastro (ver completarCadastroClienteRastreio).
-        const emailConvite = `cliente.${whatsapp}@flex.local`;
+        // completar o cadastro (ver completarCadastroClienteRastreio). No
+        // reenvio, versiona o e-mail (timestamp) porque o e-mail do convite
+        // anterior (nunca concluído) já está em uso — a conta antiga fica
+        // órfã, inofensiva, nunca mais é referenciada por ninguém.
+        const emailConvite = ehReenvio
+            ? `cliente.${whatsapp}.${Date.now()}@flex.local`
+            : `cliente.${whatsapp}@flex.local`;
 
         const cred = await auth2.createUserWithEmailAndPassword(emailConvite, senhaTemp);
         await db2.ref('usuarios/' + cred.user.uid).set({
@@ -10665,14 +10702,16 @@ async function convidarClienteParaApp(clienteId) {
             cadastroCompleto: false
         });
         await db2.ref('telefoneParaEmail/' + whatsapp).set(emailConvite);
-        await db2.ref('clientesGlobais/' + whatsapp).set({ nome: cliente.nome || '', whatsapp });
+        await db2.ref('clientesGlobais/' + whatsapp).set({ nome: cliente.nome || '', whatsapp, uid: cred.user.uid, cadastroCompleto: false });
         await auth2.signOut();
 
         clientes[idx] = { ...clientes[idx], contaClienteUid: cred.user.uid, contaClienteConvidadaEm: Date.now() };
         await saveClientes();
 
         const link = `${window.location.origin}${window.location.pathname}#/cliente`;
-        const msg = `Olá${cliente.nome ? ', ' + cliente.nome.split(' ')[0] : ''}! Agora você pode acompanhar seus pedidos pela Flex.\n\nAcesse: ${link}\nSeu login é o seu WhatsApp e a senha temporária é: *${senhaTemp}*\n\nNo primeiro acesso você confirma seus dados e cria sua própria senha.`;
+        const msg = ehReenvio
+            ? `Olá${cliente.nome ? ', ' + cliente.nome.split(' ')[0] : ''}! Reenviando seu acesso à Flex (o convite anterior ainda não tinha sido usado).\n\nAcesse: ${link}\nSeu login é o seu WhatsApp e a senha temporária é: *${senhaTemp}*\n\nNo primeiro acesso você confirma seus dados e cria sua própria senha.`
+            : `Olá${cliente.nome ? ', ' + cliente.nome.split(' ')[0] : ''}! Agora você pode acompanhar seus pedidos pela Flex.\n\nAcesse: ${link}\nSeu login é o seu WhatsApp e a senha temporária é: *${senhaTemp}*\n\nNo primeiro acesso você confirma seus dados e cria sua própria senha.`;
         window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, '_blank');
     } catch (error) {
         alert('Erro ao convidar cliente: ' + error.message);
