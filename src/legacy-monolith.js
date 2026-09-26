@@ -5768,6 +5768,14 @@ async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) 
             lojistaFoto: String(rotaAtualizada?.lojistaFoto || rotaMarketplaceAtual?.lojistaFoto || ''),
             sincronizadaDoLojista: true,
             atualizadoEm: Date.now(),
+            // BUG CORRIGIDO 2026-09-26: esse espelho nunca guardava a cidade de
+            // origem (a da LOJA) — por isso o card "Em rota" na home do
+            // entregador sempre mostrava "Origem: --" (resumirRotaParaEntregador
+            // caía no fallback errado, endereço do PRÓPRIO entregador, quase
+            // sempre vazio). origemLabel/origemCidade já eram computados na
+            // listagem do marketplace (rotaMarketplaceAtual), só faltava copiar.
+            origemLabel: rotaAtualizada?.origemLabel || rotaMarketplaceAtual?.origemLabel || '',
+            origemCidade: rotaAtualizada?.origemCidade || rotaMarketplaceAtual?.origemCidade || '',
             destinoPrincipal: rotaAtualizada?.destinoPrincipal || rotaMarketplaceAtual?.destinoPrincipal || '',
             destinos: rotaAtualizada?.destinos || rotaMarketplaceAtual?.destinos || [],
             distanciaTotal: rotaAtualizada?.distanciaTotal || rotaMarketplaceAtual?.distanciaTotal || 0,
@@ -13103,8 +13111,15 @@ function resumirRotaParaEntregador(rota, mapaPacotes, usuarioData = {}) {
     const destinosPacotes = [...new Set(pacotes.map((p) => (p?.cidade || '').trim()).filter(Boolean))];
     const destinosFallback = Array.isArray(rota?.destinos) ? rota.destinos : [];
     const destinos = destinosPacotes.length ? destinosPacotes : (destinosFallback.length ? destinosFallback : (rota?.destinoPrincipal ? [rota.destinoPrincipal] : []));
-    const origemCidade = (usuarioData?.endereco?.cidade || '').trim();
-    const origemUf = (usuarioData?.endereco?.uf || usuarioData?.endereco?.estado || '').trim();
+    // BUG CORRIGIDO 2026-09-26: isso usava o endereço do PRÓPRIO entregador
+    // (usuarioData) como "origem" da rota — sem sentido (a origem é a LOJA,
+    // não a casa do entregador) e quase sempre vazio, daí o "Origem: --"
+    // constante no card "Em rota" da home. rota.origemLabel/origemCidade
+    // agora são gravados de verdade ao aceitar a rota (ver
+    // aceitarRotaMarketplaceEntregador) — rotas aceitas ANTES dessa correção
+    // continuam sem esse dado (nunca foi salvo) até serem substituídas por
+    // rotas novas; não há como recuperar retroativamente sem uma migração.
+    const origemLabelPronto = (rota?.origemLabel || '').trim();
 
     const progresso = totalPacotesRota ? Math.round((concluidosCount / totalPacotesRota) * 100) : 0;
     const dataRef = Number(rota?.aceitoEm || rota?.atualizadoEm || rota?.criadoEm || Date.now());
@@ -13123,7 +13138,7 @@ function resumirRotaParaEntregador(rota, mapaPacotes, usuarioData = {}) {
         restanteDur,
         totalValor,
         valorRestante,
-        origem: origemCidade ? (origemCidade + (origemUf ? ', ' + origemUf : '')) : '--',
+        origem: origemLabelPronto || (rota?.origemCidade || '').trim() || '--',
         destino: destinos.length ? destinos.join(' / ') : '--',
         destinoPrincipal: destinos[0] || '--',
         progresso,
