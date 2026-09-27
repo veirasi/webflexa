@@ -186,6 +186,68 @@ async function criarDividaLojistaEntregador({ lojistaUid, uidEntregador, entrega
   return registro;
 }
 
+// Mesma lógica de ajustarDividaUsuario no frontend (lê, soma, grava — sem
+// .transaction() pelo mesmo motivo documentado lá: .transaction() nesse
+// projeto às vezes recebe null mesmo com valor real já gravado).
+async function ajustarDividaUsuarioServer(uid, delta) {
+  const dividaRef = db.ref(`usuarios/${uid}/financeiro/divida`);
+  const snap = await dividaRef.once('value');
+  const dividaAntes = Number(snap.val() || 0);
+  const dividaDepois = Math.max(0, Number((dividaAntes + delta).toFixed(2)));
+  await dividaRef.set(dividaDepois);
+  const dividaDesdeRef = db.ref(`usuarios/${uid}/financeiro/dividaDesde`);
+  if (dividaAntes <= 0 && dividaDepois > 0) {
+    await dividaDesdeRef.set(Date.now());
+  } else if (dividaDepois <= 0) {
+    await dividaDesdeRef.remove();
+  }
+  return { dividaAntes, dividaDepois };
+}
+
+// Mesma lógica de ajustarSaldoUsuario no frontend (lê, soma, grava).
+async function ajustarSaldoUsuarioServer(uid, delta) {
+  const saldoRef = db.ref(`usuarios/${uid}/financeiro/saldo`);
+  const snap = await saldoRef.once('value');
+  const saldoAntes = Number(snap.val() || 0);
+  const saldoDepois = Number((saldoAntes + delta).toFixed(2));
+  await saldoRef.set(saldoDepois);
+  return { saldoAntes, saldoDepois };
+}
+
+// Mesmas faixas/piso de TAXA_PLATAFORMA_FAIXAS/PISO_KM_ENTREGADOR no
+// frontend (src/legacy-monolith.js ~1420) — precisam ficar iguais nos dois
+// lados pelo mesmo motivo documentado em TAXA_ESPERA_GRACE_MIN acima.
+const TAXA_PLATAFORMA_FAIXAS = [
+  { ate: 5, taxa: 1.00 },
+  { ate: 15, taxa: 1.50 },
+  { ate: 25, taxa: 2.00 },
+  { ate: Infinity, taxa: 2.50 }
+];
+const PISO_KM_ENTREGADOR = 1.00;
+
+function calcularTaxaPlataformaAlvo(valorFrete) {
+  const v = Number(valorFrete || 0);
+  const faixa = TAXA_PLATAFORMA_FAIXAS.find((f) => v <= f.ate) || TAXA_PLATAFORMA_FAIXAS[TAXA_PLATAFORMA_FAIXAS.length - 1];
+  return faixa.taxa;
+}
+
+function calcularTaxaPlataformaRota(valorFrete, distanciaKm) {
+  const v = Number(valorFrete || 0);
+  if (v <= 0) return 0;
+  const alvo = calcularTaxaPlataformaAlvo(v);
+  const km = Number(distanciaKm);
+  if (!Number.isFinite(km) || km <= 0) return Number(alvo.toFixed(2));
+  const taxaMaxSemFurarPiso = Math.max(0, v - km * PISO_KM_ENTREGADOR);
+  return Number(Math.min(alvo, taxaMaxSemFurarPiso).toFixed(2));
+}
+
+function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
+  const v = Number(valorFrete || 0);
+  if (v <= 0) return 0;
+  const taxa = calcularTaxaPlataformaRota(v, distanciaKm);
+  return Number(Math.max(0, v - taxa).toFixed(2));
+}
+
 async function canAccessTenant(requester, tenantId) {
   if (!requester) return false;
 
@@ -337,7 +399,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -919,6 +981,205 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       });
 
       return res.status(200).json({ valorTaxaTotal, minutosEspera, valorEspera, valorSubir, formaCobranca: 'divida_lojista' });
+    }
+
+    // Confirmação de recebimento da taxa de espera/subida (plano de
+    // segurança 2026-09-27): antes o entregador confirmava direto no banco,
+    // lendo só a PRÓPRIA cópia (taxasAReceber) — bastava fabricar um registro
+    // com o mesmo id de uma dívida real de outro lojista pra "confirmar"
+    // (limpar) uma dívida que nunca foi paga. Agora confere pela cópia
+    // CANÔNICA (do lado do lojista) que quem chama é de fato o entregador
+    // daquela dívida específica.
+    if (path === '/confirmar-taxa-espera-recebida') {
+      const { tenantId, dividaId } = req.body || {};
+      if (!tenantId || !dividaId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'dividaId'] });
+      }
+
+      const dividaSnap = await db.ref(`usuarios/${tenantId}/dividasEntregador/${dividaId}`).once('value');
+      const registro = dividaSnap.val();
+      if (!registro) {
+        return res.status(404).json({ error: 'Dívida não encontrada' });
+      }
+      if (String(registro.entregadorUid || '') !== requester.uid) {
+        return res.status(403).json({ error: 'Só o entregador desta dívida pode confirmar o recebimento' });
+      }
+      if (registro.status === 'confirmado') {
+        return res.status(200).json({ jaResolvido: true });
+      }
+
+      const agora = Date.now();
+      const updates = {};
+      updates[`usuarios/${tenantId}/dividasEntregador/${dividaId}/status`] = 'confirmado';
+      updates[`usuarios/${tenantId}/dividasEntregador/${dividaId}/confirmadoEm`] = agora;
+      updates[`usuarios/${requester.uid}/taxasAReceber/${dividaId}/status`] = 'confirmado';
+      updates[`usuarios/${requester.uid}/taxasAReceber/${dividaId}/confirmadoEm`] = agora;
+      await db.ref().update(updates);
+
+      return res.status(200).json({ confirmado: true });
+    }
+
+    // Cobrança na entrega paga EM DINHEIRO (plano de segurança 2026-09-27):
+    // antes o entregador reportava o valor recebido direto do navegador —
+    // um cliente adulterado podia mandar qualquer valor pra marcar o pacote
+    // de qualquer lojista como "pago". Agora o teto vem sempre do
+    // cobrancaEntrega.valor já persistido (mesma validação que
+    // /create-pix-cobranca já faz pro Pix), nunca do que o app manda.
+    if (path === '/confirmar-cobranca-dinheiro') {
+      const { tenantId, rotaId, envioId } = req.body || {};
+      if (!tenantId || !rotaId || !envioId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
+      }
+
+      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
+      const rota = rotaSnap.val();
+      if (!rota) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+      if (!entregadorId || requester.uid !== entregadorId) {
+        return res.status(403).json({ error: 'Só o entregador desta rota pode confirmar a cobrança' });
+      }
+
+      const { dados: pacote } = await resolverEnvioLojista(tenantId, envioId);
+      const cobranca = pacote?.cobrancaEntrega;
+      const valor = Number(cobranca?.valor);
+      if (!pacote || !cobranca?.ativa || !Number.isFinite(valor) || valor <= 0) {
+        return res.status(422).json({ error: 'Envio sem cobrança na entrega ativa' });
+      }
+      if (cobranca.status !== 'pendente') {
+        return res.status(409).json({ error: 'Cobrança já processada para este envio' });
+      }
+
+      await ajustarDividaUsuarioServer(entregadorId, valor);
+      await syncEnvioFields(tenantId, envioId, {
+        'cobrancaEntrega/status': 'pago',
+        'cobrancaEntrega/valorDinheiro': valor,
+        'cobrancaEntrega/valorPix': 0,
+        'cobrancaEntrega/pagoEm': Date.now()
+      });
+
+      return res.status(200).json({ valor });
+    }
+
+    // Crédito da rota finalizada pro entregador (plano de segurança
+    // 2026-09-27): antes o valor vinha calculado no navegador do PRÓPRIO
+    // entregador a partir do espelho local dele (rotaObj/pacotes) — bastava
+    // chamar creditarCarteiraEntregadorRotaFinalizada direto do console com
+    // um valor inflado pra se creditar o quanto quisesse. Agora o servidor
+    // recalcula tudo a partir da rota+pacotes CANÔNICOS do lado do lojista
+    // (resolverEnvioLojista, dual-model-aware) e decide sozinho se houve
+    // entrega de verdade — nunca confia em nenhum valor vindo do cliente.
+    if (path === '/creditar-rota-finalizada') {
+      const { tenantId, rotaId } = req.body || {};
+      if (!tenantId || !rotaId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId'] });
+      }
+
+      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
+      const rota = rotaSnap.val();
+      if (!rota) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+      if (!entregadorId || requester.uid !== entregadorId) {
+        return res.status(403).json({ error: 'Só o entregador desta rota pode creditar' });
+      }
+
+      // Mesma trava de crédito duplicado da versão antiga (lê-e-grava em vez
+      // de .transaction(), mesmo motivo documentado em ajustarDividaUsuarioServer).
+      const markerRef = db.ref(`usuarios/${entregadorId}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`);
+      const markerSnap = await markerRef.once('value');
+      if (markerSnap.val()) {
+        const saldoSnap = await db.ref(`usuarios/${entregadorId}/financeiro/saldo`).once('value');
+        return res.status(200).json({ creditado: false, jaCreditado: true, saldoAtualizado: Number(saldoSnap.val() || 0) });
+      }
+
+      const pacoteIds = Array.isArray(rota.pacoteIds) ? rota.pacoteIds : (Array.isArray(rota.pacotes) ? rota.pacotes : []);
+      const pacotes = [];
+      for (const envioId of pacoteIds) {
+        const { dados } = await resolverEnvioLojista(tenantId, String(envioId));
+        if (dados) pacotes.push(dados);
+      }
+
+      const desfechoPacote = (p) => {
+        const status = String(p?.statusRaw || p?.status || '').toUpperCase();
+        if (status === 'ENTREGUE') return 'entregue';
+        if (p?.devolucaoStatus === 'DEVOLVIDO') return 'devolvido';
+        if (status === 'CANCELADO') return 'cancelado';
+        return 'pendente';
+      };
+      const teveEntrega = pacotes.some((p) => desfechoPacote(p) === 'entregue');
+
+      const semCredito = async (valorCreditado = 0) => {
+        const saldoSnap = await db.ref(`usuarios/${entregadorId}/financeiro/saldo`).once('value');
+        return res.status(200).json({ creditado: false, saldoAtualizado: Number(saldoSnap.val() || 0), valorCreditado });
+      };
+
+      if (!teveEntrega) {
+        return semCredito(0);
+      }
+
+      let valorBruto = 0;
+      for (const v of [rota.totalFrete, rota.valorTotal, rota.valor, rota.preco]) {
+        const num = Number(v);
+        if (Number.isFinite(num) && num > 0) { valorBruto = Number(num.toFixed(2)); break; }
+      }
+      if (valorBruto <= 0) {
+        valorBruto = Number(pacotes.reduce((acc, p) => acc + (Number(p?.valorFrete) || 0), 0).toFixed(2));
+      }
+      if (valorBruto <= 0) {
+        return semCredito(0);
+      }
+
+      const distanciaKm = Number(rota.distanciaTotal) || pacotes.reduce((acc, p) => acc + (Number(p?.distanciaKm) || 0), 0);
+      const valorCredito = calcularValorRepasseEntregador(valorBruto, distanciaKm);
+      if (valorCredito <= 0) {
+        return semCredito(0);
+      }
+
+      await markerRef.set(Date.now());
+
+      // Liquidação automática: mesma regra da versão antiga (abate dívida em
+      // dinheiro do entregador primeiro, só o que sobra vira saldo livre).
+      const dividaSnap = await db.ref(`usuarios/${entregadorId}/financeiro/divida`).once('value');
+      const dividaAntes = Number(dividaSnap.val() || 0);
+      const abatimentoDivida = Number(Math.min(valorCredito, Math.max(0, dividaAntes)).toFixed(2));
+      const saldoLiberado = Number((valorCredito - abatimentoDivida).toFixed(2));
+      if (abatimentoDivida > 0) {
+        await ajustarDividaUsuarioServer(entregadorId, -abatimentoDivida);
+      }
+      let saldoAtualizado;
+      if (saldoLiberado > 0) {
+        const resultadoSaldo = await ajustarSaldoUsuarioServer(entregadorId, saldoLiberado);
+        saldoAtualizado = resultadoSaldo.saldoDepois;
+      } else {
+        const saldoSnap = await db.ref(`usuarios/${entregadorId}/financeiro/saldo`).once('value');
+        saldoAtualizado = Number(saldoSnap.val() || 0);
+      }
+
+      const agora = Date.now();
+      const updates = {};
+      updates[`usuarios/${entregadorId}/financeiro/atualizadoEm`] = agora;
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/creditoEntregadorValor`] = valorCredito;
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/creditoEntregadorAbatimentoDivida`] = abatimentoDivida;
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`] = agora;
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/atualizadoEm`] = agora;
+      updates[`usuarios/${tenantId}/rotas/${rotaId}/creditoEntregadorValor`] = valorCredito;
+      updates[`usuarios/${tenantId}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`] = agora;
+      updates[`usuarios/${tenantId}/rotas/${rotaId}/atualizadoEm`] = agora;
+      await db.ref().update(updates);
+
+      const txRef = db.ref(`usuarios/${entregadorId}/financeiro/transacoes`).push();
+      await txRef.set({
+        id: txRef.key,
+        tipo: 'CREDITO',
+        valor: valorCredito,
+        descricao: `Rota ${rotaId} finalizada`,
+        criadoEm: agora
+      });
+
+      return res.status(200).json({ creditado: true, saldoAtualizado, valorCreditado: valorCredito });
     }
 
     // path === '/check-pix'

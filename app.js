@@ -107,7 +107,6 @@
     calcularPesoTotalRota: () => calcularPesoTotalRota,
     calcularResumoAtivoEntregador: () => calcularResumoAtivoEntregador,
     calcularResumoDiaEntregador: () => calcularResumoDiaEntregador,
-    calcularValorCreditoRota: () => calcularValorCreditoRota,
     caminhoFinanceiroUsuario: () => caminhoFinanceiroUsuario,
     cancelarCorridaPacoteAtual: () => cancelarCorridaPacoteAtual,
     cancelarEdicaoDestinoEnvio: () => cancelarEdicaoDestinoEnvio,
@@ -148,7 +147,6 @@
     copiarCodigoPixQuitacaoDivida: () => copiarCodigoPixQuitacaoDivida,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
     copiarLinkRastreioPacote: () => copiarLinkRastreioPacote,
-    creditarCarteiraEntregadorRotaFinalizada: () => creditarCarteiraEntregadorRotaFinalizada,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
     criarNotificacao: () => criarNotificacao,
     criarPagamentoPixMercadoPago: () => criarPagamentoPixMercadoPago,
@@ -3957,104 +3955,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       getUsuarioIdAtual() || rotaObj?.entregadorId || rotaObj?.aceitoPor || rotaObj?.entregadorUid || ""
     ).trim();
   }
-  function calcularValorBrutoRota(rotaObj = {}, pacotes = []) {
-    const candidatos = [
-      rotaObj?.totalFrete,
-      rotaObj?.valorTotal,
-      rotaObj?.valor,
-      rotaObj?.preco
-    ];
-    for (const v of candidatos) {
-      const num = Number(v);
-      if (Number.isFinite(num) && num > 0) return Number(num.toFixed(2));
-      const moeda = parseMoedaParaNumero(v);
-      if (Number.isFinite(moeda) && moeda > 0) return Number(moeda.toFixed(2));
-    }
-    const somaPacotes = (Array.isArray(pacotes) ? pacotes : []).reduce((acc, p) => {
-      const freteNum = Number(p?.valorFrete);
-      if (Number.isFinite(freteNum) && freteNum > 0) return acc + freteNum;
-      const freteMoeda = parseMoedaParaNumero(p?.valor || p?.frete || 0);
-      return acc + (Number.isFinite(freteMoeda) ? freteMoeda : 0);
-    }, 0);
-    return Number(somaPacotes.toFixed(2));
-  }
-  function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
-    const bruto = calcularValorBrutoRota(rotaObj, pacotes);
-    if (bruto <= 0) return 0;
-    const distanciaKm = Number(rotaObj?.distanciaTotal) || pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
-    return calcularValorRepasseEntregador(bruto, distanciaKm);
-  }
   function atualizarWalletChipEntregadorUI(saldo = 0) {
     document.querySelectorAll(".entregador-wallet-chip span").forEach((el) => {
       el.textContent = precoParaMoeda(Number(saldo) || 0);
     });
-  }
-  async function creditarCarteiraEntregadorRotaFinalizada(rotaObj = {}, valorCredito = 0) {
-    const rotaId = String(rotaObj?.id || "").trim();
-    const uidEntregador = obterEntregadorUidDaRota(rotaObj);
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, {});
-    const valor = Number(valorCredito || 0);
-    if (!rotaId || !uidEntregador || !Number.isFinite(valor) || valor <= 0) {
-      return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    }
-    const agora = Date.now();
-    const markerRef = db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`);
-    let markerJaExistia = false;
-    try {
-      const markerSnap = await markerRef.once("value");
-      markerJaExistia = Boolean(markerSnap.val());
-    } catch (err) {
-      console.warn("Falha ao checar marcador de cr\xE9dito da rota:", err);
-      return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    }
-    if (markerJaExistia) {
-      return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    }
-    await markerRef.set(agora);
-    let dividaAntesLiquidacao = 0;
-    try {
-      const snapDivida = await db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once("value");
-      dividaAntesLiquidacao = Number(snapDivida.val() || 0);
-    } catch (err) {
-      console.warn("Falha ao ler d\xEDvida antes da liquida\xE7\xE3o:", err);
-    }
-    const abatimentoDivida = Number(Math.min(valor, Math.max(0, dividaAntesLiquidacao)).toFixed(2));
-    const saldoLiberado = Number((valor - abatimentoDivida).toFixed(2));
-    if (abatimentoDivida > 0) {
-      await ajustarDividaUsuario(uidEntregador, -abatimentoDivida);
-    }
-    const resultadoSaldo = saldoLiberado > 0 ? await ajustarSaldoUsuario(uidEntregador, saldoLiberado) : { ok: true, saldoDepois: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    let saldoAtualizado = resultadoSaldo.ok ? resultadoSaldo.saldoDepois : Number(window.usuarioLogado?.financeiro?.saldo || 0);
-    const updates = {
-      [`usuarios/${uidEntregador}/financeiro/atualizadoEm`]: agora,
-      [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorValor`]: valor,
-      [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorAbatimentoDivida`]: abatimentoDivida,
-      [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`]: agora,
-      [`usuarios/${uidEntregador}/rotas/${rotaId}/atualizadoEm`]: agora
-    };
-    if (lojistaUid) {
-      updates[`usuarios/${lojistaUid}/rotas/${rotaId}/creditoEntregadorValor`] = valor;
-      updates[`usuarios/${lojistaUid}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`] = agora;
-      updates[`usuarios/${lojistaUid}/rotas/${rotaId}/atualizadoEm`] = agora;
-    }
-    await db.ref().update(updates);
-    await registrarTransacaoFinanceira("CREDITO", valor, `Rota ${rotaId} finalizada`);
-    if (!window.usuarioLogado) window.usuarioLogado = {};
-    window.usuarioLogado.financeiro = {
-      ...window.usuarioLogado.financeiro || {},
-      saldo: saldoAtualizado,
-      atualizadoEm: agora
-    };
-    if (entregadorHomeCache) {
-      entregadorHomeCache.financeiro = {
-        ...entregadorHomeCache.financeiro || {},
-        saldo: saldoAtualizado,
-        atualizadoEm: agora
-      };
-    }
-    pagamentoPerfilCache.saldo = saldoAtualizado;
-    atualizarWalletChipEntregadorUI(saldoAtualizado);
-    return { creditado: true, saldoAtualizado, valorCreditado: valor };
   }
   async function finalizarRotaSeCompleta(rotaObj, pacotes, { forcarEntregueIdx = -1 } = {}) {
     const rotaId = String(rotaObj?.id || "").trim();
@@ -4111,10 +4015,19 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       };
     }
     let creditoResumo = { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0), valorCreditado: 0 };
-    if (teveEntrega) {
-      const valorCredito = calcularValorCreditoRota(rotaObj, pacotes);
+    if (teveEntrega && lojistaUid) {
       try {
-        creditoResumo = await creditarCarteiraEntregadorRotaFinalizada(rotaObj, valorCredito);
+        const resp = await chamarPaymentsProxy("/creditar-rota-finalizada", { tenantId: lojistaUid, rotaId });
+        if (resp?.creditado) {
+          creditoResumo = { creditado: true, saldoAtualizado: Number(resp.saldoAtualizado || 0), valorCreditado: Number(resp.valorCreditado || 0) };
+          if (!window.usuarioLogado) window.usuarioLogado = {};
+          window.usuarioLogado.financeiro = { ...window.usuarioLogado.financeiro || {}, saldo: creditoResumo.saldoAtualizado, atualizadoEm: Date.now() };
+          if (entregadorHomeCache) {
+            entregadorHomeCache.financeiro = { ...entregadorHomeCache.financeiro || {}, saldo: creditoResumo.saldoAtualizado, atualizadoEm: Date.now() };
+          }
+          pagamentoPerfilCache.saldo = creditoResumo.saldoAtualizado;
+          atualizarWalletChipEntregadorUI(creditoResumo.saldoAtualizado);
+        }
       } catch (err) {
         console.warn("Falha ao creditar carteira do entregador na conclus\xE3o da rota:", err);
       }
@@ -7904,21 +7817,16 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     );
     if (!confirmado) return;
     const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const uidEntregador = getUsuarioIdAtual();
+    const rotaId = rotaObj?.id;
     const envioId = obterIdPacoteConfirmacao(pac);
-    const agora = Date.now();
     try {
-      const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valor);
-      if (!resultadoDivida.ok) throw new Error("Falha ao registrar d\xEDvida.");
-      if (lojistaUid && envioId) {
-        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-          "cobrancaEntrega/status": "pago",
-          "cobrancaEntrega/valorDinheiro": valor,
-          "cobrancaEntrega/valorPix": 0,
-          "cobrancaEntrega/pagoEm": agora
-        });
-      }
-      pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: valor, valorPix: 0, pagoEm: agora };
+      const data = await chamarPaymentsProxy("/confirmar-cobranca-dinheiro", {
+        tenantId: lojistaUid,
+        rotaId,
+        envioId
+      });
+      const agora = Date.now();
+      pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: Number(data?.valor ?? valor), valorPix: 0, pagoEm: agora };
       renderSheetRotaEntregadorConteudo();
     } catch (err) {
       console.warn("Falha ao confirmar recebimento em dinheiro:", err);
@@ -7961,23 +7869,14 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const envioId = obterIdPacoteConfirmacao(pac);
     const agora = Date.now();
     try {
-      if (valorDinheiro > 0) {
-        const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
-        if (!resultadoDivida.ok) throw new Error("Falha ao registrar d\xEDvida.");
-      }
       if (valorPix <= 0) {
-        if (lojistaUid && envioId) {
-          await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-            "cobrancaEntrega/status": "pago",
-            "cobrancaEntrega/valorDinheiro": valorDinheiro,
-            "cobrancaEntrega/valorPix": 0,
-            "cobrancaEntrega/pagoEm": agora
-          });
-        }
-        pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro, valorPix: 0, pagoEm: agora };
+        const data = await chamarPaymentsProxy("/confirmar-cobranca-dinheiro", { tenantId: lojistaUid, rotaId: rotaObj.id, envioId });
+        pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: Number(data?.valor ?? total), valorPix: 0, pagoEm: agora };
         renderSheetRotaEntregadorConteudo();
         return;
       }
+      const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
+      if (!resultadoDivida.ok) throw new Error("Falha ao registrar d\xEDvida.");
       if (lojistaUid && envioId) {
         await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
           "cobrancaEntrega/valorDinheiro": valorDinheiro,
@@ -9447,15 +9346,10 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
       const registro = snap.val();
       if (!registro) return;
       if (!window.confirm(`Confirmar que voc\xEA recebeu ${precoParaMoeda(Number(registro.valor || 0))} da loja via Pix?`)) return;
-      const agora = Date.now();
-      const updates = {};
-      updates[`usuarios/${uid}/taxasAReceber/${id}/status`] = "confirmado";
-      updates[`usuarios/${uid}/taxasAReceber/${id}/confirmadoEm`] = agora;
-      if (registro.lojistaUid) {
-        updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/status`] = "confirmado";
-        updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/confirmadoEm`] = agora;
-      }
-      await db.ref().update(updates);
+      await chamarPaymentsProxy("/confirmar-taxa-espera-recebida", {
+        tenantId: registro.lojistaUid,
+        dividaId: id
+      });
       carregarTaxasAReceberEntregadorHome();
     } catch (err) {
       console.warn("Falha ao confirmar recebimento da taxa:", err);

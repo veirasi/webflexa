@@ -1433,8 +1433,9 @@ function calcularTaxaPlataformaAlvo(valorFrete) {
 
 // distanciaKm é opcional de propósito: em telas que ainda não têm a
 // distância à mão, a proteção de piso simplesmente não se aplica ali (fica
-// só a faixa alvo) — mas o crédito real na carteira (calcularValorCreditoRota)
-// sempre passa a distância, que é onde o piso realmente importa.
+// só a faixa alvo) — mas o crédito real na carteira (Cloud Function
+// /creditar-rota-finalizada, backend/functions/index.js) sempre passa a
+// distância, que é onde o piso realmente importa.
 function calcularTaxaPlataformaRota(valorFrete, distanciaKm) {
     const v = Number(valorFrete || 0);
     if (v <= 0) return 0;
@@ -4009,133 +4010,11 @@ function obterEntregadorUidDaRota(rotaObj = {}) {
     ).trim();
 }
 
-// Devolve o valor BRUTO da rota (o que o lojista pagou) — usado internamente
-// por calcularValorCreditoRota antes de descontar a taxa da plataforma, e
-// por qualquer outro lugar que precise do valor cheio de verdade.
-function calcularValorBrutoRota(rotaObj = {}, pacotes = []) {
-    const candidatos = [
-        rotaObj?.totalFrete,
-        rotaObj?.valorTotal,
-        rotaObj?.valor,
-        rotaObj?.preco
-    ];
-    for (const v of candidatos) {
-        const num = Number(v);
-        if (Number.isFinite(num) && num > 0) return Number(num.toFixed(2));
-        const moeda = parseMoedaParaNumero(v);
-        if (Number.isFinite(moeda) && moeda > 0) return Number(moeda.toFixed(2));
-    }
-
-    const somaPacotes = (Array.isArray(pacotes) ? pacotes : []).reduce((acc, p) => {
-        const freteNum = Number(p?.valorFrete);
-        if (Number.isFinite(freteNum) && freteNum > 0) return acc + freteNum;
-        const freteMoeda = parseMoedaParaNumero(p?.valor || p?.frete || 0);
-        return acc + (Number.isFinite(freteMoeda) ? freteMoeda : 0);
-    }, 0);
-    return Number(somaPacotes.toFixed(2));
-}
-
-// Valor que realmente cai na carteira do entregador: valor bruto menos a
-// taxa da plataforma (ver [COMISSÃO DA PLATAFORMA] acima). O entregador
-// nunca vê o valor bruto, só este.
-function calcularValorCreditoRota(rotaObj = {}, pacotes = []) {
-    const bruto = calcularValorBrutoRota(rotaObj, pacotes);
-    if (bruto <= 0) return 0;
-    const distanciaKm = Number(rotaObj?.distanciaTotal) || pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
-    return calcularValorRepasseEntregador(bruto, distanciaKm);
-}
 
 function atualizarWalletChipEntregadorUI(saldo = 0) {
     document.querySelectorAll('.entregador-wallet-chip span').forEach((el) => {
         el.textContent = precoParaMoeda(Number(saldo) || 0);
     });
-}
-
-async function creditarCarteiraEntregadorRotaFinalizada(rotaObj = {}, valorCredito = 0) {
-    const rotaId = String(rotaObj?.id || '').trim();
-    const uidEntregador = obterEntregadorUidDaRota(rotaObj);
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, {});
-    const valor = Number(valorCredito || 0);
-    if (!rotaId || !uidEntregador || !Number.isFinite(valor) || valor <= 0) {
-        return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    }
-
-    const agora = Date.now();
-    // Trava contra crédito duplicado: lê-e-grava em vez de .transaction() (mesmo
-    // motivo documentado em ajustarSaldoUsuario — .transaction() nesse app recebe
-    // `null` mesmo quando já existe valor real, o que faria essa trava achar que
-    // "ainda não foi creditado" e liberar um crédito duplicado). Ainda existe uma
-    // janela pequena de corrida entre ler e gravar, mas esse evento (finalizar rota)
-    // só dispara uma vez por ação do entregador, risco baixo na prática.
-    const markerRef = db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`);
-    let markerJaExistia = false;
-    try {
-        const markerSnap = await markerRef.once('value');
-        markerJaExistia = Boolean(markerSnap.val());
-    } catch (err) {
-        console.warn('Falha ao checar marcador de crédito da rota:', err);
-        return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    }
-
-    if (markerJaExistia) {
-        return { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    }
-
-    await markerRef.set(agora);
-
-    // Liquidação automática (ver project-flexa-cobranca-entrega-dinheiro): o
-    // crédito da rota abate a dívida em dinheiro do entregador primeiro; só o
-    // que sobra vira saldo livre. Pix nunca entra aqui (nunca virou dívida).
-    let dividaAntesLiquidacao = 0;
-    try {
-        const snapDivida = await db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once('value');
-        dividaAntesLiquidacao = Number(snapDivida.val() || 0);
-    } catch (err) {
-        console.warn('Falha ao ler dívida antes da liquidação:', err);
-    }
-    const abatimentoDivida = Number(Math.min(valor, Math.max(0, dividaAntesLiquidacao)).toFixed(2));
-    const saldoLiberado = Number((valor - abatimentoDivida).toFixed(2));
-    if (abatimentoDivida > 0) {
-        await ajustarDividaUsuario(uidEntregador, -abatimentoDivida);
-    }
-
-    const resultadoSaldo = saldoLiberado > 0
-        ? await ajustarSaldoUsuario(uidEntregador, saldoLiberado)
-        : { ok: true, saldoDepois: Number(window.usuarioLogado?.financeiro?.saldo || 0) };
-    let saldoAtualizado = resultadoSaldo.ok ? resultadoSaldo.saldoDepois : Number(window.usuarioLogado?.financeiro?.saldo || 0);
-
-    const updates = {
-        [`usuarios/${uidEntregador}/financeiro/atualizadoEm`]: agora,
-        [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorValor`]: valor,
-        [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorAbatimentoDivida`]: abatimentoDivida,
-        [`usuarios/${uidEntregador}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`]: agora,
-        [`usuarios/${uidEntregador}/rotas/${rotaId}/atualizadoEm`]: agora
-    };
-    if (lojistaUid) {
-        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/creditoEntregadorValor`] = valor;
-        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/creditoEntregadorEfetuadoEm`] = agora;
-        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/atualizadoEm`] = agora;
-    }
-    await db.ref().update(updates);
-    await registrarTransacaoFinanceira('CREDITO', valor, `Rota ${rotaId} finalizada`);
-
-    if (!window.usuarioLogado) window.usuarioLogado = {};
-    window.usuarioLogado.financeiro = {
-        ...(window.usuarioLogado.financeiro || {}),
-        saldo: saldoAtualizado,
-        atualizadoEm: agora
-    };
-    if (entregadorHomeCache) {
-        entregadorHomeCache.financeiro = {
-            ...(entregadorHomeCache.financeiro || {}),
-            saldo: saldoAtualizado,
-            atualizadoEm: agora
-        };
-    }
-    pagamentoPerfilCache.saldo = saldoAtualizado;
-    atualizarWalletChipEntregadorUI(saldoAtualizado);
-
-    return { creditado: true, saldoAtualizado, valorCreditado: valor };
 }
 
 // Depois que QUALQUER pacote de uma rota chega a um desfecho final (entrega OU
@@ -4200,13 +4079,25 @@ async function finalizarRotaSeCompleta(rotaObj, pacotes, { forcarEntregueIdx = -
 
     // Só credita o frete da rota pro entregador se pelo menos uma entrega
     // aconteceu de verdade — rota cancelada (tudo devolvido) não gera crédito.
-    // creditarCarteiraEntregadorRotaFinalizada já é idempotente por conta própria,
-    // então é seguro chamar mesmo se essa rota já tiver sido finalizada antes.
+    // O valor de crédito agora é recalculado no servidor a partir da rota/pacotes
+    // canônicos do lojista (ver /creditar-rota-finalizada em backend/functions),
+    // nunca mais a partir do espelho local do entregador — o endpoint já é
+    // idempotente por conta própria, então é seguro chamar mesmo se essa rota já
+    // tiver sido finalizada antes.
     let creditoResumo = { creditado: false, saldoAtualizado: Number(window.usuarioLogado?.financeiro?.saldo || 0), valorCreditado: 0 };
-    if (teveEntrega) {
-        const valorCredito = calcularValorCreditoRota(rotaObj, pacotes);
+    if (teveEntrega && lojistaUid) {
         try {
-            creditoResumo = await creditarCarteiraEntregadorRotaFinalizada(rotaObj, valorCredito);
+            const resp = await chamarPaymentsProxy('/creditar-rota-finalizada', { tenantId: lojistaUid, rotaId });
+            if (resp?.creditado) {
+                creditoResumo = { creditado: true, saldoAtualizado: Number(resp.saldoAtualizado || 0), valorCreditado: Number(resp.valorCreditado || 0) };
+                if (!window.usuarioLogado) window.usuarioLogado = {};
+                window.usuarioLogado.financeiro = { ...(window.usuarioLogado.financeiro || {}), saldo: creditoResumo.saldoAtualizado, atualizadoEm: Date.now() };
+                if (entregadorHomeCache) {
+                    entregadorHomeCache.financeiro = { ...(entregadorHomeCache.financeiro || {}), saldo: creditoResumo.saldoAtualizado, atualizadoEm: Date.now() };
+                }
+                pagamentoPerfilCache.saldo = creditoResumo.saldoAtualizado;
+                atualizarWalletChipEntregadorUI(creditoResumo.saldoAtualizado);
+            }
         } catch (err) {
             console.warn('Falha ao creditar carteira do entregador na conclusão da rota:', err);
         }
@@ -6497,7 +6388,8 @@ async function ajustarSaldoUsuario(uid, delta, { permitirNegativo = true } = {})
 // saldo); divida e dinheiro fisico que o entregador ficou devendo de volta.
 // Nunca misturar os dois campos — combinar so na hora de calcular capacidade
 // (ver calcularCapacidadeCobrancaEntregador) ou na liquidacao automatica
-// (ver creditarCarteiraEntregadorRotaFinalizada). Grava financeiro/dividaDesde
+// (ver Cloud Function /creditar-rota-finalizada, backend/functions/index.js).
+// Grava financeiro/dividaDesde
 // na primeira vez que a divida sai de 0 — usado pro bloqueio de 5 dias.
 async function ajustarDividaUsuario(uid, delta) {
     if (!uid || !Number.isFinite(delta) || delta === 0) {
@@ -8905,6 +8797,10 @@ function copiarCodigoPixCobrancaEntrega() {
 // Confirma o recebimento quando SÓ dinheiro está habilitado pra esse envio
 // (nenhum split necessário). Ver confirmarPagamentoMistoCobranca pro caso em
 // que dinheiro E Pix estão habilitados juntos.
+// SEGURANÇA (2026-09-27): o valor recebido em dinheiro agora é sempre
+// validado pelo servidor contra cobrancaEntrega.valor persistido (mesma
+// checagem que /create-pix-cobranca já faz pro Pix) — antes o navegador do
+// entregador podia reportar qualquer valor pra qualquer lojista.
 async function confirmarRecebimentoDinheiro() {
     const rotaObj = rotaEntSheetRotaAtual;
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
@@ -8920,24 +8816,17 @@ async function confirmarRecebimentoDinheiro() {
     if (!confirmado) return;
 
     const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const uidEntregador = getUsuarioIdAtual();
+    const rotaId = rotaObj?.id;
     const envioId = obterIdPacoteConfirmacao(pac);
-    const agora = Date.now();
 
     try {
-        const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valor);
-        if (!resultadoDivida.ok) throw new Error('Falha ao registrar dívida.');
-
-        if (lojistaUid && envioId) {
-            await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-                'cobrancaEntrega/status': 'pago',
-                'cobrancaEntrega/valorDinheiro': valor,
-                'cobrancaEntrega/valorPix': 0,
-                'cobrancaEntrega/pagoEm': agora
-            });
-        }
-
-        pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro: valor, valorPix: 0, pagoEm: agora };
+        const data = await chamarPaymentsProxy('/confirmar-cobranca-dinheiro', {
+            tenantId: lojistaUid,
+            rotaId,
+            envioId
+        });
+        const agora = Date.now();
+        pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro: Number(data?.valor ?? valor), valorPix: 0, pagoEm: agora };
         renderSheetRotaEntregadorConteudo();
     } catch (err) {
         console.warn('Falha ao confirmar recebimento em dinheiro:', err);
@@ -8994,28 +8883,23 @@ async function confirmarPagamentoMistoCobranca() {
     const agora = Date.now();
 
     try {
-        if (valorDinheiro > 0) {
-            const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
-            if (!resultadoDivida.ok) throw new Error('Falha ao registrar dívida.');
-        }
-
         if (valorPix <= 0) {
-            // Dinheiro cobriu o total — fecha aqui, sem Pix nenhum.
-            if (lojistaUid && envioId) {
-                await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-                    'cobrancaEntrega/status': 'pago',
-                    'cobrancaEntrega/valorDinheiro': valorDinheiro,
-                    'cobrancaEntrega/valorPix': 0,
-                    'cobrancaEntrega/pagoEm': agora
-                });
-            }
-            pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro, valorPix: 0, pagoEm: agora };
+            // Dinheiro cobriu o total — mesma rota seguida pelo fluxo "só
+            // dinheiro" (plano de segurança 2026-09-27): o servidor recalcula o
+            // valor a partir de cobrancaEntrega.valor persistido e credita a
+            // dívida do entregador, nunca confia no que este app mandar.
+            const data = await chamarPaymentsProxy('/confirmar-cobranca-dinheiro', { tenantId: lojistaUid, rotaId: rotaObj.id, envioId });
+            pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro: Number(data?.valor ?? total), valorPix: 0, pagoEm: agora };
             renderSheetRotaEntregadorConteudo();
             return;
         }
 
-        // Sobrou parte em Pix: grava o que já veio em dinheiro (não perde esse
-        // registro se o app fechar no meio) e gera o Pix só da diferença.
+        // Sobrou parte em Pix: registra a dívida do valor já recebido em
+        // dinheiro (escrita na própria conta, autorizada) e grava o valor
+        // pra não perder o registro se o app fechar no meio — o teto do Pix
+        // em si já é sempre revalidado no servidor (/create-pix-cobranca).
+        const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
+        if (!resultadoDivida.ok) throw new Error('Falha ao registrar dívida.');
         if (lojistaUid && envioId) {
             await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
                 'cobrancaEntrega/valorDinheiro': valorDinheiro,
@@ -10974,6 +10858,11 @@ async function carregarTaxasAReceberEntregadorHome() {
     }
 }
 
+// SEGURANÇA (2026-09-27): confirmar aqui só lê a PRÓPRIA cópia
+// (taxasAReceber) — bastava fabricar um registro com o id de uma dívida
+// alheia pra "limpar" a dívida real de outro lojista. Migrado pra Cloud
+// Function (/confirmar-taxa-espera-recebida), que confere pela cópia
+// canônica do lado do lojista quem é de fato o entregador daquela dívida.
 async function confirmarRecebimentoTaxaEntregador(id) {
     const uid = getUsuarioIdAtual();
     if (!uid || !id) return;
@@ -10985,15 +10874,10 @@ async function confirmarRecebimentoTaxaEntregador(id) {
 
         if (!window.confirm(`Confirmar que você recebeu ${precoParaMoeda(Number(registro.valor || 0))} da loja via Pix?`)) return;
 
-        const agora = Date.now();
-        const updates = {};
-        updates[`usuarios/${uid}/taxasAReceber/${id}/status`] = 'confirmado';
-        updates[`usuarios/${uid}/taxasAReceber/${id}/confirmadoEm`] = agora;
-        if (registro.lojistaUid) {
-            updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/status`] = 'confirmado';
-            updates[`usuarios/${registro.lojistaUid}/dividasEntregador/${id}/confirmadoEm`] = agora;
-        }
-        await db.ref().update(updates);
+        await chamarPaymentsProxy('/confirmar-taxa-espera-recebida', {
+            tenantId: registro.lojistaUid,
+            dividaId: id
+        });
         carregarTaxasAReceberEntregadorHome();
     } catch (err) {
         console.warn('Falha ao confirmar recebimento da taxa:', err);
@@ -14566,7 +14450,6 @@ export {
   calcularPesoTotalRota,
   calcularResumoAtivoEntregador,
   calcularResumoDiaEntregador,
-  calcularValorCreditoRota,
   caminhoFinanceiroUsuario,
   cancelarCorridaPacoteAtual,
   cancelarEdicaoDestinoEnvio,
@@ -14607,7 +14490,6 @@ export {
   copiarCodigoPixQuitacaoDivida,
   copiarCodigoPixRota,
   copiarLinkRastreioPacote,
-  creditarCarteiraEntregadorRotaFinalizada,
   creditarSaldoUsuarioAtual,
   criarNotificacao,
   criarPagamentoPixMercadoPago,
