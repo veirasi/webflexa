@@ -3568,10 +3568,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     </div>
 
     <div class="sheet-meta-row">
-        <div class="sheet-meta-item"><i data-lucide="navigation" size="16"></i><strong>${escaparHtmlMarketplace(distanciaTxt)}</strong><small>total</small></div>
-        <div class="sheet-meta-item"><i data-lucide="clock-3" size="16"></i><strong>${escaparHtmlMarketplace(duracaoTxt)}</strong><small>estimados</small></div>
-        <div class="sheet-meta-item"><i data-lucide="package" size="16"></i><strong>${totalPacotesNum}</strong><small>pacote${totalPacotesNum > 1 ? "s" : ""}</small></div>
-        <div class="sheet-meta-item"><i data-lucide="flag" size="16"></i><strong>${qtdParadas}</strong><small>parada${qtdParadas > 1 ? "s" : ""}</small></div>
+        <div class="sheet-meta-item"><i data-lucide="route"></i><strong>${escaparHtmlMarketplace(distanciaTxt)}</strong><small>total</small></div>
+        <div class="sheet-meta-item"><i data-lucide="clock"></i><strong>${escaparHtmlMarketplace(duracaoTxt)}</strong><small>estimados</small></div>
+        <div class="sheet-meta-item"><i data-lucide="box"></i><strong>${totalPacotesNum}</strong><small>pacote${totalPacotesNum > 1 ? "s" : ""}</small></div>
+        <div class="sheet-meta-item"><i data-lucide="flag"></i><strong>${qtdParadas}</strong><small>parada${qtdParadas > 1 ? "s" : ""}</small></div>
     </div>
 
     <div class="sheet-route-timeline">

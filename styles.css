@@ -5754,11 +5754,13 @@ body.usuario-entregador #entregador-rotas-shell {
 #buscar-sheet-content .sheet-price-km { font-size: 13px; font-weight: 700; color: var(--text-sub); margin-top: 2px; }
 #buscar-sheet-content .sheet-price-icon { color: #e2e8f0; }
 
-#buscar-sheet-content .sheet-meta-row { display: flex; gap: 6px; }
-#buscar-sheet-content .sheet-meta-row .sheet-meta-item { flex: 1; flex-direction: column; justify-content: center; text-align: center; gap: 4px; padding: 10px 4px; }
-#buscar-sheet-content .sheet-meta-row .sheet-meta-item i { color: var(--brand-orange); }
-#buscar-sheet-content .sheet-meta-row .sheet-meta-item strong { display: block; font-size: 13px; color: var(--text-main); }
-#buscar-sheet-content .sheet-meta-row .sheet-meta-item small { display: block; font-size: 10px; font-weight: 600; color: var(--text-sub); }
+#buscar-sheet-content .sheet-meta-row { display: flex; padding: 14px 0; border-top: 1px solid #eef2f6; border-bottom: 1px solid #eef2f6; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item { flex: 1; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; padding: 0 4px; border: none; border-radius: 0; background: transparent; position: relative; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item:not(:first-child)::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: #e5e7eb; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item { color: #0d9488; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item svg { width: 22px; height: 22px; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item strong { display: block; font-size: 15px; color: var(--text-main); }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item small { display: block; font-size: 11px; font-weight: 600; color: var(--text-sub); }
 
 #buscar-sheet-content .sheet-route-timeline { display: flex; flex-direction: column; }
 #buscar-sheet-content .sheet-route-point { display: flex; align-items: center; gap: 12px; position: relative; padding: 6px 0; }
