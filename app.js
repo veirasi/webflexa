@@ -5110,96 +5110,40 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (espera.finalizada) return;
     const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
     const envioId = obterIdPacoteConfirmacao(pac);
-    if (!lojistaUid || !envioId) return;
+    const rotaId = rotaObj?.id;
+    if (!lojistaUid || !envioId || !rotaId) return;
     const chegouEm = Number(espera.chegouEm) || 0;
-    const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
-    const valorEspera = Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
-    const valorSubir = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-    const valorTaxaTotal = Number((valorEspera + valorSubir).toFixed(2));
-    if (valorTaxaTotal <= 0) {
-      if (chegouEm) {
-        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-          "esperaEntrega/finalizada": true,
-          "esperaEntrega/minutosEspera": minutosEspera,
-          "esperaEntrega/valorEspera": 0,
-          "esperaEntrega/valorSubir": 0,
-          "esperaEntrega/valorTaxaTotal": 0
-        }).catch(() => {
-        });
-      }
-      return;
-    }
-    const partes = [];
-    if (valorEspera > 0) partes.push(`${minutosEspera} min de espera (${precoParaMoeda(valorEspera)})`);
-    if (valorSubir > 0) partes.push(`subida no local (${precoParaMoeda(valorSubir)})`);
-    const motivo = partes.join(" + ");
-    const recebeuEmDinheiro = window.confirm(
-      `Taxa extra pra voc\xEA: ${precoParaMoeda(valorTaxaTotal)} (${motivo}).
+    const minutosEsperaEstimado = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
+    const valorEsperaEstimado = Number((minutosEsperaEstimado * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubirEstimado = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+    const valorTaxaEstimado = Number((valorEsperaEstimado + valorSubirEstimado).toFixed(2));
+    let recebeuEmDinheiro = false;
+    if (valorTaxaEstimado > 0) {
+      const partes = [];
+      if (valorEsperaEstimado > 0) partes.push(`${minutosEsperaEstimado} min de espera (${precoParaMoeda(valorEsperaEstimado)})`);
+      if (valorSubirEstimado > 0) partes.push(`subida no local (${precoParaMoeda(valorSubirEstimado)})`);
+      const motivo = partes.join(" + ");
+      recebeuEmDinheiro = window.confirm(
+        `Taxa extra pra voc\xEA: ${precoParaMoeda(valorTaxaEstimado)} (${motivo}).
 
 Voc\xEA recebeu esse valor EM DINHEIRO do cliente agora?
 
 OK = recebi em dinheiro (fica com voc\xEA)
 Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
-    );
-    if (recebeuEmDinheiro) {
-      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-        "esperaEntrega/finalizada": true,
-        "esperaEntrega/minutosEspera": minutosEspera,
-        "esperaEntrega/valorEspera": valorEspera,
-        "esperaEntrega/valorSubir": valorSubir,
-        "esperaEntrega/valorTaxaTotal": valorTaxaTotal,
-        "esperaEntrega/formaCobranca": "dinheiro_direto",
-        "esperaEntrega/taxaPaga": true,
-        "esperaEntrega/taxaPagoEm": Date.now()
-      }).catch(() => {
-      });
+      );
+    } else if (!chegouEm) {
       return;
     }
-    await criarDividaLojistaEntregador({
-      lojistaUid,
-      uidEntregador: getUsuarioIdAtual(),
-      rotaId: rotaObj?.id,
-      envioId,
-      valor: valorTaxaTotal,
-      motivo
-    });
-    await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-      "esperaEntrega/finalizada": true,
-      "esperaEntrega/minutosEspera": minutosEspera,
-      "esperaEntrega/valorEspera": valorEspera,
-      "esperaEntrega/valorSubir": valorSubir,
-      "esperaEntrega/valorTaxaTotal": valorTaxaTotal,
-      "esperaEntrega/formaCobranca": "divida_lojista",
-      "esperaEntrega/taxaPaga": false
-    }).catch(() => {
-    });
-  }
-  async function criarDividaLojistaEntregador({ lojistaUid, uidEntregador, rotaId, envioId, valor, motivo }) {
-    if (!lojistaUid || !uidEntregador || !(Number(valor) > 0)) return;
     try {
-      const finSnap = await db.ref(`usuarios/${uidEntregador}/financeiro`).once("value");
-      const fin = finSnap.val() || {};
-      const id = db.ref().push().key;
-      const registro = {
-        id,
-        lojistaUid,
-        entregadorUid: uidEntregador,
-        entregadorNome: window.usuarioLogado?.nome || "Entregador",
-        valor: Number(valor),
-        motivo: motivo || "Taxa de espera/subida",
-        rotaId: String(rotaId || ""),
-        envioId: String(envioId || ""),
-        criadoEm: Date.now(),
-        pixTipo: fin?.pix?.tipo || "",
-        pixChave: fin?.pix?.chave || "",
-        status: "pendente"
-      };
-      const updates = {};
-      updates[`usuarios/${lojistaUid}/dividasEntregador/${id}`] = registro;
-      updates[`usuarios/${uidEntregador}/taxasAReceber/${id}`] = registro;
-      await db.ref().update(updates);
+      await chamarPaymentsProxy("/resolver-taxa-espera", {
+        tenantId: lojistaUid,
+        rotaId,
+        envioId,
+        recebeuEmDinheiro
+      });
     } catch (err) {
-      console.warn("Falha ao criar d\xEDvida lojista->entregador:", err);
+      console.warn("Falha ao resolver taxa de espera:", err);
+      if (valorTaxaEstimado > 0) alert("N\xE3o foi poss\xEDvel registrar a taxa de espera agora. Tente novamente.");
     }
   }
   async function relatarProblemaRota() {

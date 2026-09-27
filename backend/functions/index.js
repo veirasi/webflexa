@@ -95,6 +95,14 @@ async function routeGoogleDistanceMatrix(origin, destination, apiKey) {
   };
 }
 
+// Taxa de espera/subida (mesmas constantes do frontend, src/legacy-monolith.js
+// TAXA_ESPERA_GRACE_MIN/TAXA_ESPERA_POR_MIN/TAXA_SUBIR_FIXA) — precisam ficar
+// iguais nos dois lados, senão o valor mostrado antes de confirmar diverge do
+// valor que o servidor de fato grava.
+const TAXA_ESPERA_GRACE_MIN = 4;
+const TAXA_ESPERA_POR_MIN = 1;
+const TAXA_SUBIR_FIXA = 6;
+
 // Este app grava envio em DOIS modelos de dados dependendo de qual fluxo criou
 // ele: usuarios/{uid}/pacotes/{id} (modelo novo) ou usuarios/{uid}/clientes/{c}/historico[]
 // (modelo antigo, usado pelo fluxo padrão "Novo Envio" do lojista). Resolve o
@@ -122,6 +130,60 @@ async function resolverEnvioLojista(tenantId, envioId) {
   }
 
   return { dados: null, path: null };
+}
+
+// Mesmo padrão de sincronizarCamposEnvioLojista no frontend: grava sempre no
+// modelo novo (pacotes/{envioId}) e, se achar o mesmo id no modelo antigo
+// (clientes/*/historico), grava lá também — mantém os dois em sincronia
+// igual o app já faz hoje, sem mudar qual modelo cada tela lê.
+async function syncEnvioFields(tenantId, envioId, campos) {
+  const updates = {};
+  Object.keys(campos).forEach((chave) => {
+    updates[`usuarios/${tenantId}/pacotes/${envioId}/${chave}`] = campos[chave];
+  });
+
+  const clientesSnap = await db.ref(`usuarios/${tenantId}/clientes`).once('value');
+  const clientesNo = clientesSnap.val() || {};
+  Object.keys(clientesNo).forEach((clienteId) => {
+    const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
+    historico.forEach((h, idx) => {
+      const idAtual = String(h?.id || `envio-${clienteId}-${idx}`);
+      if (idAtual !== envioId) return;
+      Object.keys(campos).forEach((chave) => {
+        updates[`usuarios/${tenantId}/clientes/${clienteId}/historico/${idx}/${chave}`] = campos[chave];
+      });
+    });
+  });
+
+  await db.ref().update(updates);
+}
+
+// Mesmo padrão de criarDividaLojistaEntregador no frontend: grava a dívida
+// nos dois espelhos (lojista deve, entregador tem a receber).
+async function criarDividaLojistaEntregador({ lojistaUid, uidEntregador, entregadorNome, rotaId, envioId, valor, motivo }) {
+  const finSnap = await db.ref(`usuarios/${uidEntregador}/financeiro`).once('value');
+  const fin = finSnap.val() || {};
+  const id = db.ref().push().key;
+  const registro = {
+    id,
+    lojistaUid,
+    entregadorUid: uidEntregador,
+    entregadorNome: entregadorNome || 'Entregador',
+    valor: Number(valor),
+    motivo: motivo || 'Taxa de espera/subida',
+    rotaId: String(rotaId || ''),
+    envioId: String(envioId || ''),
+    criadoEm: Date.now(),
+    pixTipo: fin?.pix?.tipo || '',
+    pixChave: fin?.pix?.chave || '',
+    status: 'pendente'
+  };
+
+  const updates = {};
+  updates[`usuarios/${lojistaUid}/dividasEntregador/${id}`] = registro;
+  updates[`usuarios/${uidEntregador}/taxasAReceber/${id}`] = registro;
+  await db.ref().update(updates);
+  return registro;
 }
 
 async function canAccessTenant(requester, tenantId) {
@@ -275,7 +337,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -762,6 +824,101 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         statusDetail: data?.status_detail || '',
         ambiente
       });
+    }
+
+    // Taxa de espera/subida (plano de segurança 2026-09-27): antes o valor
+    // era calculado no navegador do entregador e a dívida gravada direto do
+    // cliente, sem nenhuma validação — um cliente adulterado podia mandar
+    // qualquer valor pra qualquer lojistaUid. Agora o servidor recalcula tudo
+    // a partir de esperaEntrega.chegouEm/subirStatus (já persistidos por
+    // confirmarCheguei/responderSolicitacaoSubida) e só aceita se quem chama
+    // é de fato o entregador desta rota.
+    if (path === '/resolver-taxa-espera') {
+      const { tenantId, rotaId, envioId, recebeuEmDinheiro } = req.body || {};
+      if (!tenantId || !rotaId || !envioId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
+      }
+
+      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
+      const rota = rotaSnap.val();
+      if (!rota) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+      if (!entregadorId || requester.uid !== entregadorId) {
+        return res.status(403).json({ error: 'Só o entregador desta rota pode resolver a taxa' });
+      }
+
+      const { dados: pacote } = await resolverEnvioLojista(tenantId, envioId);
+      if (!pacote) {
+        return res.status(404).json({ error: 'Envio não encontrado' });
+      }
+
+      const espera = pacote.esperaEntrega || {};
+      if (espera.finalizada) {
+        return res.status(200).json({ jaResolvido: true, valorTaxaTotal: Number(espera.valorTaxaTotal || 0) });
+      }
+
+      const chegouEm = Number(espera.chegouEm) || 0;
+      const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
+      const valorEspera = Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
+      const valorSubir = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+      const valorTaxaTotal = Number((valorEspera + valorSubir).toFixed(2));
+
+      if (valorTaxaTotal <= 0) {
+        if (chegouEm) {
+          await syncEnvioFields(tenantId, envioId, {
+            'esperaEntrega/finalizada': true,
+            'esperaEntrega/minutosEspera': minutosEspera,
+            'esperaEntrega/valorEspera': 0,
+            'esperaEntrega/valorSubir': 0,
+            'esperaEntrega/valorTaxaTotal': 0
+          });
+        }
+        return res.status(200).json({ valorTaxaTotal: 0, minutosEspera, valorEspera: 0, valorSubir: 0 });
+      }
+
+      if (recebeuEmDinheiro) {
+        await syncEnvioFields(tenantId, envioId, {
+          'esperaEntrega/finalizada': true,
+          'esperaEntrega/minutosEspera': minutosEspera,
+          'esperaEntrega/valorEspera': valorEspera,
+          'esperaEntrega/valorSubir': valorSubir,
+          'esperaEntrega/valorTaxaTotal': valorTaxaTotal,
+          'esperaEntrega/formaCobranca': 'dinheiro_direto',
+          'esperaEntrega/taxaPaga': true,
+          'esperaEntrega/taxaPagoEm': Date.now()
+        });
+        return res.status(200).json({ valorTaxaTotal, minutosEspera, valorEspera, valorSubir, formaCobranca: 'dinheiro_direto' });
+      }
+
+      const entregadorNomeSnap = await db.ref(`usuarios/${entregadorId}/nome`).once('value');
+      const partes = [];
+      if (valorEspera > 0) partes.push(`${minutosEspera} min de espera (R$ ${valorEspera.toFixed(2)})`);
+      if (valorSubir > 0) partes.push(`subida no local (R$ ${valorSubir.toFixed(2)})`);
+      const motivo = partes.join(' + ');
+
+      await criarDividaLojistaEntregador({
+        lojistaUid: tenantId,
+        uidEntregador: entregadorId,
+        entregadorNome: entregadorNomeSnap.val() || 'Entregador',
+        rotaId,
+        envioId,
+        valor: valorTaxaTotal,
+        motivo
+      });
+
+      await syncEnvioFields(tenantId, envioId, {
+        'esperaEntrega/finalizada': true,
+        'esperaEntrega/minutosEspera': minutosEspera,
+        'esperaEntrega/valorEspera': valorEspera,
+        'esperaEntrega/valorSubir': valorSubir,
+        'esperaEntrega/valorTaxaTotal': valorTaxaTotal,
+        'esperaEntrega/formaCobranca': 'divida_lojista',
+        'esperaEntrega/taxaPaga': false
+      });
+
+      return res.status(200).json({ valorTaxaTotal, minutosEspera, valorEspera, valorSubir, formaCobranca: 'divida_lojista' });
     }
 
     // path === '/check-pix'
