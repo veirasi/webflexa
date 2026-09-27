@@ -3493,7 +3493,6 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
             </div>
         </div>
         <small class="sheet-rota-id">#${escaparHtmlMarketplace(String(rota.id || ''))}</small>
-        <button class="sheet-close-btn" onclick="fecharSheetBuscar()">×</button>
     </div>
 
     <div class="sheet-price-row">
