@@ -7030,6 +7030,9 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
   async function atualizarStatusRotaMaster(lojistaUid, rotaId, status = "BUSCANDO") {
     if (!usuarioEhMaster() || !lojistaUid || !rotaId) return;
     const agora = Date.now();
+    const snapAtual = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once("value");
+    const rotaAtual = snapAtual.val() || {};
+    const entregadorId = rotaAtual?.entregadorId || rotaAtual?.aceitoPor || null;
     const updates = {};
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/status`] = status;
     updates[`usuarios/${lojistaUid}/rotas/${rotaId}/pagamentoStatus`] = status;
@@ -7038,6 +7041,11 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorId`] = null;
       updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoPor`] = null;
       updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoEm`] = null;
+      if (entregadorId) updates[`usuarios/${entregadorId}/rotas/${rotaId}`] = null;
+    } else if (entregadorId) {
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/status`] = status;
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/pagamentoStatus`] = status;
+      updates[`usuarios/${entregadorId}/rotas/${rotaId}/atualizadoEm`] = agora;
     }
     await db.ref().update(updates);
   }
@@ -7045,7 +7053,11 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     if (!usuarioEhMaster() || !lojistaUid || !rotaId) return;
     if (!window.confirm(`Excluir a rota ${rotaId} definitivamente? Isso n\xE3o apaga os pacotes dela, s\xF3 a rota em si \u2014 os pacotes voltam a aparecer como dispon\xEDveis pra entrar em outra rota.`)) return;
     try {
-      await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).remove();
+      const snapAtual = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once("value");
+      const entregadorId = snapAtual.val()?.entregadorId || snapAtual.val()?.aceitoPor || null;
+      const updates = { [`usuarios/${lojistaUid}/rotas/${rotaId}`]: null };
+      if (entregadorId) updates[`usuarios/${entregadorId}/rotas/${rotaId}`] = null;
+      await db.ref().update(updates);
       notificarSucesso("Rota exclu\xEDda.");
       await renderDashboardMaster();
     } catch (err) {
