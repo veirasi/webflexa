@@ -150,7 +150,6 @@
     copiarLinkRastreioPacote: () => copiarLinkRastreioPacote,
     creditarCarteiraEntregadorRotaFinalizada: () => creditarCarteiraEntregadorRotaFinalizada,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
-    criarContaMaster: () => criarContaMaster,
     criarNotificacao: () => criarNotificacao,
     criarPagamentoPixMercadoPago: () => criarPagamentoPixMercadoPago,
     criarPagamentoPixTesteClienteLocal: () => criarPagamentoPixTesteClienteLocal,
@@ -306,7 +305,6 @@
     mostrarInfoParadaTrackingLoja: () => mostrarInfoParadaTrackingLoja,
     mostrarTelaAdminDashboard: () => mostrarTelaAdminDashboard,
     mostrarTelaAdminLogin: () => mostrarTelaAdminLogin,
-    mostrarTelaAdminSignup: () => mostrarTelaAdminSignup,
     moverSwipePaginaRota: () => moverSwipePaginaRota,
     navegar: () => navegar,
     normalizarCidadeRota: () => normalizarCidadeRota,
@@ -796,13 +794,6 @@
     if (v) v.classList.add("active");
     switchAdminTab("overview");
     aplicarTemaAdminSalvo();
-  }
-  function mostrarTelaAdminSignup() {
-    document.querySelectorAll(".view").forEach((v2) => v2.classList.remove("active"));
-    const nav = document.getElementById("main-nav");
-    if (nav) nav.style.display = "none";
-    const v = document.getElementById("view-admin-signup");
-    if (v) v.classList.add("active");
   }
   function ativarModoAdminSeNecessario() {
     const path = (window.location.pathname || "").toLowerCase();
@@ -2544,36 +2535,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       finalizarSplash(splash);
     } catch (err) {
       alert("Falha no login admin: " + err.message);
-    }
-  }
-  async function criarContaMaster() {
-    const nome = document.getElementById("admin-nome")?.value || "";
-    const email = document.getElementById("admin-email-cad")?.value || "";
-    const senha = document.getElementById("admin-pass-cad")?.value || "";
-    const chave = document.getElementById("admin-key")?.value || "";
-    if (!nome || !email || !senha) return alert("Preencha todos os campos obrigat\xF3rios.");
-    try {
-      const cred = await auth.createUserWithEmailAndPassword(email, senha);
-      const payload = {
-        nome,
-        email,
-        tipo: "master",
-        status: "ativo",
-        criadoEm: Date.now()
-      };
-      await db.ref("usuarios/" + cred.user.uid).set(payload);
-      modoAdmin = true;
-      document.body.classList.add("admin-mode");
-      usuarioLogado = { id: cred.user.uid, ...payload };
-      window.usuarioLogado = usuarioLogado;
-      atualizarTopoAdmin(payload.nome, email);
-      mostrarTelaAdminDashboard();
-      await renderDashboardMaster();
-      const splash = document.getElementById("splash-screen");
-      finalizarSplash(splash);
-      alert("Conta master criada com sucesso.");
-    } catch (err) {
-      alert("Falha ao criar conta master: " + err.message);
     }
   }
   function irParaPerfil() {

@@ -32,7 +32,35 @@
         "nome": { ".read": "auth != null" },
         "loja": { ".read": "auth != null" },
         "foto": { ".read": "auth != null" },
-        "tipo": { ".read": "auth != null" },
+
+        // FALHA CORRIGIDA 2026-09-27 (a mais grave encontrada até hoje): antes
+        // "tipo" só herdava a regra genérica do $uid ("dono escreve o que
+        // quiser no próprio nó"), então QUALQUER conta logada conseguia virar
+        // master sozinha rodando db.ref('usuarios/MEU_UID/tipo').set('master')
+        // no console — o que também anulava a única checagem de "master" que
+        // as regras de financeiro/saques faziam de verdade.
+        //
+        // Minha primeira tentativa de correção (usar `root.child(...).val()
+        // === 'master'` pra checar "quem já é master pode mudar") tinha um
+        // bug sutil e CONFIRMADO NA PRÁTICA: `root`/`newData` refletem o
+        // estado DEPOIS da própria escrita — então checar `root` no MESMO
+        // caminho que está sendo escrito é auto-referente (a escrita "eu sou
+        // master" se autoaprova, porque no momento da checagem o valor
+        // hipotético já É 'master'). `.validate` não tem essa armadilha
+        // porque `data`/`newData` aqui são sempre relativos a ESTE campo
+        // específico, nunca a `root`.
+        //
+        // Solução final: tipo só pode ser gravado UMA VEZ (cadastro inicial,
+        // nunca 'master'/'admin' — só 'loja'/'entregador'/'cliente'). Depois
+        // de existir, nenhuma escrita de cliente muda esse valor nunca mais —
+        // qualquer promoção a master precisa passar por fora do app (Cloud
+        // Function com Admin SDK, que ignora estas regras, ou console do
+        // Firebase), nunca por uma escrita comum autorizada por regra.
+        "tipo": {
+          ".read": "auth != null",
+          ".write": "$uid === auth.uid",
+          ".validate": "newData.val() === data.val() || (!data.exists() && newData.val() !== 'master' && newData.val() !== 'admin')"
+        },
         "status": { ".read": "auth != null" },
         "endereco": { ".read": "auth != null" },
 
