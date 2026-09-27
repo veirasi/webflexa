@@ -3,35 +3,46 @@
     ".read": false,
     ".write": false,
 
-    // CORRIGIDO 2026-09-18: o app sempre leu o nó inteiro de um usuário de
-    // uma vez só (`usuarios/{uid}`, ex: no login) e também a coleção
-    // `usuarios` inteira de uma vez (ex: o marketplace do entregador,
-    // montando a lista de fretes disponíveis de TODOS os lojistas). O
-    // Firebase NÃO devolve um resultado "podado" nesses casos — se o
-    // caminho exato pedido não tiver sua própria permissão de leitura, ele
-    // nega tudo, mesmo que campos mais profundos tenham regra própria. Por
-    // isso a leitura em `usuarios` ficou liberada pra qualquer usuário
-    // autenticado de novo (nível abaixo é o mesmo comportamento de antes das
-    // regras, no que diz respeito a LEITURA). A ESCRITA continua travada
-    // como antes — ninguém além do dono (ou um master) consegue alterar
-    // saldo/dívida/clientes/saques de outra pessoa. Isso já é uma proteção
-    // real. Privacidade de leitura de financeiro/clientes entre usuários
-    // fica pendente pra uma segunda etapa (criar um índice separado só com
-    // os campos públicos do marketplace, em vez de ler tudo de uma vez).
+    // Plano de segurança 2026-09-27 (Fase 3): até aqui, `usuarios/.read` era
+    // `auth != null` — o Firebase não devolve leitura "podada" (se o caminho
+    // exato pedido não tem permissão própria, nega tudo, mesmo com regras
+    // mais específicas nos filhos), então isso liberava financeiro/dívida/
+    // saques/clientes de QUALQUER usuário pra QUALQUER autenticado, sempre
+    // que algo lia `usuarios` (coleção inteira) ou `usuarios/{uid}` (nó de
+    // outra pessoa) de uma vez. A ESCRITA nunca dependeu disso (sempre foi
+    // dono-ou-master) — isso já era proteção real. O que faltava era achar,
+    // pra cada leitura ampla existente, um jeito de não precisar mais dela:
+    // o único caso real era `carregarMarketplaceRotasEntregador` (lista de
+    // fretes do entregador, varria `usuarios` inteira) — agora resolvido por
+    // `marketplacePublico` (índice espelhado por Cloud Function, ver
+    // backend/functions/index.js), que só expõe o que o marketplace já
+    // mostrava. Painel master (`renderDashboardMaster`/`adminCarregarPacotes`)
+    // continua lendo `usuarios` inteira, e continua liberado porque quem
+    // chama é master de verdade.
     "usuarios": {
-      ".read": "auth != null",
+      ".read": "auth != null && root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'",
       "$uid": {
+        // Cada um lê o próprio nó inteiro numa tacada só (login, perfil,
+        // etc) — master também, via ".read" do nível acima (regras do
+        // Firebase concedem leitura se QUALQUER nível no caminho permitir).
+        ".read": "$uid === auth.uid",
         ".write": "$uid === auth.uid",
 
         // Perfil "público" do app: nome/loja/foto/tipo/status/endereço
         // precisam ser legíveis por qualquer usuário autenticado porque o
         // marketplace, o chat e o cálculo de rota dependem de ver o perfil de
-        // OUTRO usuário. Não inclui financeiro nem clientes. (Redundante com
-        // o ".read" acima por enquanto, mas fica pronto pra quando o item
-        // acima for apertado de novo.)
+        // OUTRO usuário. Não inclui financeiro nem clientes.
         "nome": { ".read": "auth != null" },
         "loja": { ".read": "auth != null" },
         "foto": { ".read": "auth != null" },
+        "logo": { ".read": "auth != null" },
+
+        // Mesmo nível de exposição que já existia (não é regressão nova):
+        // o card de "entregador ativo" numa rota em andamento mostra o botão
+        // de ligar/WhatsApp pro lojista, então precisa ler o whatsapp de
+        // OUTRO usuário (o entregador) — ver renderCardEntregadorAtivoRota
+        // (linha ~13751 do frontend).
+        "whatsapp": { ".read": "auth != null" },
 
         // FALHA CORRIGIDA 2026-09-27 (a mais grave encontrada até hoje): antes
         // "tipo" só herdava a regra genérica do $uid ("dono escreve o que
@@ -166,6 +177,18 @@
     "pacotes": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+
+    // Índice público do marketplace (plano de segurança 2026-09-27, Fase 3):
+    // espelho gerado só pelos triggers marketplacePublicoUsuarios/
+    // marketplacePublicoPacotesRaiz (Admin SDK, backend/functions/index.js)
+    // a partir de usuarios/{uid}, contendo só os campos que o marketplace do
+    // entregador já mostrava antes de apertar usuarios/.read — nunca
+    // financeiro/dívida/saques/dados de identificação do cliente final.
+    // Cliente nunca escreve aqui direto.
+    "marketplacePublico": {
+      ".read": "auth != null",
+      ".write": false
     },
 
     // Só os Cloud Functions tocam aqui via Admin SDK, que ignora estas regras

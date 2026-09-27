@@ -2960,21 +2960,27 @@ function montarMapaPacotesUsuarioMarketplace(clientesNo = {}) {
 
 async function carregarMarketplaceRotasEntregador() {
     try {
-        const snap = await db.ref('usuarios').once('value');
+        // Plano de segurança 2026-09-27 (Fase 3): antes lia a coleção `usuarios`
+        // inteira (exigia usuarios/.read: auth != null, vazando financeiro/dívida/
+        // saques/clientes de TODO MUNDO pra qualquer autenticado). Agora lê
+        // marketplacePublico, um espelho mantido por Cloud Function trigger
+        // (backend/functions/index.js) só com os campos que este marketplace já
+        // mostrava antes — mesmo formato de usuário, já filtrado por tipo (só
+        // lojista) e sem financeiro/clientes sensíveis, então o resto desta
+        // função continua igual.
+        const snap = await db.ref('marketplacePublico').once('value');
         const usuariosNo = snap.val() || {};
-        // carrega /pacotes raiz uma vez para composição
-        try {
-            const snapPac = await db.ref('pacotes').once('value');
-            window.pacotesRaizCache = snapPac?.val ? (snapPac.val() || {}) : {};
-        } catch (_) {
-            window.pacotesRaizCache = window.pacotesRaizCache || {};
-        }
+        window.pacotesRaizCache = {};
         const lista = [];
 
         Object.keys(usuariosNo).forEach((uid) => {
-            const usuario = usuariosNo[uid] || {};
-            const tipo = normalizarTexto(usuario?.tipo || 'loja');
-            if (tipo === 'entregador' || tipo === 'entrega') return;
+            const entradaPublica = usuariosNo[uid] || {};
+            const usuario = {
+                ...(entradaPublica.perfil || {}),
+                clientes: entradaPublica.clientes || {},
+                rotas: entradaPublica.rotas || {}
+            };
+            window.pacotesRaizCache[uid] = entradaPublica.pacotesRaiz || {};
 
             const rotasNo = usuario?.rotas || {};
             const rotaIds = Object.keys(rotasNo || {});
@@ -3106,7 +3112,7 @@ function iniciarListenerMarketplaceEntregador() {
     if (!usuarioEhEntregador()) return;
     if (marketplaceEntregadorListenerRef) return;
 
-    const ref = db.ref('usuarios');
+    const ref = db.ref('marketplacePublico');
     const callback = async () => {
         rotasMarketplaceEntregadorCache = await carregarMarketplaceRotasEntregador();
         if (document.getElementById('view-buscar')?.classList.contains('active')) {
@@ -11929,11 +11935,16 @@ async function carregarChatsAtivos() {
 
             if (usuarioEhEntregador() && participante.id && (!participante.nome || participante.nome === 'Lojista')) {
                 if (!cacheLojistaNome[participante.id]) {
-                    const snapLojista = await db.ref(`usuarios/${participante.id}`).once('value').catch(() => null);
-                    const dadosLojista = snapLojista?.val() || {};
+                    // Plano de segurança 2026-09-27 (Fase 3): lê só os campos
+                    // públicos (nome/foto), nunca o nó inteiro de outro usuário —
+                    // usuarios/.read passou a exigir dono ou master.
+                    const [nomeSnap, fotoSnap] = await Promise.all([
+                        db.ref(`usuarios/${participante.id}/nome`).once('value').catch(() => null),
+                        db.ref(`usuarios/${participante.id}/foto`).once('value').catch(() => null)
+                    ]);
                     cacheLojistaNome[participante.id] = {
-                        nome: String(dadosLojista?.nome || 'Lojista'),
-                        foto: String(dadosLojista?.foto || '')
+                        nome: String(nomeSnap?.val() || 'Lojista'),
+                        foto: String(fotoSnap?.val() || '')
                     };
                 }
                 participante.nome = cacheLojistaNome[participante.id].nome;
@@ -13743,8 +13754,24 @@ async function abrirModalTrackingLoja(rotaId) {
     const podeChat = hasDriver; // se o card está em rota, o vínculo já existe, libera chat
 
         if (hasDriver) {
-            const snap = await db.ref(`usuarios/${entregadorId}`).once('value');
-            const driver = { ...(snap?.val() || {}), ...entregadorInfoDireto };
+            // Plano de segurança 2026-09-27 (Fase 3): lê só os campos públicos
+            // (nome/tipo/foto/logo/whatsapp), nunca o nó inteiro de outro
+            // usuário — usuarios/.read passou a exigir dono ou master.
+            const [nomeSnap, tipoSnap, fotoSnap, logoSnap, whatsappSnap] = await Promise.all([
+                db.ref(`usuarios/${entregadorId}/nome`).once('value').catch(() => null),
+                db.ref(`usuarios/${entregadorId}/tipo`).once('value').catch(() => null),
+                db.ref(`usuarios/${entregadorId}/foto`).once('value').catch(() => null),
+                db.ref(`usuarios/${entregadorId}/logo`).once('value').catch(() => null),
+                db.ref(`usuarios/${entregadorId}/whatsapp`).once('value').catch(() => null)
+            ]);
+            const driverBanco = {
+                nome: nomeSnap?.val(),
+                tipo: tipoSnap?.val(),
+                foto: fotoSnap?.val(),
+                logo: logoSnap?.val(),
+                whatsapp: whatsappSnap?.val()
+            };
+            const driver = { ...driverBanco, ...entregadorInfoDireto };
             if (nomeEl) nomeEl.innerText = driver.nome || driver.displayName || 'Entregador';
             if (rolEl) rolEl.innerText = driver.tipo === 'entregador' ? 'Entregador' : (driver.tipo || 'Entregador');
             if (fotoEl) {

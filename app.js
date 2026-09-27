@@ -3138,19 +3138,18 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   }
   async function carregarMarketplaceRotasEntregador() {
     try {
-      const snap = await db.ref("usuarios").once("value");
+      const snap = await db.ref("marketplacePublico").once("value");
       const usuariosNo = snap.val() || {};
-      try {
-        const snapPac = await db.ref("pacotes").once("value");
-        window.pacotesRaizCache = snapPac?.val ? snapPac.val() || {} : {};
-      } catch (_) {
-        window.pacotesRaizCache = window.pacotesRaizCache || {};
-      }
+      window.pacotesRaizCache = {};
       const lista = [];
       Object.keys(usuariosNo).forEach((uid) => {
-        const usuario = usuariosNo[uid] || {};
-        const tipo = normalizarTexto(usuario?.tipo || "loja");
-        if (tipo === "entregador" || tipo === "entrega") return;
+        const entradaPublica = usuariosNo[uid] || {};
+        const usuario = {
+          ...entradaPublica.perfil || {},
+          clientes: entradaPublica.clientes || {},
+          rotas: entradaPublica.rotas || {}
+        };
+        window.pacotesRaizCache[uid] = entradaPublica.pacotesRaiz || {};
         const rotasNo = usuario?.rotas || {};
         const rotaIds = Object.keys(rotasNo || {});
         if (!rotaIds.length) return;
@@ -3243,7 +3242,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function iniciarListenerMarketplaceEntregador() {
     if (!usuarioEhEntregador()) return;
     if (marketplaceEntregadorListenerRef) return;
-    const ref = db.ref("usuarios");
+    const ref = db.ref("marketplacePublico");
     const callback = async () => {
       rotasMarketplaceEntregadorCache = await carregarMarketplaceRotasEntregador();
       if (document.getElementById("view-buscar")?.classList.contains("active")) {
@@ -10202,11 +10201,13 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
         const participante = obterParticipanteChatDaRota(rota, meta);
         if (usuarioEhEntregador() && participante.id && (!participante.nome || participante.nome === "Lojista")) {
           if (!cacheLojistaNome[participante.id]) {
-            const snapLojista = await db.ref(`usuarios/${participante.id}`).once("value").catch(() => null);
-            const dadosLojista = snapLojista?.val() || {};
+            const [nomeSnap, fotoSnap] = await Promise.all([
+              db.ref(`usuarios/${participante.id}/nome`).once("value").catch(() => null),
+              db.ref(`usuarios/${participante.id}/foto`).once("value").catch(() => null)
+            ]);
             cacheLojistaNome[participante.id] = {
-              nome: String(dadosLojista?.nome || "Lojista"),
-              foto: String(dadosLojista?.foto || "")
+              nome: String(nomeSnap?.val() || "Lojista"),
+              foto: String(fotoSnap?.val() || "")
             };
           }
           participante.nome = cacheLojistaNome[participante.id].nome;
@@ -11668,8 +11669,21 @@ Acompanhe em tempo real: ${link}`;
       const hasDriver = Boolean(entregadorId);
       const podeChat = hasDriver;
       if (hasDriver) {
-        const snap = await db.ref(`usuarios/${entregadorId}`).once("value");
-        const driver = { ...snap?.val() || {}, ...entregadorInfoDireto };
+        const [nomeSnap, tipoSnap, fotoSnap, logoSnap, whatsappSnap] = await Promise.all([
+          db.ref(`usuarios/${entregadorId}/nome`).once("value").catch(() => null),
+          db.ref(`usuarios/${entregadorId}/tipo`).once("value").catch(() => null),
+          db.ref(`usuarios/${entregadorId}/foto`).once("value").catch(() => null),
+          db.ref(`usuarios/${entregadorId}/logo`).once("value").catch(() => null),
+          db.ref(`usuarios/${entregadorId}/whatsapp`).once("value").catch(() => null)
+        ]);
+        const driverBanco = {
+          nome: nomeSnap?.val(),
+          tipo: tipoSnap?.val(),
+          foto: fotoSnap?.val(),
+          logo: logoSnap?.val(),
+          whatsapp: whatsappSnap?.val()
+        };
+        const driver = { ...driverBanco, ...entregadorInfoDireto };
         if (nomeEl) nomeEl.innerText = driver.nome || driver.displayName || "Entregador";
         if (rolEl) rolEl.innerText = driver.tipo === "entregador" ? "Entregador" : driver.tipo || "Entregador";
         if (fotoEl) {

@@ -1,4 +1,5 @@
 const { onRequest } = require('firebase-functions/v2/https');
+const { onValueWritten } = require('firebase-functions/v2/database');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -247,6 +248,120 @@ function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
   const taxa = calcularTaxaPlataformaRota(v, distanciaKm);
   return Number(Math.max(0, v - taxa).toFixed(2));
 }
+
+// ===================== [ÍNDICE PÚBLICO DO MARKETPLACE] (plano de segurança
+// 2026-09-27, Fase 3) =====================
+// carregarMarketplaceRotasEntregador (frontend) lê a coleção `usuarios`
+// INTEIRA em tempo real pra montar a lista de fretes do entregador — o que
+// exige `usuarios/.read: auth != null` na raiz, vazando financeiro/dívida/
+// saques/clientes de TODO MUNDO pra qualquer autenticado (não é fraude —
+// nenhuma dessas escritas confia no cliente desde a Fase 2 — mas é
+// privacidade real). Em vez disso, este índice espelha SÓ os campos que o
+// marketplace realmente usa (perfil público, rotas em aberto/andamento,
+// pacotes associados com endereço de entrega e detalhes de frete — o MESMO
+// nível de detalhe que o marketplace já expõe hoje antes de aceitar, nunca
+// mais) pra `marketplacePublico/{lojistaUid}`, mantido em sincronia por
+// estes dois triggers (dispara em `usuarios/{uid}` E em `pacotes/{uid}`,
+// porque o app grava pacote em dois modelos — ver resolverEnvioLojista).
+// Isso permite fechar `usuarios/.read` pra master/dono apenas.
+const ALLOWLIST_HISTORICO_ITEM = ['id', 'destino', 'destinoEndereco', 'cidadeDestino', 'cidade', 'servico', 'status', 'statusRaw', 'distanciaKm', 'duracaoMin', 'valorFrete', 'valor', 'tamanho', 'embalagem', 'veiculo', 'tipoFluxo', 'rotaId'];
+const ALLOWLIST_CLIENTE_ENDERECO = ['cidade', 'estado', 'uf', 'endereco', 'cep', 'rua', 'num', 'bairro', 'comp'];
+const ALLOWLIST_ROTA_MARKETPLACE = ['status', 'pagamentoStatus', 'totalFrete', 'pacoteIds', 'pacotes', 'quantidade', 'entregadorId', 'aceitoPor', 'criadoEm'];
+
+function filtrarCampos(obj, campos) {
+  const out = {};
+  campos.forEach((c) => {
+    if (obj && obj[c] !== undefined && obj[c] !== null) out[c] = obj[c];
+  });
+  return out;
+}
+
+async function montarMarketplacePublicoDoLojista(uid) {
+  const marketplaceRef = db.ref(`marketplacePublico/${uid}`);
+  const [userSnap, pacotesRaizSnap] = await Promise.all([
+    db.ref(`usuarios/${uid}`).once('value'),
+    db.ref(`pacotes/${uid}`).once('value')
+  ]);
+  const usuario = userSnap.val();
+  if (!usuario) {
+    await marketplaceRef.remove();
+    return;
+  }
+
+  const tipoRaw = String(usuario.tipo || '').toLowerCase();
+  if (['entrega', 'entregador', 'master', 'admin'].includes(tipoRaw)) {
+    await marketplaceRef.remove();
+    return;
+  }
+
+  const rotasNo = usuario.rotas || {};
+  const rotaIds = Object.keys(rotasNo);
+  if (!rotaIds.length) {
+    await marketplaceRef.remove();
+    return;
+  }
+
+  const rotasFiltradas = {};
+  rotaIds.forEach((rid) => {
+    rotasFiltradas[rid] = filtrarCampos(rotasNo[rid], ALLOWLIST_ROTA_MARKETPLACE);
+  });
+
+  const clientesNo = usuario.clientes || {};
+  const clientesFiltrados = {};
+  Object.keys(clientesNo).forEach((cid) => {
+    const cliente = clientesNo[cid] || {};
+    const historico = Array.isArray(cliente.historico) ? cliente.historico : [];
+    clientesFiltrados[cid] = {
+      ...filtrarCampos(cliente, ALLOWLIST_CLIENTE_ENDERECO),
+      historico: historico.map((h) => filtrarCampos(h, ALLOWLIST_HISTORICO_ITEM))
+    };
+  });
+
+  const pacotesRaizNo = pacotesRaizSnap.val() || {};
+  const pacotesRaizFiltrados = {};
+  Object.keys(pacotesRaizNo).forEach((pid) => {
+    pacotesRaizFiltrados[pid] = filtrarCampos(pacotesRaizNo[pid], ALLOWLIST_HISTORICO_ITEM);
+  });
+
+  await marketplaceRef.set({
+    perfil: {
+      nome: usuario.nome || '',
+      loja: usuario.loja || '',
+      foto: usuario.foto || '',
+      logo: usuario.logo || '',
+      endereco: {
+        cidade: usuario.endereco?.cidade || '',
+        uf: usuario.endereco?.uf || '',
+        estado: usuario.endereco?.estado || ''
+      }
+    },
+    rotas: rotasFiltradas,
+    clientes: clientesFiltrados,
+    pacotesRaiz: pacotesRaizFiltrados,
+    atualizadoEm: Date.now()
+  });
+}
+
+// Triggers de Realtime Database (Eventarc) não têm suporte em
+// southamerica-east1 ainda — us-central1 é a região universalmente
+// suportada hoje para este tipo de gatilho.
+const MARKETPLACE_TRIGGER_REGION = process.env.MARKETPLACE_TRIGGER_REGION || 'us-central1';
+
+exports.marketplacePublicoUsuarios = onValueWritten({ ref: '/usuarios/{uid}', region: MARKETPLACE_TRIGGER_REGION }, async (event) => {
+  try {
+    await montarMarketplacePublicoDoLojista(event.params.uid);
+  } catch (err) {
+    logger.error('marketplace_publico_usuarios_error', err);
+  }
+});
+
+exports.marketplacePublicoPacotesRaiz = onValueWritten({ ref: '/pacotes/{uid}', region: MARKETPLACE_TRIGGER_REGION }, async (event) => {
+  try {
+    await montarMarketplacePublicoDoLojista(event.params.uid);
+  } catch (err) {
+    logger.error('marketplace_publico_pacotes_error', err);
+  }
+});
 
 // Painel master (plano de segurança 2026-09-27): atualizarStatusRotaMaster/
 // adminExcluirRota no frontend só conferiam usuarioEhMaster() no JAVASCRIPT
