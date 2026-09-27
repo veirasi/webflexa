@@ -263,6 +263,22 @@ async function requesterEhMasterOuAdmin(requester) {
   return tipo === 'master' || tipo === 'admin';
 }
 
+// Mesma normalização de normalizarStatusRotaFiltro no frontend (sem a parte
+// de remover acentos — os valores reais gravados no banco pra status de
+// rota são sempre ASCII puro).
+function normalizarStatusRotaServer(status) {
+  const s = String(status || '').trim().toUpperCase().replace(/\s+/g, '_');
+  if (!s) return 'BUSCANDO';
+  if (s === 'EM_ROTA') return 'EM_ROTA';
+  if (['CONCLUIDO', 'CONCLUIDA', 'FINALIZADA', 'FINALIZADO', 'ENTREGUE'].includes(s)) return 'CONCLUIDO';
+  if (s === 'CANCELADO' || s === 'CANCELADA') return 'CANCELADO';
+  return 'BUSCANDO';
+}
+
+function gerarCodigoConfirmacaoEntregaServer() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
 async function canAccessTenant(requester, tenantId) {
   if (!requester) return false;
 
@@ -414,7 +430,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -1268,6 +1284,183 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       await db.ref().update(updates);
 
       return res.status(200).json({ excluido: true });
+    }
+
+    // Aceitar rota no marketplace (plano de segurança 2026-09-27, item 6/6):
+    // a regra do banco pra "rotas" é auth != null (não valida vínculo real
+    // com a rota) — um entregador mal-intencionado podia pular as checagens
+    // de bloqueio por dívida/capacidade de cobrança chamando um update()
+    // direto no console, ou até "roubar" uma rota já aceita por outro
+    // entregador sobrescrevendo entregadorId fora da transação condicional
+    // que o app usa. Agora a aceitação inteira (checagens + transação
+    // condicional + espelhos nos dois modelos) roda no servidor.
+    if (path === '/aceitar-rota-marketplace') {
+      const { lojistaUid, rotaId } = req.body || {};
+      if (!lojistaUid || !rotaId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['lojistaUid', 'rotaId'] });
+      }
+
+      const uidEntregador = requester.uid;
+      const tipoSnap = await db.ref(`usuarios/${uidEntregador}/tipo`).once('value');
+      const tipoRaw = String(tipoSnap.val() || '').toLowerCase();
+      if (tipoRaw !== 'entrega' && tipoRaw !== 'entregador') {
+        return res.status(403).json({ error: 'Somente entregador pode aceitar rota' });
+      }
+
+      // Bloqueio de 5 dias por dívida atrasada (mesma regra de
+      // entregadorBloqueadoPorDividaAtrasada no frontend).
+      const [dividaSnap, desdeSnap] = await Promise.all([
+        db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once('value'),
+        db.ref(`usuarios/${uidEntregador}/financeiro/dividaDesde`).once('value')
+      ]);
+      const divida = Number(dividaSnap.val() || 0);
+      const desde = Number(desdeSnap.val() || 0);
+      const CINCO_DIAS_MS = 5 * 24 * 60 * 60 * 1000;
+      if (divida > 0 && desde > 0 && (Date.now() - desde) > CINCO_DIAS_MS) {
+        return res.status(403).json({ error: 'Conta bloqueada por dívida em aberto há mais de 5 dias', motivo: 'bloqueado_divida' });
+      }
+
+      const rotaSnapPre = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
+      const rotaPre = rotaSnapPre.val();
+      if (!rotaPre) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const pacoteIdsPre = Array.isArray(rotaPre.pacoteIds) ? rotaPre.pacoteIds : (Array.isArray(rotaPre.pacotes) ? rotaPre.pacotes : []);
+
+      // Valor de cobrança em dinheiro dessa rota (mesma regra de
+      // calcularValorCobrancaDinheiroRota) — decide se precisa checar capacidade.
+      let valorCobrancaDinheiro = 0;
+      if (pacoteIdsPre.length) {
+        const pacotesSnap = await db.ref(`usuarios/${lojistaUid}/pacotes`).once('value');
+        const pacotesNo = pacotesSnap.val() || {};
+        pacoteIdsPre.forEach((id) => {
+          const cobranca = pacotesNo[id]?.cobrancaEntrega;
+          if (!cobranca?.ativa || !Array.isArray(cobranca.formasAceitas) || !cobranca.formasAceitas.includes('dinheiro')) return;
+          const v = Number(cobranca.valor);
+          if (Number.isFinite(v) && v > 0) valorCobrancaDinheiro += v;
+        });
+        valorCobrancaDinheiro = Number(valorCobrancaDinheiro.toFixed(2));
+      }
+
+      if (valorCobrancaDinheiro > 0) {
+        const [saldoSnap, dividaSnap2, rotasSnap] = await Promise.all([
+          db.ref(`usuarios/${uidEntregador}/financeiro/saldo`).once('value'),
+          db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once('value'),
+          db.ref(`usuarios/${uidEntregador}/rotas`).once('value')
+        ]);
+        const saldo = Number(saldoSnap.val() || 0);
+        const dividaAtual = Number(dividaSnap2.val() || 0);
+        const rotasNo = rotasSnap.val() || {};
+        let aReceberPendente = 0;
+        Object.values(rotasNo).forEach((r) => {
+          if (normalizarStatusRotaServer(r?.status || r?.pagamentoStatus || 'CRIADA') !== 'EM_ROTA') return;
+          const frete = Number(r?.totalFrete ?? r?.valorTotal ?? 0);
+          if (Number.isFinite(frete) && frete > 0) aReceberPendente += frete;
+        });
+        const capacidade = Number((saldo + aReceberPendente - dividaAtual).toFixed(2));
+        if (capacidade < valorCobrancaDinheiro) {
+          return res.status(403).json({ error: 'Capacidade de cobrança insuficiente', motivo: 'capacidade_insuficiente' });
+        }
+      }
+
+      const [nomeSnap, fotoSnap] = await Promise.all([
+        db.ref(`usuarios/${uidEntregador}/nome`).once('value'),
+        db.ref(`usuarios/${uidEntregador}/foto`).once('value')
+      ]);
+      const entregadorNome = String(nomeSnap.val() || 'Entregador');
+      const entregadorFoto = String(fotoSnap.val() || '');
+      const agora = Date.now();
+      const codigoConfirmacaoColeta = gerarCodigoConfirmacaoEntregaServer();
+
+      const metaEntregador = {
+        entregadorId: uidEntregador,
+        entregadorNome,
+        entregadorFoto,
+        aceitoPor: uidEntregador,
+        aceitoEm: agora,
+        status: 'EM_ROTA',
+        atualizadoEm: agora,
+        coletaConfirmada: false,
+        codigoConfirmacaoColeta
+      };
+
+      const rotaRef = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`);
+      const tx = await rotaRef.transaction((atual) => {
+        if (!atual) return atual;
+        const statusAtual = normalizarStatusRotaServer(atual?.status || atual?.pagamentoStatus || 'CRIADA');
+        const jaTemEntregador = Boolean(atual?.entregadorId || atual?.aceitoPor);
+        if (statusAtual !== 'BUSCANDO' || jaTemEntregador) return;
+        return { ...atual, ...metaEntregador };
+      });
+
+      if (!tx.committed || !tx.snapshot.exists()) {
+        return res.status(409).json({ error: 'Essa rota já foi aceita por outro entregador', motivo: 'ja_aceita' });
+      }
+
+      const rotaAtualizada = tx.snapshot.val() || {};
+      const pacoteIds = Array.isArray(rotaAtualizada?.pacoteIds) ? rotaAtualizada.pacoteIds : (Array.isArray(rotaAtualizada?.pacotes) ? rotaAtualizada.pacotes : []);
+
+      if (pacoteIds.length) {
+        const clientesSnap = await db.ref(`usuarios/${lojistaUid}/clientes`).once('value');
+        const clientesNo = clientesSnap.val() || {};
+        const idsSet = new Set(pacoteIds.map((id) => String(id)));
+        const updatesHistorico = {};
+        Object.keys(clientesNo).forEach((clienteId) => {
+          const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
+          historico.forEach((h, idx) => {
+            const idAtual = String(h?.id || `envio-${clienteId}-${idx}`);
+            if (!idsSet.has(idAtual)) return;
+            updatesHistorico[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/id`] = idAtual;
+            updatesHistorico[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/status`] = 'EM_ROTA';
+            updatesHistorico[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/rotaId`] = String(rotaId);
+            updatesHistorico[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/atualizadoEm`] = agora;
+          });
+        });
+        if (Object.keys(updatesHistorico).length) {
+          await db.ref().update(updatesHistorico);
+        }
+      }
+
+      await db.ref(`rastreioPublico/${rotaId}`).update({
+        entregadorNome,
+        statusRota: 'EM_ROTA',
+        atualizadoEm: agora
+      }).catch(() => {});
+
+      const rotaNoEntregador = {
+        id: String(rotaId),
+        ...rotaAtualizada,
+        origemLojistaUid: String(lojistaUid),
+        lojistaId: String(lojistaUid),
+        lojistaNome: String(rotaAtualizada?.lojistaNome || 'Lojista'),
+        lojistaFoto: String(rotaAtualizada?.lojistaFoto || ''),
+        sincronizadaDoLojista: true,
+        atualizadoEm: agora,
+        origemLabel: rotaAtualizada?.origemLabel || '',
+        origemCidade: rotaAtualizada?.origemCidade || '',
+        destinoPrincipal: rotaAtualizada?.destinoPrincipal || '',
+        destinos: rotaAtualizada?.destinos || [],
+        distanciaTotal: rotaAtualizada?.distanciaTotal || 0,
+        duracaoTotal: rotaAtualizada?.duracaoTotal || 0,
+        totalPacotes: rotaAtualizada?.totalPacotes || pacoteIds.length || 0,
+        totalFrete: rotaAtualizada?.totalFrete || 0
+      };
+      await db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}`).set(rotaNoEntregador);
+
+      const notifRef = db.ref(`usuarios/${lojistaUid}/notificacoes`).push();
+      await notifRef.set({
+        id: notifRef.key,
+        tipo: 'rota_aceita',
+        titulo: 'Rota aceita',
+        mensagem: codigoConfirmacaoColeta
+          ? `${entregadorNome} aceitou a rota #${rotaId}. Código de coleta: ${codigoConfirmacaoColeta} — informe ao entregador quando ele for retirar os pacotes.`
+          : `${entregadorNome} aceitou a rota #${rotaId}.`,
+        rotaId: String(rotaId),
+        lida: false,
+        criadoEm: agora
+      });
+
+      return res.status(200).json({ aceito: true, rota: rotaNoEntregador });
     }
 
     // path === '/check-pix'

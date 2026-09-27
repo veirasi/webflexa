@@ -5228,61 +5228,6 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       document.addEventListener("click", window._buscarDropdownOutsideHandler);
     }
   }
-  async function calcularValorCobrancaDinheiroRota(lojistaUid, rotaId) {
-    try {
-      const rotaSnap = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once("value");
-      const rota = rotaSnap.val() || {};
-      const pacoteIds = Array.isArray(rota.pacoteIds) ? rota.pacoteIds : Array.isArray(rota.pacotes) ? rota.pacotes : [];
-      if (!pacoteIds.length) return 0;
-      const pacotesSnap = await db.ref(`usuarios/${lojistaUid}/pacotes`).once("value");
-      const pacotesNo = pacotesSnap.val() || {};
-      let total = 0;
-      pacoteIds.forEach((id) => {
-        const cobranca = pacotesNo[id]?.cobrancaEntrega;
-        if (!cobranca?.ativa || !Array.isArray(cobranca.formasAceitas) || !cobranca.formasAceitas.includes("dinheiro")) return;
-        const v = Number(cobranca.valor);
-        if (Number.isFinite(v) && v > 0) total += v;
-      });
-      return Number(total.toFixed(2));
-    } catch (err) {
-      console.warn("Falha ao calcular valor de cobran\xE7a em dinheiro da rota:", err);
-      return 0;
-    }
-  }
-  async function calcularCapacidadeCobrancaEntregador(uidEntregador) {
-    const [saldoSnap, dividaSnap, rotasSnap] = await Promise.all([
-      db.ref(`usuarios/${uidEntregador}/financeiro/saldo`).once("value"),
-      db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once("value"),
-      db.ref(`usuarios/${uidEntregador}/rotas`).once("value")
-    ]);
-    const saldo = Number(saldoSnap.val() || 0);
-    const divida = Number(dividaSnap.val() || 0);
-    const rotasNo = rotasSnap.val() || {};
-    let aReceberPendente = 0;
-    Object.values(rotasNo).forEach((r) => {
-      const statusNorm = normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || "CRIADA");
-      if (statusNorm !== "EM_ROTA") return;
-      const frete = Number(r?.totalFrete ?? r?.valorTotal ?? 0);
-      if (Number.isFinite(frete) && frete > 0) aReceberPendente += frete;
-    });
-    return Number((saldo + aReceberPendente - divida).toFixed(2));
-  }
-  var CINCO_DIAS_MS = 5 * 24 * 60 * 60 * 1e3;
-  async function entregadorBloqueadoPorDividaAtrasada(uidEntregador) {
-    try {
-      const [dividaSnap, desdeSnap] = await Promise.all([
-        db.ref(`usuarios/${uidEntregador}/financeiro/divida`).once("value"),
-        db.ref(`usuarios/${uidEntregador}/financeiro/dividaDesde`).once("value")
-      ]);
-      const divida = Number(dividaSnap.val() || 0);
-      const desde = Number(desdeSnap.val() || 0);
-      if (divida <= 0 || !desde) return false;
-      return Date.now() - desde > CINCO_DIAS_MS;
-    } catch (err) {
-      console.warn("Falha ao checar bloqueio por d\xEDvida atrasada:", err);
-      return false;
-    }
-  }
   async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) {
     if (!usuarioEhEntregador()) {
       alert("Somente entregador pode aceitar rota.");
@@ -5300,115 +5245,8 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       btn.innerText = "Aceitando...";
     }
     try {
-      const bloqueadoPorDivida = await entregadorBloqueadoPorDividaAtrasada(uidEntregador);
-      if (bloqueadoPorDivida) {
-        alert("Sua conta est\xE1 bloqueada para novos envios: voc\xEA tem uma d\xEDvida em aberto h\xE1 mais de 5 dias. V\xE1 em Perfil > Pagamento e paga a d\xEDvida via Pix pra liberar.");
-        if (btn) {
-          btn.disabled = false;
-          btn.innerText = textoOriginal || "Aceitar";
-        }
-        return;
-      }
-      const valorCobrancaDinheiro = await calcularValorCobrancaDinheiroRota(lojistaUid, rotaId);
-      if (valorCobrancaDinheiro > 0) {
-        const capacidade = await calcularCapacidadeCobrancaEntregador(uidEntregador);
-        if (capacidade < valorCobrancaDinheiro) {
-          alert("Voc\xEA n\xE3o pode aceitar essa corrida agora \u2014 seu saldo est\xE1 baixo. Aceite ou conclua mais corridas para liberar.");
-          if (btn) {
-            btn.disabled = false;
-            btn.innerText = textoOriginal || "Aceitar";
-          }
-          return;
-        }
-      }
-      const rotaRef = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`);
-      const metaEntregador = {
-        entregadorId: uidEntregador,
-        entregadorNome: (window.usuarioLogado?.nome || "Entregador").toString(),
-        entregadorFoto: (window.usuarioLogado?.foto || "").toString(),
-        aceitoPor: uidEntregador,
-        aceitoEm: Date.now(),
-        status: "EM_ROTA",
-        atualizadoEm: Date.now(),
-        // Passo de coleta (ver memoria project-flexa-cobranca-entrega-dinheiro):
-        // rota so libera "Iniciar Corrida" ate o cliente depois que o entregador
-        // confirmar, com este codigo, que retirou os pacotes na loja.
-        coletaConfirmada: false,
-        codigoConfirmacaoColeta: gerarCodigoConfirmacaoEntrega()
-      };
-      const tx = await rotaRef.transaction((atual) => {
-        if (!atual) return atual;
-        const statusAtual = normalizarStatusRotaFiltro(atual?.status || atual?.pagamentoStatus || "CRIADA");
-        const jaTemEntregador = Boolean(atual?.entregadorId || atual?.aceitoPor);
-        if (statusAtual !== "BUSCANDO" || jaTemEntregador) return;
-        return { ...atual, ...metaEntregador };
-      });
-      if (!tx.committed || !tx.snapshot.exists()) {
-        alert("Essa rota ja foi aceita por outro entregador.");
-        await renderRotasMarketplaceEntregador(true);
-        return;
-      }
-      const rotaAtualizada = tx.snapshot.val() || {};
-      const pacoteIds = Array.isArray(rotaAtualizada?.pacoteIds) ? rotaAtualizada.pacoteIds : Array.isArray(rotaAtualizada?.pacotes) ? rotaAtualizada.pacotes : [];
-      if (pacoteIds.length) {
-        const clientesSnap = await db.ref(`usuarios/${lojistaUid}/clientes`).once("value");
-        const clientesNo = clientesSnap.val() || {};
-        const idsSet = new Set(pacoteIds.map((id) => String(id)));
-        const updates = {};
-        Object.keys(clientesNo).forEach((clienteId) => {
-          const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
-          historico.forEach((h, idx) => {
-            const idAtual = String(h?.id || "envio-" + clienteId + "-" + idx);
-            if (!idsSet.has(idAtual)) return;
-            updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/id`] = idAtual;
-            updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/status`] = "EM_ROTA";
-            updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/rotaId`] = String(rotaId);
-            updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/atualizadoEm`] = Date.now();
-          });
-        });
-        if (Object.keys(updates).length) {
-          await db.ref().update(updates);
-        }
-      }
-      db.ref(`rastreioPublico/${rotaId}`).update({
-        entregadorNome: metaEntregador.entregadorNome,
-        statusRota: "EM_ROTA",
-        atualizadoEm: Date.now()
-      }).catch(() => {
-      });
-      const rotaMarketplaceAtual = rotasMarketplaceEntregadorCache.find((r) => String(r.id) === String(rotaId) && String(r.lojistaUid) === String(lojistaUid));
-      const rotaNoEntregador = {
-        id: String(rotaId),
-        ...rotaAtualizada,
-        origemLojistaUid: String(lojistaUid),
-        lojistaId: String(lojistaUid),
-        lojistaNome: String(rotaAtualizada?.lojistaNome || rotaMarketplaceAtual?.lojistaNome || "Lojista"),
-        lojistaFoto: String(rotaAtualizada?.lojistaFoto || rotaMarketplaceAtual?.lojistaFoto || ""),
-        sincronizadaDoLojista: true,
-        atualizadoEm: Date.now(),
-        // BUG CORRIGIDO 2026-09-26: esse espelho nunca guardava a cidade de
-        // origem (a da LOJA) — por isso o card "Em rota" na home do
-        // entregador sempre mostrava "Origem: --" (resumirRotaParaEntregador
-        // caía no fallback errado, endereço do PRÓPRIO entregador, quase
-        // sempre vazio). origemLabel/origemCidade já eram computados na
-        // listagem do marketplace (rotaMarketplaceAtual), só faltava copiar.
-        origemLabel: rotaAtualizada?.origemLabel || rotaMarketplaceAtual?.origemLabel || "",
-        origemCidade: rotaAtualizada?.origemCidade || rotaMarketplaceAtual?.origemCidade || "",
-        destinoPrincipal: rotaAtualizada?.destinoPrincipal || rotaMarketplaceAtual?.destinoPrincipal || "",
-        destinos: rotaAtualizada?.destinos || rotaMarketplaceAtual?.destinos || [],
-        distanciaTotal: rotaAtualizada?.distanciaTotal || rotaMarketplaceAtual?.distanciaTotal || 0,
-        duracaoTotal: rotaAtualizada?.duracaoTotal || rotaMarketplaceAtual?.duracaoTotal || 0,
-        totalPacotes: rotaAtualizada?.totalPacotes || rotaMarketplaceAtual?.totalPacotes || pacoteIds.length || 0,
-        totalFrete: rotaAtualizada?.totalFrete || rotaMarketplaceAtual?.totalFrete || 0
-      };
-      await db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}`).set(rotaNoEntregador);
-      const codigoColetaNotificacao = String(rotaAtualizada?.codigoConfirmacaoColeta || "").trim();
-      criarNotificacao(lojistaUid, {
-        tipo: "rota_aceita",
-        titulo: "Rota aceita",
-        mensagem: codigoColetaNotificacao ? `${window.usuarioLogado?.nome || "Um entregador"} aceitou a rota #${rotaId}. C\xF3digo de coleta: ${codigoColetaNotificacao} \u2014 informe ao entregador quando ele for retirar os pacotes.` : `${window.usuarioLogado?.nome || "Um entregador"} aceitou a rota #${rotaId}.`,
-        rotaId: String(rotaId)
-      });
+      const resp = await chamarPaymentsProxy("/aceitar-rota-marketplace", { lojistaUid, rotaId });
+      const rotaAtualizada = resp?.rota || {};
       rotasMarketplaceEntregadorCache = rotasMarketplaceEntregadorCache.map((r) => {
         if (String(r.id) !== String(rotaId) || String(r.lojistaUid) !== String(lojistaUid)) return r;
         return {
@@ -5422,8 +5260,18 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       iniciarListenerHomeEntregador();
       alert("Rota aceita com sucesso.");
     } catch (err) {
-      console.warn("Erro ao aceitar rota marketplace:", err);
-      alert("Nao foi possivel aceitar essa rota agora. Tente novamente.");
+      const motivo = err?.motivo;
+      if (motivo === "bloqueado_divida") {
+        alert("Sua conta est\xE1 bloqueada para novos envios: voc\xEA tem uma d\xEDvida em aberto h\xE1 mais de 5 dias. V\xE1 em Perfil > Pagamento e paga a d\xEDvida via Pix pra liberar.");
+      } else if (motivo === "capacidade_insuficiente") {
+        alert("Voc\xEA n\xE3o pode aceitar essa corrida agora \u2014 seu saldo est\xE1 baixo. Aceite ou conclua mais corridas para liberar.");
+      } else if (motivo === "ja_aceita") {
+        alert("Essa rota ja foi aceita por outro entregador.");
+        await renderRotasMarketplaceEntregador(true);
+      } else {
+        console.warn("Erro ao aceitar rota marketplace:", err);
+        alert("Nao foi possivel aceitar essa rota agora. Tente novamente.");
+      }
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -7457,7 +7305,9 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       mercadoPagoAmbienteAtual = data.ambiente;
     }
     if (!resp.ok) {
-      throw new Error(data?.error || data?.message || "HTTP " + resp.status);
+      const err = new Error(data?.error || data?.message || "HTTP " + resp.status);
+      if (data?.motivo) err.motivo = data.motivo;
+      throw err;
     }
     return data;
   }
