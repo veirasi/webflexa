@@ -5975,6 +5975,14 @@ body.admin-mode { overflow: auto; }
    mesmo o ícone (svg, não é span) ficando branco certinho. Força herdar do
    botão pai. */
 .admin-nav-btn .admin-nav-copy { color: inherit; }
+
+.admin-nav-submenu { display: none; flex-direction: column; gap: 2px; padding-left: 30px; margin: -2px 0 4px; }
+.admin-nav-submenu.open { display: flex; }
+.admin-nav-subitem { border: none; background: transparent; color: #cbd5e1; padding: 7px 10px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.admin-nav-subitem:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.admin-nav-subitem.active { background: rgba(249,115,22,0.18); color: #fb923c; }
+.admin-layout.compact .admin-nav-submenu { display: none !important; }
+
 .admin-tab { display: none; width: 100%; }
 .admin-tab.active { display: block; }
 .admin-sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #cbd5e1; }

@@ -204,6 +204,9 @@ function switchAdminTab(tab) {
         pane.classList.toggle('active', ativo);
         pane.style.display = ativo ? 'block' : 'none';
     });
+    // Submenu Lojistas/Entregadores (pedido do dono 2026-09-27) só faz
+    // sentido aberto enquanto a aba Usuários está ativa.
+    document.getElementById('admin-nav-submenu-users')?.classList.toggle('open', tab === 'users');
     const main = document.querySelector('.admin-main');
     if (main) main.scrollTop = 0;
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -212,6 +215,7 @@ function switchAdminTab(tab) {
     if (tab === 'routes') renderDashboardMaster();
     if (tab === 'database') adminListTables();
     if (tab === 'banners') renderBannersAdmin();
+    if (tab === 'ganhos') renderSerieGanhosAdmin();
 }
 
 function telaInicialPorTipoUsuario(tipo) {
@@ -7001,6 +7005,39 @@ async function renderDashboardMaster() {
         }
     });
 
+    // Ganhos da plataforma (pedido do dono 2026-09-27): não é o valor total
+    // movimentado — é só a taxa que fica com a Flex depois de repassar o
+    // entregador (calcularTaxaPlataformaRota, a mesma conta usada pra saber
+    // quanto o entregador recebe). Só conta rota já CONCLUÍDA — em rota ou
+    // buscando ainda pode cancelar, não é ganho de verdade ainda.
+    diasSerie.forEach((d) => { d.ganhos = 0; });
+    let ganhosHoje = 0; let ganhosSemana = 0; let ganhosMes = 0; let ganhosTotal = 0;
+    const rankingGanhosLojistasMap = new Map(); // uid -> { nome, ganhos }
+    const inicioMesGanhosDate = new Date();
+    inicioMesGanhosDate.setDate(1);
+    inicioMesGanhosDate.setHours(0, 0, 0, 0);
+    const inicioMesGanhosTs = inicioMesGanhosDate.getTime();
+    const inicioSemanaGanhosTs = hojeInicio - 6 * 86400000;
+
+    rotasRecuperaveis.forEach((r) => {
+        if (r.statusNorm !== 'CONCLUIDO') return;
+        const taxa = calcularTaxaPlataformaRota(Number(r.totalFrete || 0), Number(r.distanciaTotal || 0));
+        if (taxa <= 0) return;
+        const quando = Number(r.atualizadoEm || r.criadoEm || 0);
+
+        ganhosTotal += taxa;
+        if (quando >= hojeInicio) ganhosHoje += taxa;
+        if (quando >= inicioSemanaGanhosTs) ganhosSemana += taxa;
+        if (quando >= inicioMesGanhosTs) ganhosMes += taxa;
+
+        const diaBucket = diasSerie.find((d) => quando >= d.inicioDia && quando < d.fimDia);
+        if (diaBucket) diaBucket.ganhos += taxa;
+
+        const atualRank = rankingGanhosLojistasMap.get(r.lojistaUid) || { nome: r.lojistaNome || 'Lojista', ganhos: 0 };
+        atualRank.ganhos += taxa;
+        rankingGanhosLojistasMap.set(r.lojistaUid, atualRank);
+    });
+
     // Rotas "buscando" há muito tempo sem ninguém aceitar — sinal real de
     // alerta (não é "atraso de entrega" inventado, é literalmente rota parada
     // no marketplace há mais de 2h).
@@ -7036,7 +7073,7 @@ async function renderDashboardMaster() {
             const badgeClass = tipo === 'master' ? 'master' : (tipo === 'entregador' || tipo === 'entrega') ? 'entregador' : 'loja';
             const status = u.status || 'ativo';
             return `
-                <div class="admin-row">
+                <div class="admin-row" data-tipo="${badgeClass}">
                     <div>
                         <strong>${escaparHtmlMarketplace(u.nome || 'Sem nome')}</strong>
                         <div class="admin-badge ${badgeClass}">${tipo}</div>
@@ -7108,9 +7145,11 @@ async function renderDashboardMaster() {
         usuarios: { lojas, entregadores, masters, ativosL, ativosE },
         pacotes: { total: pacTotal, emRota: pacEmRota, entregues: pacEnt, cancelados: pacCanc },
         rotas: { total: rotTotal, buscando: rotBus, emRota: rotEm, concluidas: rotCon, canceladas: rotCanc },
+        ganhos: { hoje: ganhosHoje, semana: ganhosSemana, mes: ganhosMes, total: ganhosTotal },
         diasSerie,
         rankingLojistas: [...rankingLojistasMap.values()].sort((a, b) => b.entregues - a.entregues).slice(0, 5),
         rankingEntregadores: [...rankingEntregadoresMap.values()].sort((a, b) => b.concluidas - a.concluidas).slice(0, 5),
+        rankingGanhosLojistas: [...rankingGanhosLojistasMap.values()].sort((a, b) => b.ganhos - a.ganhos).slice(0, 5),
         pacotesRecentes: pacotesListaAdmin.filter((p) => p.criadoEm > 0).sort((a, b) => b.criadoEm - a.criadoEm).slice(0, 6),
         rotasAndamento: rotasRecuperaveis.filter((r) => r.statusNorm === 'EM_ROTA' || r.statusNorm === 'BUSCANDO')
             .sort((a, b) => Number(b.atualizadoEm || b.criadoEm || 0) - Number(a.atualizadoEm || a.criadoEm || 0)).slice(0, 4),
@@ -7124,6 +7163,9 @@ async function renderDashboardMaster() {
     renderPacotesRecentesAdmin();
     renderRankingAdmin();
     renderAlertasAdmin();
+    renderGanhosKpisAdmin();
+    renderSerieGanhosAdmin();
+    renderRankingGanhosAdmin();
 
     const lastUpdEl = document.getElementById('admin-last-updated');
     if (lastUpdEl) lastUpdEl.innerText = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -7213,6 +7255,22 @@ function filtrarLinhasAdmin(containerId, itemSelector, termo) {
 
 function filtrarAdminUsuarios(termo) {
     filtrarLinhasAdmin('adm-users-table', '.admin-row', termo);
+}
+
+// Submenu Lojistas/Entregadores (pedido do dono 2026-09-27): separa a
+// listagem de usuários por tipo sem precisar de outra ida ao banco — os
+// dados já estão todos na tabela, é só mostrar/esconder pelo data-tipo
+// gravado em cada linha (ver renderDashboardMaster).
+function filtrarAdminUsuariosPorTipo(tipo, btn) {
+    document.querySelectorAll('#admin-nav-submenu-users .admin-nav-subitem').forEach((el) => {
+        el.classList.toggle('active', el === btn);
+    });
+    const container = document.getElementById('adm-users-table');
+    if (!container) return;
+    container.querySelectorAll('.admin-row').forEach((row) => {
+        const bate = tipo === 'todos' || row.dataset.tipo === tipo;
+        row.style.display = bate ? '' : 'none';
+    });
 }
 
 function filtrarAdminPacotes(termo) {
@@ -7453,6 +7511,68 @@ function renderRankingAdmin() {
             ? lista.map((e, i) => `<li><span>${i + 1}. ${escaparHtmlMarketplace(e.nome)}</span><b>${e.concluidas} concluídas${e.canceladas ? ` • ${e.canceladas} canceladas` : ''}</b></li>`).join('')
             : '<li class="admin-rank-empty">Sem rotas concluídas ainda.</li>';
     }
+}
+
+// Ganhos da plataforma (pedido do dono 2026-09-27): KPIs de hoje/semana/mês/
+// total, num card na Visão Geral e repetidos com mais destaque na aba própria
+// "Ganhos" — os ids têm sufixo -mini (overview) e sem sufixo (aba Ganhos)
+// pra poder existir nos dois lugares sem duplicar id no DOM.
+function renderGanhosKpisAdmin() {
+    if (!adminChartsState) return;
+    const g = adminChartsState.ganhos || { hoje: 0, semana: 0, mes: 0, total: 0 };
+    const setTxt = (id, valor) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = precoParaMoeda(valor);
+    };
+    setTxt('adm-ganhos-hoje-mini', g.hoje);
+    setTxt('adm-ganhos-hoje', g.hoje);
+    setTxt('adm-ganhos-semana', g.semana);
+    setTxt('adm-ganhos-mes', g.mes);
+    setTxt('adm-ganhos-total', g.total);
+}
+
+let adminChartsGanhos = {};
+function renderSerieGanhosAdmin() {
+    if (!adminChartsState || typeof Chart === 'undefined') return;
+    const dias = adminChartsState.diasSerie || [];
+    const montarCfg = () => ({
+        type: 'bar',
+        data: {
+            labels: dias.map((d) => d.label),
+            datasets: [{
+                label: 'Ganhos da plataforma',
+                data: dias.map((d) => Number((d.ganhos || 0).toFixed(2))),
+                backgroundColor: '#16a34a',
+                borderRadius: 6,
+                maxBarThickness: 36
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => precoParaMoeda(ctx.parsed.y) } }
+            },
+            scales: { y: { beginAtZero: true, ticks: { callback: (v) => precoParaMoeda(v) } } }
+        }
+    });
+    // Duas canvas mostram a mesma série: uma compacta na Visão Geral, uma
+    // maior na aba própria "Ganhos" — mantém as duas em sincronia.
+    ['adm-chart-ganhos-dias', 'adm-chart-ganhos-mini'].forEach((id) => {
+        const ctx = document.getElementById(id);
+        if (!ctx) return;
+        if (adminChartsGanhos[id]) adminChartsGanhos[id].destroy();
+        adminChartsGanhos[id] = new Chart(ctx, montarCfg());
+    });
+}
+
+function renderRankingGanhosAdmin() {
+    const el = document.getElementById('adm-ranking-ganhos-lojistas');
+    if (!el || !adminChartsState) return;
+    const lista = adminChartsState.rankingGanhosLojistas || [];
+    el.innerHTML = lista.length
+        ? lista.map((l, i) => `<li><span>${i + 1}. ${escaparHtmlMarketplace(l.nome)}</span><b>${precoParaMoeda(l.ganhos)}</b></li>`).join('')
+        : '<li class="admin-rank-empty">Sem rotas concluídas ainda.</li>';
 }
 
 function renderAlertasAdmin() {
@@ -14494,6 +14614,7 @@ export {
   filtrarAdminBuscaAtiva,
   filtrarAdminPacotes,
   filtrarAdminUsuarios,
+  filtrarAdminUsuariosPorTipo,
   filtrarBannersAdminPorPublico,
   finalizarSplash,
   finalizarSwipeEntSheet,
