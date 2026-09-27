@@ -3493,17 +3493,17 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" class="buscar-rota-avatar-img">` : `<div class="buscar-rota-avatar-fallback">${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</div>`;
     return `
         <article class="buscar-rota-card" onclick="abrirSheetBuscaRota('${rotaIdEsc}', '${lojistaUidEsc}')">
-            <div class="buscar-rota-row">
-                <div class="buscar-rota-left">
-                    <div class="buscar-rota-avatar">${avatar}</div>
+            <div class="buscar-rota-avatar">${avatar}</div>
+            <div class="buscar-rota-body">
+                <div class="buscar-rota-row">
                     <div>
                         <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
                         <div class="buscar-rota-tags">${tags.join("")}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
                     </div>
+                    <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
                 </div>
-                <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
+                <div class="buscar-rota-extra">${escaparHtmlMarketplace(precoPorKmTxt)}/km \xB7 \u{1F3CD} ${escaparHtmlMarketplace(veiculoTxt)}</div>
             </div>
-            <div class="buscar-rota-extra">${escaparHtmlMarketplace(precoPorKmTxt)}/km \xB7 \u{1F3CD} ${escaparHtmlMarketplace(veiculoTxt)}</div>
         </article>
     `;
   }

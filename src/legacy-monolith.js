@@ -3410,17 +3410,17 @@ function montarCardBuscaEntregador(rota) {
     // dono 2026-09-19), em vez de 3 linhas empilhadas (título/tags/km).
     return `
         <article class="buscar-rota-card" onclick="abrirSheetBuscaRota('${rotaIdEsc}', '${lojistaUidEsc}')">
-            <div class="buscar-rota-row">
-                <div class="buscar-rota-left">
-                    <div class="buscar-rota-avatar">${avatar}</div>
+            <div class="buscar-rota-avatar">${avatar}</div>
+            <div class="buscar-rota-body">
+                <div class="buscar-rota-row">
                     <div>
                         <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
                         <div class="buscar-rota-tags">${tags.join('')}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
                     </div>
+                    <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
                 </div>
-                <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
+                <div class="buscar-rota-extra">${escaparHtmlMarketplace(precoPorKmTxt)}/km · 🏍 ${escaparHtmlMarketplace(veiculoTxt)}</div>
             </div>
-            <div class="buscar-rota-extra">${escaparHtmlMarketplace(precoPorKmTxt)}/km · 🏍 ${escaparHtmlMarketplace(veiculoTxt)}</div>
         </article>
     `;
 }
