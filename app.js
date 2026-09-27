@@ -443,6 +443,7 @@
     toggleAdminSidebarCompact: () => toggleAdminSidebarCompact,
     toggleAdminSidebarMobile: () => toggleAdminSidebarMobile,
     toggleAdminTheme: () => toggleAdminTheme,
+    toggleDetalhesCorrida: () => toggleDetalhesCorrida,
     togglePacoteRota: () => togglePacoteRota,
     togglePass: () => togglePass,
     usuarioEhEntregador: () => usuarioEhEntregador,
@@ -3114,6 +3115,21 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       console.warn("Falha ao carregar pacotes raiz", err);
     }
   }
+  var FAIXA_PESO_TAMANHO_MKT = { "PP/P": "at\xE9 2kg", "M": "at\xE9 5kg", "G": "at\xE9 10kg", "GG": "acima de 10kg" };
+  var RANK_TAMANHO_MKT = { "PP/P": 1, "M": 2, "G": 3, "GG": 4 };
+  function obterTamanhoMaiorPacotesMarketplace(pacotes) {
+    let maior = "PP/P";
+    let maiorRank = 1;
+    (pacotes || []).forEach((p) => {
+      const t = (p?.tamanho || "PP/P").toString().trim() || "PP/P";
+      const r = RANK_TAMANHO_MKT[t] || 1;
+      if (r > maiorRank) {
+        maiorRank = r;
+        maior = t;
+      }
+    });
+    return maior;
+  }
   function montarMapaPacotesUsuarioMarketplace(clientesNo = {}) {
     const mapa = /* @__PURE__ */ new Map();
     const listaClientes = Object.keys(clientesNo || {}).map((id) => ({ id, ...clientesNo[id] || {} }));
@@ -3131,7 +3147,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           status: normalizarStatusPacoteEntrega(h?.status || "PENDENTE"),
           distanciaKm: Number.isFinite(Number(h?.distanciaKm)) ? Number(h.distanciaKm) : 0,
           duracaoMin: Number.isFinite(Number(h?.duracaoMin)) ? Number(h.duracaoMin) : 0,
-          valorFrete: Number.isFinite(Number(h?.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h?.valor || 0)
+          valorFrete: Number.isFinite(Number(h?.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h?.valor || 0),
+          tamanho: (h?.tamanho || "").toString().trim(),
+          embalagem: (h?.embalagem || "").toString().trim(),
+          veiculo: (h?.veiculo || "").toString().trim()
         });
       });
     });
@@ -3149,7 +3168,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             status: normalizarStatusPacoteEntrega(p.status || "PENDENTE"),
             distanciaKm: Number.isFinite(Number(p.distanciaKm)) ? Number(p.distanciaKm) : 0,
             duracaoMin: Number.isFinite(Number(p.duracaoMin)) ? Number(p.duracaoMin) : 0,
-            valorFrete: Number.isFinite(Number(p.valorFrete)) ? Number(p.valorFrete) : parseMoedaParaNumero(p.valor || 0)
+            valorFrete: Number.isFinite(Number(p.valorFrete)) ? Number(p.valorFrete) : parseMoedaParaNumero(p.valor || 0),
+            tamanho: (p.tamanho || "").toString().trim(),
+            embalagem: (p.embalagem || "").toString().trim(),
+            veiculo: (p.veiculo || "").toString().trim()
           });
         });
       });
@@ -3208,6 +3230,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           }) || !pacotes.length;
           const servicoLabel = temFlash ? "Expresso" : "Padrao";
           const ehColetaReversa = pacotes.some((p) => p?.tipoFluxo === "coleta_reversa");
+          const tamanhoTxt = obterTamanhoMaiorPacotesMarketplace(pacotes);
+          const embalagensUnicas = [...new Set(pacotes.map((p) => (p?.embalagem || "Caixa").toString().trim() || "Caixa"))];
+          const embalagemTxt = embalagensUnicas.length > 1 ? "Variado" : embalagensUnicas[0] || "Caixa";
+          const veiculoTxt = (pacotes.find((p) => p?.veiculo)?.veiculo || "Moto").toString().trim() || "Moto";
           lista.push({
             id: rota.id,
             lojistaUid: uid,
@@ -3228,6 +3254,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             temStandard,
             temFlash,
             ehColetaReversa,
+            tamanhoTxt,
+            embalagemTxt,
+            veiculoTxt,
             entregadorId: String(rota?.entregadorId || rota?.aceitoPor || ""),
             pacoteIds,
             criadoEm: Number(rota?.criadoEm || 0)
@@ -3451,23 +3480,30 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (header) header.classList.add("global-header-live");
   }
   function montarCardBuscaEntregador(rota) {
-    const kmTxt = formatarDistancia(Number(rota?.distanciaTotal || 0));
+    const distTotalNum = Number(rota?.distanciaTotal || 0);
+    const kmTxt = formatarDistancia(distTotalNum);
     const tags = montarTagsServicoMarketplace(rota);
-    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
+    const repasseValor = calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), distTotalNum);
+    const precoTxt = precoParaMoeda(repasseValor);
+    const precoPorKmTxt = precoParaMoeda(distTotalNum > 0 ? repasseValor / distTotalNum : 0);
+    const veiculoTxt = rota?.veiculoTxt || "Moto";
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const rotaIdEsc = escaparHtmlMarketplace(String(rota?.id || ""));
     const lojistaUidEsc = escaparHtmlMarketplace(String(rota?.lojistaUid || ""));
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" class="buscar-rota-avatar-img">` : `<div class="buscar-rota-avatar-fallback">${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</div>`;
     return `
         <article class="buscar-rota-card" onclick="abrirSheetBuscaRota('${rotaIdEsc}', '${lojistaUidEsc}')">
-            <div class="buscar-rota-left">
-                <div class="buscar-rota-avatar">${avatar}</div>
-                <div>
-                    <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
-                    <div class="buscar-rota-tags">${tags.join("")}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
+            <div class="buscar-rota-row">
+                <div class="buscar-rota-left">
+                    <div class="buscar-rota-avatar">${avatar}</div>
+                    <div>
+                        <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
+                        <div class="buscar-rota-tags">${tags.join("")}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
+                    </div>
                 </div>
+                <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
             </div>
-            <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
+            <div class="buscar-rota-extra">${escaparHtmlMarketplace(precoPorKmTxt)}/km \xB7 \u{1F3CD} ${escaparHtmlMarketplace(veiculoTxt)}</div>
         </article>
     `;
   }
@@ -3495,46 +3531,69 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const destinos = Array.isArray(rota.destinos) ? rota.destinos : [];
     const qtdParadas = Number.isFinite(Number(rota.totalParadas)) && Number(rota.totalParadas) > 0 ? Number(rota.totalParadas) : Math.max(1, destinos.length);
     const badgeHtml = montarTagsServicoMarketplace(rota).join("");
-    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota.totalFrete || 0), Number(rota.distanciaTotal || 0)));
-    const distanciaTxt = formatarDistancia(Number(rota.distanciaTotal || 0));
+    const distanciaTotalNum = Number(rota.distanciaTotal || 0);
+    const repasseValor = calcularValorRepasseEntregador(Number(rota.totalFrete || 0), distanciaTotalNum);
+    const precoTxt = precoParaMoeda(repasseValor);
+    const precoPorKmTxt = precoParaMoeda(distanciaTotalNum > 0 ? repasseValor / distanciaTotalNum : 0);
+    const distanciaTxt = formatarDistancia(distanciaTotalNum);
     const duracaoTxt = formatarDuracao(Number(rota.duracaoTotal || 0));
-    const pacotesTxt = `${Number(rota.totalPacotes || 0)} Pacotes`;
-    const paradasTxt = `${qtdParadas} Parada${qtdParadas > 1 ? "s" : ""}`;
+    const totalPacotesNum = Number(rota.totalPacotes || 0);
     const origemTxt = rota.origemLabel || "Origem n\xE3o informada";
     const destinoTxt = rota.destinoPrincipal || (destinos[0] || "Destino n\xE3o informado");
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" />` : `<span>${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</span>`;
+    const tamanhoTxt = rota.tamanhoTxt || "PP/P";
+    const faixaPesoTxt = FAIXA_PESO_TAMANHO_MKT[tamanhoTxt] || "";
+    const embalagemTxt = rota.embalagemTxt || "Caixa";
+    const veiculoTxt = rota.veiculoTxt || "Moto";
     content.innerHTML = `
         <div class="sheet-header">
         <div class="sheet-merchant">
             <div class="sheet-merchant-logo">${avatar}</div>
             <div class="sheet-merchant-info">
                 <strong>${escaparHtmlMarketplace(rota?.lojistaNome || "Lojista")}</strong>
-                <small>Rota #${escaparHtmlMarketplace(String(rota.id || ""))}</small>
                 <div class="sheet-badge-row">${badgeHtml}</div>
             </div>
         </div>
-        <div class="sheet-price">
-            ${escaparHtmlMarketplace(precoTxt)}
-        </div>
+        <small class="sheet-rota-id">#${escaparHtmlMarketplace(String(rota.id || ""))}</small>
         <button class="sheet-close-btn" onclick="fecharSheetBuscar()">\xD7</button>
     </div>
 
-    <div class="sheet-meta-grid">
-            <div class="sheet-meta-item"><i data-lucide="navigation" size="16"></i> ${escaparHtmlMarketplace(distanciaTxt)}</div>
-        <div class="sheet-meta-item"><i data-lucide="clock-3" size="16"></i> ${escaparHtmlMarketplace(duracaoTxt)}</div>
-        <div class="sheet-meta-item"><i data-lucide="package" size="16"></i> ${escaparHtmlMarketplace(pacotesTxt)}</div>
-        <div class="sheet-meta-item"><i data-lucide="map" size="16"></i> ${escaparHtmlMarketplace(paradasTxt)}</div>
+    <div class="sheet-price-row">
+        <div class="sheet-price-block">
+            <div class="sheet-price">${escaparHtmlMarketplace(precoTxt)}</div>
+            <div class="sheet-price-km">${escaparHtmlMarketplace(precoPorKmTxt)}/km</div>
+        </div>
+        <div class="sheet-price-icon"><i data-lucide="package" size="32"></i></div>
     </div>
 
-    <div class="sheet-block">
-        <strong><i data-lucide="map-pin" size="16"></i> Origem \u2192 Destino</strong>
-        <p>${escaparHtmlMarketplace(origemTxt)} \u2192 ${escaparHtmlMarketplace(destinoTxt)}</p>
+    <div class="sheet-meta-row">
+        <div class="sheet-meta-item"><i data-lucide="navigation" size="16"></i><strong>${escaparHtmlMarketplace(distanciaTxt)}</strong><small>total</small></div>
+        <div class="sheet-meta-item"><i data-lucide="clock-3" size="16"></i><strong>${escaparHtmlMarketplace(duracaoTxt)}</strong><small>estimados</small></div>
+        <div class="sheet-meta-item"><i data-lucide="package" size="16"></i><strong>${totalPacotesNum}</strong><small>pacote${totalPacotesNum > 1 ? "s" : ""}</small></div>
+        <div class="sheet-meta-item"><i data-lucide="flag" size="16"></i><strong>${qtdParadas}</strong><small>parada${qtdParadas > 1 ? "s" : ""}</small></div>
+    </div>
+
+    <div class="sheet-route-timeline">
+        <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></div>
+        <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(destinoTxt)}</strong></div>
+    </div>
+
+    <div class="sheet-details-accordion">
+        <button type="button" class="sheet-details-toggle" onclick="toggleDetalhesCorrida(this)">
+            <span><i data-lucide="clipboard-list" size="16"></i> Detalhes da corrida</span>
+            <i data-lucide="chevron-down" size="16" class="sheet-details-chevron"></i>
+        </button>
+        <div class="sheet-details-body hidden">
+            <div class="sheet-detail-row">\u{1F4E6} ${totalPacotesNum} pacote${totalPacotesNum > 1 ? "s" : ""} \xB7 Tamanho ${escaparHtmlMarketplace(tamanhoTxt)}${faixaPesoTxt ? ` (${escaparHtmlMarketplace(faixaPesoTxt)})` : ""}</div>
+            <div class="sheet-detail-row">\u{1F3CD} Ve\xEDculo: ${escaparHtmlMarketplace(veiculoTxt)}</div>
+            <div class="sheet-detail-row">Tipo: ${escaparHtmlMarketplace(embalagemTxt)}</div>
+        </div>
     </div>
 
     <div class="sheet-actions">
             <button class="sheet-accept-btn" onclick="fecharSheetBuscar(); aceitarRotaMarketplaceEntregador('${escaparHtmlMarketplace(String(rota.lojistaUid || ""))}', '${escaparHtmlMarketplace(String(rota.id || ""))}')">
-                \u2713 Aceitar
+                \u2713 Aceitar corrida
             </button>
         </div>
     `;
@@ -3546,6 +3605,13 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const content = document.getElementById("buscar-sheet-content");
     if (overlay) overlay.classList.add("hidden");
     if (content) content.innerHTML = "";
+  }
+  function toggleDetalhesCorrida(btn) {
+    const body = btn?.nextElementSibling;
+    if (!body) return;
+    const abrindo = body.classList.contains("hidden");
+    body.classList.toggle("hidden", !abrindo);
+    btn.classList.toggle("is-open", abrindo);
   }
   function montarOptionsDropdownBusca(cidades, valorAtual, labelPadrao) {
     const atualNorm = (valorAtual || "TODAS").toString();

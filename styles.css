@@ -5688,7 +5688,9 @@ body.usuario-entregador #entregador-rotas-shell {
 .buscar-dropdown-option:hover { background: rgba(255,149,58,0.12); }
 .buscar-dropdown-option.is-active { background: rgba(255,149,58,0.16); color: var(--brand-orange); }
 .buscar-rota-list { display: flex; flex-direction: column; gap: 10px; padding: 0; }
-.buscar-rota-card { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 9px 14px; box-shadow: 0 10px 24px rgba(0,0,0,0.04); width: 100%; }
+.buscar-rota-card { display: flex; flex-direction: column; gap: 4px; background: #fff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 9px 14px; box-shadow: 0 10px 24px rgba(0,0,0,0.04); width: 100%; }
+.buscar-rota-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.buscar-rota-extra { font-size: 11px; font-weight: 700; color: var(--text-sub); padding-left: 48px; }
 .buscar-rota-left { display: flex; align-items: center; gap: 10px; }
 .buscar-rota-avatar { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
 .buscar-rota-avatar-img { width: 100%; height: 100%; object-fit: cover; }
@@ -5741,6 +5743,45 @@ body.usuario-entregador #entregador-rotas-shell {
 #buscar-sheet-content .sheet-meta-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #eef2f6; border-radius: 12px; font-weight: 700; color: var(--text-main); background: #f9fbfe; }
   #buscar-sheet-content .sheet-block { border: 1px solid #eef2f6; border-radius: 14px; padding: 12px; margin-bottom: 10px; background: #fdfefe; }
   #buscar-sheet-content .sheet-block strong { display: block; margin-bottom: 4px; color: var(--text-main); }
+
+/* Redesenho do sheet de aceitar corrida (pedido do dono 2026-09-27) —
+   preço + preço/km, métricas numa linha só, origem/destino como timeline
+   (mesmo padrão de bolinha+linha tracejada de .parada-v-*), e um accordion
+   "Detalhes da corrida" com peso/embalagem/veículo. */
+#buscar-sheet-content .sheet-rota-id { font-size: 11px; font-weight: 700; color: var(--text-sub); white-space: nowrap; margin-top: 2px; }
+#buscar-sheet-content .sheet-price-row { display: flex; align-items: center; justify-content: space-between; }
+#buscar-sheet-content .sheet-price-block .sheet-price { font-size: 30px; font-weight: 900; color: var(--brand-orange); text-align: left; margin: 0; }
+#buscar-sheet-content .sheet-price-km { font-size: 13px; font-weight: 700; color: var(--text-sub); margin-top: 2px; }
+#buscar-sheet-content .sheet-price-icon { color: #e2e8f0; }
+
+#buscar-sheet-content .sheet-meta-row { display: flex; gap: 6px; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item { flex: 1; flex-direction: column; justify-content: center; text-align: center; gap: 4px; padding: 10px 4px; }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item i { color: var(--brand-orange); }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item strong { display: block; font-size: 13px; color: var(--text-main); }
+#buscar-sheet-content .sheet-meta-row .sheet-meta-item small { display: block; font-size: 10px; font-weight: 600; color: var(--text-sub); }
+
+#buscar-sheet-content .sheet-route-timeline { display: flex; flex-direction: column; }
+#buscar-sheet-content .sheet-route-point { display: flex; align-items: center; gap: 12px; position: relative; padding: 6px 0; }
+#buscar-sheet-content .sheet-route-point strong { font-size: 14px; font-weight: 800; color: var(--text-main); }
+#buscar-sheet-content .sheet-route-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; position: relative; z-index: 1; box-sizing: border-box; }
+#buscar-sheet-content .sheet-route-dot-origem { background: var(--brand-orange); border: 3px solid #ffe4cc; }
+#buscar-sheet-content .sheet-route-dot-destino { background: #fff; border: 2px solid var(--brand-orange); }
+#buscar-sheet-content .sheet-route-point:first-child::after {
+    content: '';
+    position: absolute;
+    left: 5px; top: 24px; bottom: -6px;
+    width: 2px;
+    background-image: repeating-linear-gradient(to bottom, var(--brand-orange) 0px, var(--brand-orange) 4px, transparent 4px, transparent 8px);
+}
+
+#buscar-sheet-content .sheet-details-accordion { border: 1px solid #eef2f6; border-radius: 14px; overflow: hidden; background: #fdfefe; }
+#buscar-sheet-content .sheet-details-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: transparent; border: none; font-weight: 700; font-size: 14px; color: var(--text-main); cursor: pointer; }
+#buscar-sheet-content .sheet-details-toggle span { display: flex; align-items: center; gap: 8px; }
+#buscar-sheet-content .sheet-details-chevron { transition: transform 0.2s ease; color: var(--text-sub); }
+#buscar-sheet-content .sheet-details-toggle.is-open .sheet-details-chevron { transform: rotate(180deg); }
+#buscar-sheet-content .sheet-details-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+#buscar-sheet-content .sheet-details-body.hidden { display: none; }
+#buscar-sheet-content .sheet-detail-row { font-size: 13px; font-weight: 700; color: var(--text-sub); }
 
 /* Entregador sheet novo */
 .ent-sheet { background: #fff; border-radius: 26px; padding: 18px 18px 22px; box-shadow: 0 20px 55px rgba(0,0,0,0.18); }
