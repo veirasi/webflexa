@@ -9801,6 +9801,26 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
         ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
         : '';
 
+    // Cartão de "sucesso" (pedido do dono 2026-09-27): assim que ESSE pedido
+    // já passou pro lado do cliente — entrega normal confirmada, ou na coleta
+    // reversa o cliente já entregou o pacote ao entregador (retiradaConfirmada,
+    // mesmo que o entregador ainda esteja a caminho da loja pra fechar a
+    // devolução) — a timeline/status de "a caminho" deixam de fazer sentido
+    // pra ele. Troca tudo por um cartão único. O "+1 ponto" é só o TEXTO já
+    // preparado pro futuro sistema de fidelidade (pontos acumulativos,
+    // trocáveis por frete grátis, também creditados assistindo vídeo de
+    // publicidade) — não grava nem soma nada de verdade ainda, é cosmético.
+    const pedidoConcluidoParaCliente = ehColetaReversaTexto
+        ? pacoteInfo.retiradaConfirmada === true
+        : pacoteInfo.status === 'ENTREGUE';
+    const sucessoHtml = pedidoConcluidoParaCliente
+        ? `<div class="rastreio-pub-sucesso">
+                <div class="rastreio-pub-sucesso-check"><i data-lucide="check-circle-2"></i></div>
+                <h3>${ehColetaReversaTexto ? 'Pedido recebido com sucesso!' : 'Pedido entregue com sucesso!'}</h3>
+                <p class="rastreio-pub-sucesso-pontos">🎉 Parabéns, você ganhou <strong>+1 ponto</strong>!</p>
+            </div>`
+        : '';
+
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : '';
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : '';
 
@@ -9843,7 +9863,15 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
         }
     }
 
-    conteudo.innerHTML = `
+    conteudo.innerHTML = pedidoConcluidoParaCliente
+        ? `
+        <div class="rastreio-pub-card">
+            <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || 'Loja')}</span>
+            <h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace(destinatario)}!</h2>
+            ${sucessoHtml}
+        </div>
+    `
+        : `
         <div class="rastreio-pub-card">
             <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || 'Loja')}</span>
             <h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace(destinatario)}!</h2>

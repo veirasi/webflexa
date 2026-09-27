@@ -8569,6 +8569,12 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     }
     const geo = dados.entregadorGeo;
     const mapaHtml = geo && geo.lat && geo.lng ? `<div class="rastreio-pub-mapa"><iframe src="https://www.google.com/maps?q=${geo.lat},${geo.lng}&z=15&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : "";
+    const pedidoConcluidoParaCliente = ehColetaReversaTexto ? pacoteInfo.retiradaConfirmada === true : pacoteInfo.status === "ENTREGUE";
+    const sucessoHtml = pedidoConcluidoParaCliente ? `<div class="rastreio-pub-sucesso">
+                <div class="rastreio-pub-sucesso-check"><i data-lucide="check-circle-2"></i></div>
+                <h3>${ehColetaReversaTexto ? "Pedido recebido com sucesso!" : "Pedido entregue com sucesso!"}</h3>
+                <p class="rastreio-pub-sucesso-pontos">\u{1F389} Parab\xE9ns, voc\xEA ganhou <strong>+1 ponto</strong>!</p>
+            </div>` : "";
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";
     let codigoHtml = "";
@@ -8596,7 +8602,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
                 </div>`;
       }
     }
-    conteudo.innerHTML = `
+    conteudo.innerHTML = pedidoConcluidoParaCliente ? `
+        <div class="rastreio-pub-card">
+            <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || "Loja")}</span>
+            <h2 class="rastreio-pub-titulo">Ol\xE1, ${escaparHtmlMarketplace(destinatario)}!</h2>
+            ${sucessoHtml}
+        </div>
+    ` : `
         <div class="rastreio-pub-card">
             <span class="rastreio-pub-loja">${escaparHtmlMarketplace(dados.lojaNome || "Loja")}</span>
             <h2 class="rastreio-pub-titulo">Ol\xE1, ${escaparHtmlMarketplace(destinatario)}!</h2>
