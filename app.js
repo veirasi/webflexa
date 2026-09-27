@@ -389,6 +389,7 @@
     renderRotasMarketplaceEntregador: () => renderRotasMarketplaceEntregador,
     renderRotasTelaPrincipal: () => renderRotasTelaPrincipal,
     renderSerieEntregasAdmin: () => renderSerieEntregasAdmin,
+    renderSerieGanhosAdmin: () => renderSerieGanhosAdmin,
     renderSheetRotaEntregadorConteudo: () => renderSheetRotaEntregadorConteudo,
     renderTelaBuscarEntregador: () => renderTelaBuscarEntregador,
     renderizarDashboard: () => renderizarDashboard,
@@ -6369,23 +6370,48 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     let ganhosSemana = 0;
     let ganhosMes = 0;
     let ganhosTotal = 0;
+    let totalPagoLojistaHistorico = 0;
+    let totalPagoEntregadorHistorico = 0;
     const rankingGanhosLojistasMap = /* @__PURE__ */ new Map();
     const inicioMesGanhosDate = /* @__PURE__ */ new Date();
     inicioMesGanhosDate.setDate(1);
     inicioMesGanhosDate.setHours(0, 0, 0, 0);
     const inicioMesGanhosTs = inicioMesGanhosDate.getTime();
     const inicioSemanaGanhosTs = hojeInicio - 6 * 864e5;
+    const semanaSerieGanhos = [];
+    for (let i = 7; i >= 0; i--) {
+      const fim = hojeInicio - i * 7 * 864e5 + 864e5;
+      const inicio = fim - 7 * 864e5;
+      semanaSerieGanhos.push({ inicioDia: inicio, fimDia: fim, label: new Date(inicio).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), ganhos: 0 });
+    }
+    const MESES_ABREV_GANHOS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const mesSerieGanhos = [];
+    const hojeDateGanhos = /* @__PURE__ */ new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(hojeDateGanhos.getFullYear(), hojeDateGanhos.getMonth() - i, 1);
+      const inicio = d.getTime();
+      const fim = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+      mesSerieGanhos.push({ inicioDia: inicio, fimDia: fim, label: MESES_ABREV_GANHOS[d.getMonth()], ganhos: 0 });
+    }
     rotasRecuperaveis.forEach((r) => {
       if (r.statusNorm !== "CONCLUIDO") return;
-      const taxa = calcularTaxaPlataformaRota(Number(r.totalFrete || 0), Number(r.distanciaTotal || 0));
+      const freteRota = Number(r.totalFrete || 0);
+      const distRota = Number(r.distanciaTotal || 0);
+      const taxa = calcularTaxaPlataformaRota(freteRota, distRota);
       if (taxa <= 0) return;
       const quando = Number(r.atualizadoEm || r.criadoEm || 0);
       ganhosTotal += taxa;
+      totalPagoLojistaHistorico += freteRota;
+      totalPagoEntregadorHistorico += calcularValorRepasseEntregador(freteRota, distRota);
       if (quando >= hojeInicio) ganhosHoje += taxa;
       if (quando >= inicioSemanaGanhosTs) ganhosSemana += taxa;
       if (quando >= inicioMesGanhosTs) ganhosMes += taxa;
       const diaBucket = diasSerie.find((d) => quando >= d.inicioDia && quando < d.fimDia);
       if (diaBucket) diaBucket.ganhos += taxa;
+      const semanaBucket = semanaSerieGanhos.find((d) => quando >= d.inicioDia && quando < d.fimDia);
+      if (semanaBucket) semanaBucket.ganhos += taxa;
+      const mesBucket = mesSerieGanhos.find((d) => quando >= d.inicioDia && quando < d.fimDia);
+      if (mesBucket) mesBucket.ganhos += taxa;
       const atualRank = rankingGanhosLojistasMap.get(r.lojistaUid) || { nome: r.lojistaNome || "Lojista", ganhos: 0 };
       atualRank.ganhos += taxa;
       rankingGanhosLojistasMap.set(r.lojistaUid, atualRank);
@@ -6414,7 +6440,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       const rows = Object.keys(usersNo).map((uid) => {
         const u = usersNo[uid] || {};
         const tipo = normalizarTexto(u.tipo || "loja");
-        const badgeClass = tipo === "master" ? "master" : tipo === "entregador" || tipo === "entrega" ? "entregador" : "loja";
+        const badgeClass = tipo === "master" ? "master" : tipo === "entregador" || tipo === "entrega" ? "entregador" : tipo === "cliente" ? "cliente" : "loja";
         const status = u.status || "ativo";
         return `
                 <div class="admin-row" data-tipo="${badgeClass}">
@@ -6483,7 +6509,15 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       usuarios: { lojas, entregadores, masters, ativosL, ativosE },
       pacotes: { total: pacTotal, emRota: pacEmRota, entregues: pacEnt, cancelados: pacCanc },
       rotas: { total: rotTotal, buscando: rotBus, emRota: rotEm, concluidas: rotCon, canceladas: rotCanc },
-      ganhos: { hoje: ganhosHoje, semana: ganhosSemana, mes: ganhosMes, total: ganhosTotal },
+      ganhos: {
+        hoje: ganhosHoje,
+        semana: ganhosSemana,
+        mes: ganhosMes,
+        total: ganhosTotal,
+        pagoLojistaTotal: totalPagoLojistaHistorico,
+        pagoEntregadorTotal: totalPagoEntregadorHistorico
+      },
+      ganhosSeries: { dia: diasSerie, semana: semanaSerieGanhos, mes: mesSerieGanhos },
       diasSerie,
       rankingLojistas: [...rankingLojistasMap.values()].sort((a, b) => b.entregues - a.entregues).slice(0, 5),
       rankingEntregadores: [...rankingEntregadoresMap.values()].sort((a, b) => b.concluidas - a.concluidas).slice(0, 5),
@@ -6812,18 +6846,26 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     setTxt("adm-ganhos-semana", g.semana);
     setTxt("adm-ganhos-mes", g.mes);
     setTxt("adm-ganhos-total", g.total);
+    setTxt("adm-ganhos-total-2", g.total);
+    setTxt("adm-ganhos-pago-lojista", g.pagoLojistaTotal || 0);
+    setTxt("adm-ganhos-pago-entregador", g.pagoEntregadorTotal || 0);
   }
   var adminChartsGanhos = {};
-  function renderSerieGanhosAdmin() {
+  function renderSerieGanhosAdmin(periodo = "dia") {
     if (!adminChartsState || typeof Chart === "undefined") return;
-    const dias = adminChartsState.diasSerie || [];
-    const montarCfg = () => ({
+    document.querySelectorAll(".admin-chart-tab-ganhos").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.periodoGanhos === periodo);
+    });
+    const series = adminChartsState.ganhosSeries || {};
+    const serieDia = series.dia || adminChartsState.diasSerie || [];
+    const serieEscolhida = series[periodo] || serieDia;
+    const montarCfg = (serie) => ({
       type: "bar",
       data: {
-        labels: dias.map((d) => d.label),
+        labels: serie.map((d) => d.label),
         datasets: [{
           label: "Ganhos da plataforma",
-          data: dias.map((d) => Number((d.ganhos || 0).toFixed(2))),
+          data: serie.map((d) => Number((d.ganhos || 0).toFixed(2))),
           backgroundColor: "#16a34a",
           borderRadius: 6,
           maxBarThickness: 36
@@ -6838,12 +6880,16 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
         scales: { y: { beginAtZero: true, ticks: { callback: (v) => precoParaMoeda(v) } } }
       }
     });
-    ["adm-chart-ganhos-dias", "adm-chart-ganhos-mini"].forEach((id) => {
-      const ctx = document.getElementById(id);
-      if (!ctx) return;
-      if (adminChartsGanhos[id]) adminChartsGanhos[id].destroy();
-      adminChartsGanhos[id] = new Chart(ctx, montarCfg());
-    });
+    const ctxFull = document.getElementById("adm-chart-ganhos-dias");
+    if (ctxFull) {
+      if (adminChartsGanhos["adm-chart-ganhos-dias"]) adminChartsGanhos["adm-chart-ganhos-dias"].destroy();
+      adminChartsGanhos["adm-chart-ganhos-dias"] = new Chart(ctxFull, montarCfg(serieEscolhida));
+    }
+    const ctxMini = document.getElementById("adm-chart-ganhos-mini");
+    if (ctxMini) {
+      if (adminChartsGanhos["adm-chart-ganhos-mini"]) adminChartsGanhos["adm-chart-ganhos-mini"].destroy();
+      adminChartsGanhos["adm-chart-ganhos-mini"] = new Chart(ctxMini, montarCfg(serieDia));
+    }
   }
   function renderRankingGanhosAdmin() {
     const el = document.getElementById("adm-ranking-ganhos-lojistas");

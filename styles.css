@@ -5952,6 +5952,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .admin-badge.master { background: #dbeafe; color: #1d4ed8; }
 .admin-badge.loja { background: #e9d5ff; color: #7c3aed; }
 .admin-badge.entregador { background: #cffafe; color: #0f172a; }
+.admin-badge.cliente { background: #fef9c3; color: #854d0e; }
 
 .admin-layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; background: linear-gradient(135deg, #f8fafc, #eef2ff); }
 .admin-layout { height: auto; min-height: 100vh; }

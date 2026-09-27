@@ -1518,6 +1518,7 @@
                         <button type="button" class="admin-nav-subitem active" data-tipo-usuario="todos" onclick="switchAdminTab('users'); filtrarAdminUsuariosPorTipo('todos', this)">Todos</button>
                         <button type="button" class="admin-nav-subitem" data-tipo-usuario="loja" onclick="switchAdminTab('users'); filtrarAdminUsuariosPorTipo('loja', this)">Lojistas</button>
                         <button type="button" class="admin-nav-subitem" data-tipo-usuario="entregador" onclick="switchAdminTab('users'); filtrarAdminUsuariosPorTipo('entregador', this)">Entregadores</button>
+                        <button type="button" class="admin-nav-subitem" data-tipo-usuario="cliente" onclick="switchAdminTab('users'); filtrarAdminUsuariosPorTipo('cliente', this)">Clientes</button>
                     </div>
                     <button type="button" class="admin-nav-btn" data-tab="routes" onclick="switchAdminTab('routes')"><i data-lucide="map" size="18"></i><span class="admin-nav-copy">Rotas</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="packages" onclick="switchAdminTab('packages')"><i data-lucide="package" size="18"></i><span class="admin-nav-copy">Pacotes</span></button>
@@ -1825,8 +1826,39 @@
                         <div class="admin-panel" style="margin-bottom:16px;">
                             <div class="admin-panel-head">
                                 <div>
-                                    <strong>Ganhos por dia</strong>
-                                    <p class="admin-subtle" style="margin:2px 0 0;">Últimos 7 dias, só rotas já concluídas.</p>
+                                    <strong>Comparativo histórico</strong>
+                                    <p class="admin-subtle" style="margin:2px 0 0;">O que o lojista paga = o que o entregador recebe + o ganho da Flex.</p>
+                                </div>
+                            </div>
+                            <div class="admin-cards-grid">
+                                <div class="admin-card admin-kpi">
+                                    <div class="admin-kpi-icon admin-kpi-icon-orange"><i data-lucide="store" size="18"></i></div>
+                                    <span>Total pago pelo lojista</span>
+                                    <strong id="adm-ganhos-pago-lojista">R$ 0,00</strong>
+                                </div>
+                                <div class="admin-card admin-kpi">
+                                    <div class="admin-kpi-icon admin-kpi-icon-blue"><i data-lucide="truck" size="18"></i></div>
+                                    <span>Total pago ao entregador</span>
+                                    <strong id="adm-ganhos-pago-entregador">R$ 0,00</strong>
+                                </div>
+                                <div class="admin-card admin-kpi">
+                                    <div class="admin-kpi-icon admin-kpi-icon-green"><i data-lucide="wallet" size="18"></i></div>
+                                    <span>Ganho da Flex</span>
+                                    <strong id="adm-ganhos-total-2">R$ 0,00</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="admin-panel" style="margin-bottom:16px;">
+                            <div class="admin-panel-head">
+                                <div>
+                                    <strong>Ganhos ao longo do tempo</strong>
+                                    <p class="admin-subtle" style="margin:2px 0 0;">Só rotas já concluídas.</p>
+                                </div>
+                                <div class="admin-chart-tabs">
+                                    <button type="button" class="admin-chart-tab admin-chart-tab-ganhos active" data-periodo-ganhos="dia" onclick="renderSerieGanhosAdmin('dia')">Dia (7 dias)</button>
+                                    <button type="button" class="admin-chart-tab admin-chart-tab-ganhos" data-periodo-ganhos="semana" onclick="renderSerieGanhosAdmin('semana')">Semana (8 semanas)</button>
+                                    <button type="button" class="admin-chart-tab admin-chart-tab-ganhos" data-periodo-ganhos="mes" onclick="renderSerieGanhosAdmin('mes')">Mês (6 meses)</button>
                                 </div>
                             </div>
                             <div class="admin-line-chart-box">
