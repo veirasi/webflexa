@@ -7840,38 +7840,15 @@ async function adminExcluirPacote(lojistaUid, envioId) {
 
 async function atualizarStatusRotaMaster(lojistaUid, rotaId, status = 'BUSCANDO') {
     if (!usuarioEhMaster() || !lojistaUid || !rotaId) return;
-    const agora = Date.now();
-
-    // BUG CORRIGIDO 2026-09-27: só gravava na cópia do LOJISTA — a rota
-    // também vive numa cópia separada do lado do ENTREGADOR (gravada em
-    // aceitarRotaMarketplaceEntregador quando ele aceita), sem nenhuma
-    // referência cruzada ao vivo entre as duas. Mudar o status só de um lado
-    // deixava o outro congelado pra sempre (relatado pelo dono: mudou várias
-    // rotas pra "entregue" no painel, o lojista viu "Concluída", o
-    // entregador continuou vendo "Em rota" na home dele).
-    const snapAtual = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
-    const rotaAtual = snapAtual.val() || {};
-    const entregadorId = rotaAtual?.entregadorId || rotaAtual?.aceitoPor || null;
-
-    const updates = {};
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/status`] = status;
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/pagamentoStatus`] = status;
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/atualizadoEm`] = agora;
-
-    if (status === 'BUSCANDO') {
-        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorId`] = null;
-        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoPor`] = null;
-        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoEm`] = null;
-        // Volta a ficar disponível pra qualquer entregador — a cópia de quem
-        // tinha aceito antes não faz mais sentido do lado dele.
-        if (entregadorId) updates[`usuarios/${entregadorId}/rotas/${rotaId}`] = null;
-    } else if (entregadorId) {
-        updates[`usuarios/${entregadorId}/rotas/${rotaId}/status`] = status;
-        updates[`usuarios/${entregadorId}/rotas/${rotaId}/pagamentoStatus`] = status;
-        updates[`usuarios/${entregadorId}/rotas/${rotaId}/atualizadoEm`] = agora;
-    }
-
-    await db.ref().update(updates);
+    // A checagem de "é master de verdade" e a gravação nas duas cópias
+    // (lojista+entregador) agora rodam no servidor (plano de segurança
+    // 2026-09-27, ver /admin-atualizar-status-rota em backend/functions) — a
+    // regra do banco pra "rotas" é auth != null, então antes bastava chamar
+    // esta função direto do console (com usuarioEhMaster() sempre true pra
+    // quem edita o próprio localStorage) pra reescrever a rota de qualquer
+    // lojista. A checagem acima continua só pra UX (não mostra a opção pra
+    // quem não é master).
+    await chamarPaymentsProxy('/admin-atualizar-status-rota', { lojistaUid, rotaId, status });
 }
 
 async function adminExcluirRota(lojistaUid, rotaId) {
@@ -7879,14 +7856,9 @@ async function adminExcluirRota(lojistaUid, rotaId) {
     if (!window.confirm(`Excluir a rota ${rotaId} definitivamente? Isso não apaga os pacotes dela, só a rota em si — os pacotes voltam a aparecer como disponíveis pra entrar em outra rota.`)) return;
 
     try {
-        // Mesmo bug do atualizarStatusRotaMaster: precisa apagar a cópia do
-        // entregador também, senão ela fica órfã pra sempre do lado dele.
-        const snapAtual = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
-        const entregadorId = snapAtual.val()?.entregadorId || snapAtual.val()?.aceitoPor || null;
-
-        const updates = { [`usuarios/${lojistaUid}/rotas/${rotaId}`]: null };
-        if (entregadorId) updates[`usuarios/${entregadorId}/rotas/${rotaId}`] = null;
-        await db.ref().update(updates);
+        // Mesma migração de atualizarStatusRotaMaster: quem decide e quem
+        // grava agora é o servidor (/admin-excluir-rota).
+        await chamarPaymentsProxy('/admin-excluir-rota', { lojistaUid, rotaId });
 
         notificarSucesso('Rota excluída.');
         await renderDashboardMaster();
@@ -7997,39 +7969,6 @@ async function adminSalvarRotas() {
     });
     await Promise.all(promessas);
     notificarSucesso('Status das rotas atualizado.');
-    renderDashboardMaster();
-}
-
-async function restaurarRotaMaster(lojistaUid, rotaId) {
-    if (!usuarioEhMaster() || !lojistaUid || !rotaId) return;
-
-    // pega o entregador atual (se tiver) antes de limpar, pra também remover a cópia
-    // da rota do lado dele — sem isso a rota reaparecia fantasma no dashboard dele.
-    let entregadorId = '';
-    try {
-        const snap = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
-        const atual = snap.val() || {};
-        entregadorId = String(atual.entregadorId || atual.aceitoPor || '');
-    } catch (_) {
-        entregadorId = '';
-    }
-
-    const updates = {};
-    const agora = Date.now();
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/status`] = 'BUSCANDO';
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/pagamentoStatus`] = 'BUSCANDO';
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorId`] = null;
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoPor`] = null;
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoEm`] = null;
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorGeo`] = null;
-    updates[`usuarios/${lojistaUid}/rotas/${rotaId}/atualizadoEm`] = agora;
-    await db.ref().update(updates);
-
-    if (entregadorId) {
-        await db.ref(`usuarios/${entregadorId}/rotas/${rotaId}`).remove().catch(() => {});
-    }
-
-    alert('Rota restaurada para BUSCANDO.');
     renderDashboardMaster();
 }
 
@@ -14734,7 +14673,6 @@ export {
   renderizarDashboard,
   renderizarDashboardEntregador,
   resetClienteForm,
-  restaurarRotaMaster,
   resumirCidadesRota,
   resumirRotaParaEntregador,
   rotaMarketplacePassaNoFiltro,

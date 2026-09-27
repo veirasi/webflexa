@@ -248,6 +248,21 @@ function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
   return Number(Math.max(0, v - taxa).toFixed(2));
 }
 
+// Painel master (plano de segurança 2026-09-27): atualizarStatusRotaMaster/
+// adminExcluirRota no frontend só conferiam usuarioEhMaster() no JAVASCRIPT
+// do próprio navegador — a regra do banco pra "rotas" é `auth != null` (não
+// exige master), então qualquer autenticado podia reescrever/apagar a rota
+// de qualquer lojista direto do console. Esta checagem lê o "tipo" real do
+// chamador no banco (campo write-once, nunca vira master por escrita comum
+// — ver database.rules.json), a única fonte confiável.
+async function requesterEhMasterOuAdmin(requester) {
+  if (!requester) return false;
+  if (requester.admin === true || requester.role === 'admin') return true;
+  const snap = await db.ref(`usuarios/${requester.uid}/tipo`).once('value');
+  const tipo = snap.val();
+  return tipo === 'master' || tipo === 'admin';
+}
+
 async function canAccessTenant(requester, tenantId) {
   if (!requester) return false;
 
@@ -399,7 +414,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -1180,6 +1195,79 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       });
 
       return res.status(200).json({ creditado: true, saldoAtualizado, valorCreditado: valorCredito });
+    }
+
+    // Painel master: alterar status de rota de qualquer lojista (plano de
+    // segurança 2026-09-27 — ver requesterEhMasterOuAdmin acima). Mesma
+    // lógica de atualizarStatusRotaMaster no frontend: grava nas DUAS cópias
+    // (lojista+entregador), e volta a ficar "BUSCANDO" limpa o vínculo com o
+    // entregador que tinha aceito antes.
+    if (path === '/admin-atualizar-status-rota') {
+      const statusValidos = ['BUSCANDO', 'EM_ROTA', 'CONCLUIDO', 'CANCELADO'];
+      const { lojistaUid, rotaId, status } = req.body || {};
+      if (!lojistaUid || !rotaId || !statusValidos.includes(status)) {
+        return res.status(400).json({ error: 'Missing/invalid fields', required: ['lojistaUid', 'rotaId', 'status'], statusValidos });
+      }
+
+      const ehMaster = await requesterEhMasterOuAdmin(requester);
+      if (!ehMaster) {
+        return res.status(403).json({ error: 'Só um master pode alterar rotas de outros usuários' });
+      }
+
+      const snapAtual = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
+      const rotaAtual = snapAtual.val();
+      if (!rotaAtual) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = rotaAtual?.entregadorId || rotaAtual?.aceitoPor || null;
+      const agora = Date.now();
+
+      const updates = {};
+      updates[`usuarios/${lojistaUid}/rotas/${rotaId}/status`] = status;
+      updates[`usuarios/${lojistaUid}/rotas/${rotaId}/pagamentoStatus`] = status;
+      updates[`usuarios/${lojistaUid}/rotas/${rotaId}/atualizadoEm`] = agora;
+
+      if (status === 'BUSCANDO') {
+        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/entregadorId`] = null;
+        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoPor`] = null;
+        updates[`usuarios/${lojistaUid}/rotas/${rotaId}/aceitoEm`] = null;
+        if (entregadorId) updates[`usuarios/${entregadorId}/rotas/${rotaId}`] = null;
+      } else if (entregadorId) {
+        updates[`usuarios/${entregadorId}/rotas/${rotaId}/status`] = status;
+        updates[`usuarios/${entregadorId}/rotas/${rotaId}/pagamentoStatus`] = status;
+        updates[`usuarios/${entregadorId}/rotas/${rotaId}/atualizadoEm`] = agora;
+      }
+
+      await db.ref().update(updates);
+      return res.status(200).json({ atualizado: true, status });
+    }
+
+    // Painel master: excluir rota de qualquer lojista (plano de segurança
+    // 2026-09-27). Mesma lógica de adminExcluirRota no frontend: apaga a
+    // cópia do lojista e, se tinha entregador vinculado, a cópia dele também.
+    if (path === '/admin-excluir-rota') {
+      const { lojistaUid, rotaId } = req.body || {};
+      if (!lojistaUid || !rotaId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['lojistaUid', 'rotaId'] });
+      }
+
+      const ehMaster = await requesterEhMasterOuAdmin(requester);
+      if (!ehMaster) {
+        return res.status(403).json({ error: 'Só um master pode excluir rotas de outros usuários' });
+      }
+
+      const snapAtual = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
+      const rotaAtual = snapAtual.val();
+      if (!rotaAtual) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = rotaAtual?.entregadorId || rotaAtual?.aceitoPor || null;
+
+      const updates = { [`usuarios/${lojistaUid}/rotas/${rotaId}`]: null };
+      if (entregadorId) updates[`usuarios/${entregadorId}/rotas/${rotaId}`] = null;
+      await db.ref().update(updates);
+
+      return res.status(200).json({ excluido: true });
     }
 
     // path === '/check-pix'
