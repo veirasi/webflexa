@@ -3412,15 +3412,11 @@ function montarCardBuscaEntregador(rota) {
         <article class="buscar-rota-card" onclick="abrirSheetBuscaRota('${rotaIdEsc}', '${lojistaUidEsc}')">
             <div class="buscar-rota-avatar">${avatar}</div>
             <div class="buscar-rota-body">
-                <div class="buscar-rota-row">
-                    <div>
-                        <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
-                        <div class="buscar-rota-tags">${tags.join('')}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
-                    </div>
-                    <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
-                </div>
+                <div class="buscar-rota-title">${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}</div>
+                <div class="buscar-rota-tags">${tags.join('')}<span class="buscar-rota-meta">${escaparHtmlMarketplace(kmTxt)}</span></div>
                 <div class="buscar-rota-extra">${escaparHtmlMarketplace(precoPorKmTxt)}/km · 🏍 ${escaparHtmlMarketplace(veiculoTxt)}</div>
             </div>
+            <div class="buscar-rota-price">${escaparHtmlMarketplace(precoTxt)}</div>
         </article>
     `;
 }
