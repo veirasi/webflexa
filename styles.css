@@ -5713,7 +5713,11 @@ body.usuario-entregador #entregador-rotas-shell {
    pra eles e desalinhava a barrinha cinza + título + botão fechar. Escopado a
    #buscar-sheet-content pra não vazar mais. */
 #buscar-sheet-content .sheet-actions { margin-top: 24px; }
-.sheet-buscar .sheet-handle { width: 40px; height: 4px; border-radius: 999px; background: #e2e8f0; margin: 0 auto 14px; }
+/* margin-bottom generoso (não os 14px padrão dos outros sheets) porque o
+   botão fechar aqui é absolute (position:absolute; top:10px; 36px de altura,
+   ver .sheet-close-btn) e vazava por cima do conteúdo com uma margem menor —
+   reportado pelo dono com print mostrando o X colado no conteúdo abaixo. */
+.sheet-buscar .sheet-handle { width: 40px; height: 4px; border-radius: 999px; background: #e2e8f0; margin: 0 auto 30px; }
 #buscar-sheet-content .sheet-header { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 #buscar-sheet-content .sheet-merchant { display: flex; gap: 10px; align-items: center; }
 #buscar-sheet-content .sheet-merchant-logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--brand-orange); overflow: hidden; }
@@ -5770,12 +5774,14 @@ body.usuario-entregador #entregador-rotas-shell {
 
 /* Entregador sheet novo */
 .ent-sheet { background: #fff; border-radius: 26px; padding: 18px 18px 22px; box-shadow: 0 20px 55px rgba(0,0,0,0.18); }
-.ent-sheet-handle { width: 40px; height: 4px; background: #e2e8f0; border-radius: 999px; margin: 0 auto 14px; }
+/* margin-bottom generoso: mesmo motivo do .sheet-buscar .sheet-handle acima
+   — o botão fechar absolute (36px) vazava por cima do cabeçalho da rota. */
+.ent-sheet-handle { width: 40px; height: 4px; background: #e2e8f0; border-radius: 999px; margin: 0 auto 30px; }
 
 .ent-sheet-close-btn {
     position: absolute;
-    top: 14px;
-    right: 14px;
+    top: 10px;
+    right: 10px;
     width: 36px;
     height: 36px;
     border: none;
@@ -5918,7 +5924,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .sheet-block p { margin: 0; color: var(--text-sub); font-weight: 700; font-size: 13px; }
 .sheet-actions { position: absolute; left: 16px; right: 16px; bottom: 16px; background: transparent; padding: 0; margin-top: 0; }
 .sheet-accept-btn { width: 100%; border: none; border-radius: 10px; padding: 14px; font-weight: 900; font-size: 16px; color: #fff; background: linear-gradient(135deg, #f9902f, #e6760c); box-shadow: 0 10px 22px rgba(230,118,12,0.35); display: flex; align-items: center; justify-content: center; gap: 8px; }
-.sheet-close-btn { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border: none; border-radius: 50%; background: #f1f5f9; color: #64748b; font-weight: 900; font-size: 22px; line-height: 1; cursor: pointer; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 0; }
+.sheet-close-btn { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border: none; border-radius: 50%; background: #f1f5f9; color: #64748b; font-weight: 900; font-size: 22px; line-height: 1; cursor: pointer; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 0; }
 
 .rotas-entregador-list { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 90px; }
 .rotas-ent-card { background: #fff; border: 1px solid #eef2f6; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.04); padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
@@ -6284,7 +6290,7 @@ body.admin-mode { overflow: auto; }
 
 .tracking-route-dots .home-route-dot { cursor: pointer; }
 
-.tracking-handle-row { position: relative; margin-bottom: 12px; }
+.tracking-handle-row { position: relative; min-height: 36px; display: flex; align-items: center; margin-bottom: 20px; }
 .tracking-handle-row .tracking-handle { margin: 0 auto; }
 .tracking-close-btn {
     width: 36px; height: 36px; border-radius: 50%; border: none; background: #f1f5f9;
