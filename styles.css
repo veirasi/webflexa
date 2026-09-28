@@ -1753,9 +1753,9 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .selector-sheet-handle {
-    width: 52px;
+    width: 40px;
     height: 4px;
-    background: #d1d5db;
+    background: #e2e8f0;
     border-radius: 999px;
     margin: 0 auto 14px;
 }
@@ -1768,14 +1768,13 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     margin: 0;
     font-size: 20px;
     line-height: 1;
-    font-weight: 700;
-    color: #001f3f;
+    font-weight: 800;
     white-space: nowrap;
 }
 
 .selector-close-btn {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border: none;
     border-radius: 50%;
     background: #f1f5f9;
@@ -1967,20 +1966,19 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .cliente-actions-header {
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 800;
-    color: #111827;
     margin: 6px 0 10px;
 }
 
 .cliente-actions-close {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border: none;
     border-radius: 50%;
     background: #f1f5f9;
     color: #64748b;
-    font-size: 24px;
+    font-size: 22px;
     line-height: 1;
 }
 
@@ -2123,16 +2121,15 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .envio-detalhe-header .sheet-header-row { align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 0 12px; }
 .envio-detalhe-header .sheet-title { margin: 0; flex: 1; text-align: left; }
-#modal-detalhe-envio .selector-sheet-handle { margin: 10px auto 10px; }
+#modal-detalhe-envio .selector-sheet-handle { margin: 0 auto 14px; }
 .envio-detalhe-header .selector-close-btn { margin-left: auto; position: relative; }
 
 #modal-detalhe-envio .sheet-header { display: block !important; padding: 10px 0 6px; text-align: center; }
 #modal-detalhe-envio .sheet-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; margin: 0; }
 
 .envio-detalhe-title {
-    text-align: left;
-    font-size: 24px;
-    line-height: 1.1;
+    font-size: 20px;
+    line-height: 1.2;
 }
 
 .envio-detalhe-body {
@@ -2311,10 +2308,6 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 @media (max-width: 400px) {
-    .envio-detalhe-title {
-        font-size: 22px;
-    }
-
     .envio-detalhe-info-row strong {
         font-size: 13px;
     }
@@ -2876,11 +2869,11 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .rota-detalhe-header .modal-handle {
-    width: 52px;
-    height: 5px;
+    width: 40px;
+    height: 4px;
     border-radius: 999px;
-    background: #cfd7e3;
-    margin: 4px auto 14px;
+    background: #e2e8f0;
+    margin: 0 auto 14px;
 }
 
 .rota-detalhe-header-row {
@@ -2891,22 +2884,10 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .rota-detalhe-header-row h2 {
-    font-size: 12px;
-    line-height: 1;
+    font-size: 20px;
+    line-height: 1.2;
     font-weight: 800;
-    color: #0f172a;
     margin: 0;
-}
-
-.rota-detalhe-header .rota-flow-icon-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    border: 1px solid #dde3ec;
-    background: #e7ecf3;
-    color: #8ea0b8;
-    font-size: 12px;
-    font-weight: 700;
 }
 
 .rota-detalhe-id-row {
@@ -3250,7 +3231,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 .rastrear-track-wrap {
     position: relative;
     margin-top: 10px;
-    padding: 12px 6px 8px;
+    padding: 26px 8px;
 }
 
 .rastrear-track-time {
@@ -3264,7 +3245,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .rastrear-track-fill {
     position: absolute;
-    left: 10px;
+    left: 8px;
     top: 50%;
     height: 2px;
     background: linear-gradient(90deg, #f97316, #fb923c);
@@ -3275,10 +3256,10 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .rastrear-track-line {
     position: absolute;
-    left: 10px;
-    right: 10px;
+    left: 8px;
+    right: 8px;
     top: 50%;
-    border-top: 2px dashed #d5ddeb;
+    border-top: 2px dashed #d6deea;
 }
 
 .rastrear-track-dots {
@@ -3289,11 +3270,11 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .rastrear-dot {
-    width: 11px;
-    height: 11px;
-    border-radius: 999px;
-    background: #d5ddeb;
-    border: 2px solid #eef3f9;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid #eef2f8;
+    background: #d6deea;
 }
 
 .rastrear-dot.done {
@@ -3301,7 +3282,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 }
 
 .rastrear-dot.current {
-    transform: scale(1.2);
+    transform: scale(1.18);
     box-shadow: 0 0 0 4px rgba(218, 111, 24, 0.16);
 }
 
@@ -3431,12 +3412,9 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     position: absolute;
     top: 50%;
     left: 0;
-    transform: translateY(-54%);
-    width: 20px;
-    height: 20px;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    transform: translateY(-52%);
+    width: 36px;
+    height: 36px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3444,6 +3422,12 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     z-index: 3;
     pointer-events: none;
     transition: left 0.4s ease;
+}
+
+.rastrear-track-bike img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .rastrear-card-footer {
@@ -5729,7 +5713,7 @@ body.usuario-entregador #entregador-rotas-shell {
    pra eles e desalinhava a barrinha cinza + título + botão fechar. Escopado a
    #buscar-sheet-content pra não vazar mais. */
 #buscar-sheet-content .sheet-actions { margin-top: 24px; }
-.sheet-buscar .sheet-handle { width: 46px; height: 5px; border-radius: 999px; background: #d7dfe9; margin: 0 auto 14px; }
+.sheet-buscar .sheet-handle { width: 40px; height: 4px; border-radius: 999px; background: #e2e8f0; margin: 0 auto 14px; }
 #buscar-sheet-content .sheet-header { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 #buscar-sheet-content .sheet-merchant { display: flex; gap: 10px; align-items: center; }
 #buscar-sheet-content .sheet-merchant-logo { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--brand-orange); overflow: hidden; }
@@ -5786,7 +5770,28 @@ body.usuario-entregador #entregador-rotas-shell {
 
 /* Entregador sheet novo */
 .ent-sheet { background: #fff; border-radius: 26px; padding: 18px 18px 22px; box-shadow: 0 20px 55px rgba(0,0,0,0.18); }
-.ent-sheet-handle { width: 60px; height: 6px; background: #d9dee8; border-radius: 12px; margin: 6px auto 14px; }
+.ent-sheet-handle { width: 40px; height: 4px; background: #e2e8f0; border-radius: 999px; margin: 0 auto 14px; }
+
+.ent-sheet-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
 .ent-sheet-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .ent-sheet-loja { display: flex; align-items: center; gap: 10px; }
 .ent-sheet-loja-nome { font-weight: 800; color: #0f172a; font-size: 15px; line-height: 1.15; }
@@ -5913,7 +5918,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .sheet-block p { margin: 0; color: var(--text-sub); font-weight: 700; font-size: 13px; }
 .sheet-actions { position: absolute; left: 16px; right: 16px; bottom: 16px; background: transparent; padding: 0; margin-top: 0; }
 .sheet-accept-btn { width: 100%; border: none; border-radius: 10px; padding: 14px; font-weight: 900; font-size: 16px; color: #fff; background: linear-gradient(135deg, #f9902f, #e6760c); box-shadow: 0 10px 22px rgba(230,118,12,0.35); display: flex; align-items: center; justify-content: center; gap: 8px; }
-.sheet-close-btn { position: absolute; top: 14px; right: 14px; background: none; border: none; color: #f97316; font-weight: 900; font-size: 18px; padding: 4px 6px; line-height: 1; z-index: 3; }
+.sheet-close-btn { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border: none; border-radius: 50%; background: #f1f5f9; color: #64748b; font-weight: 900; font-size: 22px; line-height: 1; cursor: pointer; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 0; }
 
 .rotas-entregador-list { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 90px; }
 .rotas-ent-card { background: #fff; border: 1px solid #eef2f6; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.04); padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
@@ -6207,7 +6212,7 @@ body.admin-mode { overflow: auto; }
 .tracking-chip { background:#fff; color:#0f172a; border-radius:var(--radius-full); padding:6px 10px; font-weight:800; font-size:12px; box-shadow:0 8px 20px rgba(0,0,0,0.08); position:absolute; top:12px; right:12px; }
 .tracking-sheet { background:#ffffff; color:#0f172a; border-radius:22px 22px 0 0; padding:18px; box-shadow: 0 -12px 30px rgba(0,0,0,0.12); position: relative; width:100%; max-width:600px; flex:0 0 auto; border:1px solid #e5e7eb; }
 .tracking-sheet-dark { background:#ffffff; }
-.tracking-handle { width:48px; height:5px; background:#d7dfe9; border-radius:999px; margin:0 auto 12px; }
+.tracking-handle { width:40px; height:4px; background:#e2e8f0; border-radius:999px; margin:0 auto 14px; }
 .tracking-handle-light { background:#d7dfe9; }
 .tracking-row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
 .tracking-row-header { margin-bottom:10px; }
@@ -6219,46 +6224,71 @@ body.admin-mode { overflow: auto; }
 .tracking-cell { background:#f8fafc; border-radius:14px; padding:12px; border:1px solid #e5e7eb; }
 .tracking-cell.dark { background:#f8fafc; border-color:#e5e7eb; }
 .tracking-cell strong { display:block; color:#0f172a; font-weight:900; }
-.tracking-timeline-row { margin-top:6px; margin-bottom:6px; }
-.tracking-timeline {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0;
-    height: 2px;
-    padding: 0;
-    background: rgba(15, 23, 42, 0.14);
-    border: none;
-    border-radius: 999px;
-    overflow: visible;
-}
-.tracking-timeline.is-single { justify-content: center; }
-.tracking-dot {
-    box-sizing: border-box;
-    width: 12px;
-    height: 12px;
-    border-radius: 999px;
-    background: #fff;
-    border: 2px solid #cbd5e1;
+/* Timeline padronizada (pedido do dono 2026-09-27): mesma estrutura/CSS do
+   card "Em Rota" da home do lojista (.home-current-track), só escopada com
+   nome próprio pra não vazar entre sheets — ver montarTimelineRealRota. Os
+   dots reaproveitam .home-route-dot direto (são folhas sem layout de
+   contexto, sem risco do vazamento que já rolou com .sheet-header). */
+.tracking-route-track {
     position: relative;
-    flex: 0 0 12px;
+    padding: 26px 8px;
+    margin: 6px 0;
+}
+
+.tracking-route-track-fill {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    height: 2px;
+    background: linear-gradient(90deg, #f97316, #fb923c);
+    transform: translateY(-50%);
+    border-radius: 999px;
     z-index: 1;
-    box-shadow: 0 0 0 2px #fff;
-    cursor: pointer;
 }
-.tracking-dot::after { display: none; }
-.tracking-dot.done, .tracking-dot.cancel { background: #fff; border-color: #cbd5e1; }
-.tracking-dot.active {
-    background: var(--brand-orange);
-    border-color: var(--brand-orange);
-    box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(245, 130, 32, 0.18);
+
+.tracking-route-track-line {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 50%;
+    border-top: 2px dashed #d6deea;
 }
+
+.tracking-route-dots {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+}
+
+.tracking-route-bike {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-52%);
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    pointer-events: none;
+    transition: left 0.4s ease;
+}
+
+.tracking-route-bike img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.tracking-route-dots .home-route-dot { cursor: pointer; }
 
 .tracking-handle-row { position: relative; margin-bottom: 12px; }
 .tracking-handle-row .tracking-handle { margin: 0 auto; }
 .tracking-close-btn {
-    width: 30px; height: 30px; border-radius: 50%; border: none; background: #f1f5f9;
-    color: #475569; font-size: 20px; line-height: 1; cursor: pointer; flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 50%; border: none; background: #f1f5f9;
+    color: #64748b; font-size: 22px; line-height: 1; cursor: pointer; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
 }
 .tracking-handle-row .tracking-close-btn { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
@@ -6391,8 +6421,8 @@ body.admin-mode { overflow: auto; }
 }
 
 #modal-envio-detalhes .envio-sheet-handle {
-    width: 44px !important;
-    margin: 0 auto 10px !important;
+    width: 40px !important;
+    margin: 0 auto 14px !important;
 }
 
 #modal-envio-detalhes .sheet-header-row {

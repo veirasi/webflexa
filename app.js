@@ -4190,6 +4190,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     content.innerHTML = `
     <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;">
         <div class="ent-sheet-handle"></div>
+        <button type="button" class="ent-sheet-close-btn" onclick="fecharSheetRotaEntregador()">&times;</button>
         <div class="ent-sheet-header">
             <div class="ent-sheet-loja">
                 <div class="ent-sheet-avatar">${avatar}</div>
@@ -4334,6 +4335,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     content.innerHTML = `
     <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;" ontouchstart="iniciarSwipeEntSheet(event)" ontouchend="finalizarSwipeEntSheet(event)">
         <div class="ent-sheet-handle"></div>
+        <button type="button" class="ent-sheet-close-btn" onclick="fecharSheetRotaEntregador()">&times;</button>
         <div class="ent-sheet-header">
             <div class="ent-sheet-loja">
                 <div class="ent-sheet-avatar">${avatar}</div>
@@ -4383,6 +4385,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     content.innerHTML = `
     <div class="sheet-buscar modal-ent-sheet" style="background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;">
         <div class="ent-sheet-handle"></div>
+        <button type="button" class="ent-sheet-close-btn" onclick="fecharSheetRotaEntregador()">&times;</button>
         <strong style="display:block; font-size:16px; margin-bottom:12px; color:#0f172a;">Por que n\xE3o conseguiu entregar?</strong>
         <div class="ent-sheet-motivo-lista">
             ${podeClienteNaoPagou ? `<button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_nao_pagou')">Cliente n\xE3o pagou</button>` : ""}
@@ -5509,7 +5512,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     }
     openModal();
   }
-  function montarTimelineRealRota(pacotes, totalFallback, dotClass) {
+  function montarTimelineRealRota(pacotes, totalFallback, dotClass, onclickPorIndice) {
     const CAP_DOTS_VISIVEIS = 6;
     const pacoteEstaConcluido = (p) => {
       if (!p) return false;
@@ -5520,10 +5523,11 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     const pacotesOrdenados = pacotes.length ? pacotes : Array.from({ length: totalPacotes });
     const concluidos = pacotesOrdenados.filter(pacoteEstaConcluido).length;
     const progressoPct = totalPacotes > 0 ? Math.max(0, Math.min(100, Math.round(concluidos / totalPacotes * 100))) : 0;
+    const onclickAttr = (idx) => onclickPorIndice ? ` onclick="${onclickPorIndice(idx)}"` : "";
     let html;
     if (totalPacotes <= CAP_DOTS_VISIVEIS) {
       html = pacotesOrdenados.slice(0, totalPacotes).map(
-        (p) => `<span class="${dotClass} ${pacoteEstaConcluido(p) ? "done" : ""}"></span>`
+        (p, idx) => `<span class="${dotClass} ${pacoteEstaConcluido(p) ? "done" : ""}"${onclickAttr(idx)}></span>`
       ).join("");
     } else {
       const visiveis = pacotesOrdenados.slice(0, CAP_DOTS_VISIVEIS - 1);
@@ -5531,7 +5535,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       const restantesDoneCount = restantes.filter(pacoteEstaConcluido).length;
       const restantesPct = restantes.length ? Math.round(restantesDoneCount / restantes.length * 100) : 0;
       const dotsVisiveisHtml = visiveis.map(
-        (p) => `<span class="${dotClass} ${pacoteEstaConcluido(p) ? "done" : ""}"></span>`
+        (p, idx) => `<span class="${dotClass} ${pacoteEstaConcluido(p) ? "done" : ""}"${onclickAttr(idx)}></span>`
       ).join("");
       const moreHtml = `<span class="home-route-more" style="background:linear-gradient(90deg, #da6f18 ${restantesPct}%, #d6deea ${restantesPct}%);" title="${restantesDoneCount}/${restantes.length} entregues">+${restantes.length}</span>`;
       html = dotsVisiveisHtml + moreHtml;
@@ -5576,7 +5580,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
                     <div class="rastrear-track-fill" style="width:${progressoPct}%;"></div>
                     <div class="rastrear-track-line"></div>
                     <div class="rastrear-track-dots">${dotsHtml}</div>
-                    <span class="rastrear-track-bike" style="left:${bikeLeft};"><i data-lucide="bike"></i></span>
+                    <span class="rastrear-track-bike" style="left:${bikeLeft};"><img src="img/timeline-icon.png" alt=""></span>
                 </div>
                 <div class="rastrear-card-footer">
                     <span>${formatarDistancia(dist)}</span>
@@ -11625,27 +11629,18 @@ Acompanhe em tempo real: ${link}`;
       if (paradaInfoEl) paradaInfoEl.classList.add("hidden");
       const timelineEl = document.getElementById("track-loja-timeline");
       if (timelineEl) {
-        const maxDots = 5;
-        const total = totalPac || 1;
-        const entregues = pacotes.filter((p) => (p?.status || "").toUpperCase() === "ENTREGUE").length;
-        const cancelados = pacotes.filter((p) => (p?.status || "").toUpperCase() === "CANCELADO").length;
-        const concluidos = entregues + cancelados;
-        const grupo = Math.max(1, Math.ceil(total / maxDots));
-        const dotsCount = Math.min(maxDots, Math.max(1, Math.ceil(total / grupo)));
-        timelineEl.classList.toggle("is-single", dotsCount === 1);
-        let html = "";
-        for (let i = 0; i < dotsCount; i++) {
-          const rangeStart = i * grupo;
-          const rangeEnd = Math.min(total, rangeStart + grupo);
-          const entreguesRange = pacotes.slice(rangeStart, rangeEnd).filter((p) => (p?.status || "").toUpperCase() === "ENTREGUE").length;
-          const canceladosRange = pacotes.slice(rangeStart, rangeEnd).filter((p) => (p?.status || "").toUpperCase() === "CANCELADO").length;
-          const reached = rangeEnd <= concluidos;
-          const hasCancel = canceladosRange > 0;
-          const active = !reached && concluidos >= rangeStart && concluidos < rangeEnd;
-          const classe = reached ? "done" : active ? "active" : hasCancel ? "cancel" : "";
-          html += `<span class="tracking-dot ${classe}" onclick="mostrarInfoParadaTrackingLoja(${rangeStart}, ${rangeEnd})"></span>`;
-        }
-        timelineEl.innerHTML = html;
+        const { html: dotsHtml, progressoPct } = montarTimelineRealRota(
+          pacotes,
+          totalPac,
+          "home-route-dot",
+          (idx) => `mostrarInfoParadaTrackingLoja(${idx}, ${idx + 1})`
+        );
+        timelineEl.innerHTML = `
+            <div class="tracking-route-track-fill" style="width:${progressoPct}%;"></div>
+            <div class="tracking-route-track-line"></div>
+            <div class="tracking-route-dots">${dotsHtml}</div>
+            <span class="tracking-route-bike" style="left: clamp(0px, calc(${progressoPct}% - 18px), calc(100% - 36px));"><img src="img/timeline-icon.png" alt=""></span>
+        `;
       }
       const rowDriver = document.getElementById("track-driver-row");
       const fotoEl = document.getElementById("track-driver-foto");

@@ -4310,6 +4310,7 @@ function renderSheetColetaPacotes() {
     content.innerHTML = `
     <div class=\"sheet-buscar modal-ent-sheet\" style=\"background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;\">
         <div class=\"ent-sheet-handle\"></div>
+        <button type=\"button\" class=\"ent-sheet-close-btn\" onclick=\"fecharSheetRotaEntregador()\">&times;</button>
         <div class=\"ent-sheet-header\">
             <div class=\"ent-sheet-loja\">
                 <div class=\"ent-sheet-avatar\">${avatar}</div>
@@ -4519,6 +4520,7 @@ function renderSheetRotaEntregadorConteudo() {
     content.innerHTML = `
     <div class=\"sheet-buscar modal-ent-sheet\" style=\"background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;\" ontouchstart=\"iniciarSwipeEntSheet(event)\" ontouchend=\"finalizarSwipeEntSheet(event)\">
         <div class=\"ent-sheet-handle\"></div>
+        <button type=\"button\" class=\"ent-sheet-close-btn\" onclick=\"fecharSheetRotaEntregador()\">&times;</button>
         <div class=\"ent-sheet-header\">
             <div class=\"ent-sheet-loja\">
                 <div class=\"ent-sheet-avatar\">${avatar}</div>
@@ -4575,6 +4577,7 @@ function renderSheetMotivoDevolucao(pac) {
     content.innerHTML = `
     <div class=\"sheet-buscar modal-ent-sheet\" style=\"background:#fff; border-radius:22px 22px 0 0; padding:18px 18px 20px 18px; box-shadow: 0 18px 36px rgba(0,0,0,0.20); width:100%;\">
         <div class=\"ent-sheet-handle\"></div>
+        <button type=\"button\" class=\"ent-sheet-close-btn\" onclick=\"fecharSheetRotaEntregador()\">&times;</button>
         <strong style=\"display:block; font-size:16px; margin-bottom:12px; color:#0f172a;\">Por que não conseguiu entregar?</strong>
         <div class=\"ent-sheet-motivo-lista\">
             ${podeClienteNaoPagou ? `<button type=\"button\" class=\"ent-sheet-btn-ghost ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_nao_pagou')\">Cliente não pagou</button>` : ''}
@@ -5977,7 +5980,11 @@ function abrirNovaRotaPeloChip(btn) {
 // quantidade real de paradas da rota nem com o progresso real dela).
 // dotClass permite reaproveitar o mesmo cálculo tanto no card "Em Rota" da
 // home (.home-route-dot) quanto no modal "Rastrear Rotas" (.rastrear-dot).
-function montarTimelineRealRota(pacotes, totalFallback, dotClass) {
+// onclickPorIndice é opcional (usado pelo sheet "Acompanhar entrega" do
+// lojista pra abrir a info da parada ao tocar num dot — ver abrirModalTrackingLoja)
+// — sem ele, os dots ficam só visuais, igual sempre foram no card "Em Rota"
+// da home e no modal "Rastrear Rotas".
+function montarTimelineRealRota(pacotes, totalFallback, dotClass, onclickPorIndice) {
     const CAP_DOTS_VISIVEIS = 6;
     const pacoteEstaConcluido = (p) => {
         if (!p) return false;
@@ -5988,19 +5995,20 @@ function montarTimelineRealRota(pacotes, totalFallback, dotClass) {
     const pacotesOrdenados = pacotes.length ? pacotes : Array.from({ length: totalPacotes });
     const concluidos = pacotesOrdenados.filter(pacoteEstaConcluido).length;
     const progressoPct = totalPacotes > 0 ? Math.max(0, Math.min(100, Math.round((concluidos / totalPacotes) * 100))) : 0;
+    const onclickAttr = (idx) => (onclickPorIndice ? ` onclick="${onclickPorIndice(idx)}"` : '');
 
     let html;
     if (totalPacotes <= CAP_DOTS_VISIVEIS) {
-        html = pacotesOrdenados.slice(0, totalPacotes).map((p) =>
-            `<span class="${dotClass} ${pacoteEstaConcluido(p) ? 'done' : ''}"></span>`
+        html = pacotesOrdenados.slice(0, totalPacotes).map((p, idx) =>
+            `<span class="${dotClass} ${pacoteEstaConcluido(p) ? 'done' : ''}"${onclickAttr(idx)}></span>`
         ).join('');
     } else {
         const visiveis = pacotesOrdenados.slice(0, CAP_DOTS_VISIVEIS - 1);
         const restantes = pacotesOrdenados.slice(CAP_DOTS_VISIVEIS - 1);
         const restantesDoneCount = restantes.filter(pacoteEstaConcluido).length;
         const restantesPct = restantes.length ? Math.round((restantesDoneCount / restantes.length) * 100) : 0;
-        const dotsVisiveisHtml = visiveis.map((p) =>
-            `<span class="${dotClass} ${pacoteEstaConcluido(p) ? 'done' : ''}"></span>`
+        const dotsVisiveisHtml = visiveis.map((p, idx) =>
+            `<span class="${dotClass} ${pacoteEstaConcluido(p) ? 'done' : ''}"${onclickAttr(idx)}></span>`
         ).join('');
         const moreHtml = `<span class="home-route-more" style="background:linear-gradient(90deg, #da6f18 ${restantesPct}%, #d6deea ${restantesPct}%);" title="${restantesDoneCount}/${restantes.length} entregues">+${restantes.length}</span>`;
         html = dotsVisiveisHtml + moreHtml;
@@ -6061,7 +6069,7 @@ async function renderListaModalRastrearRotas() {
                     <div class="rastrear-track-fill" style="width:${progressoPct}%;"></div>
                     <div class="rastrear-track-line"></div>
                     <div class="rastrear-track-dots">${dotsHtml}</div>
-                    <span class="rastrear-track-bike" style="left:${bikeLeft};"><i data-lucide="bike"></i></span>
+                    <span class="rastrear-track-bike" style="left:${bikeLeft};"><img src="img/timeline-icon.png" alt=""></span>
                 </div>
                 <div class="rastrear-card-footer">
                     <span>${formatarDistancia(dist)}</span>
@@ -13692,33 +13700,26 @@ async function abrirModalTrackingLoja(rotaId) {
         setTxt('track-loja-distancia', distRaw ? dist : 'Calculando...');
         setTxt('track-loja-duracao', durRaw ? dur : 'Calculando...');
 
-    // linha do tempo de pacotes (até 5 pontos)
+    // Timeline padronizada (pedido do dono 2026-09-27): mesma estrutura/CSS
+    // do card "Em Rota" da home (ver montarTimelineRealRota) — cada dot
+    // continua clicável, abrindo a info daquele pacote específico (antes
+    // agrupava vários pacotes por dot quando passava de 5; agora é 1 dot por
+    // pacote real, igual a home, capado em 6 + "+N").
     trackLojaPacotesAtual = pacotes;
     const paradaInfoEl = document.getElementById('track-loja-parada-info');
     if (paradaInfoEl) paradaInfoEl.classList.add('hidden');
     const timelineEl = document.getElementById('track-loja-timeline');
     if (timelineEl) {
-        const maxDots = 5;
-        const total = totalPac || 1;
-        const entregues = pacotes.filter(p => (p?.status || '').toUpperCase() === 'ENTREGUE').length;
-        const cancelados = pacotes.filter(p => (p?.status || '').toUpperCase() === 'CANCELADO').length;
-        const concluidos = entregues + cancelados;
-        const grupo = Math.max(1, Math.ceil(total / maxDots));
-        const dotsCount = Math.min(maxDots, Math.max(1, Math.ceil(total / grupo)));
-        timelineEl.classList.toggle('is-single', dotsCount === 1);
-        let html = '';
-        for (let i = 0; i < dotsCount; i++) {
-            const rangeStart = i * grupo;
-            const rangeEnd = Math.min(total, rangeStart + grupo);
-            const entreguesRange = pacotes.slice(rangeStart, rangeEnd).filter(p => (p?.status || '').toUpperCase() === 'ENTREGUE').length;
-            const canceladosRange = pacotes.slice(rangeStart, rangeEnd).filter(p => (p?.status || '').toUpperCase() === 'CANCELADO').length;
-            const reached = (rangeEnd <= concluidos);
-            const hasCancel = canceladosRange > 0;
-            const active = !reached && concluidos >= rangeStart && concluidos < rangeEnd;
-            const classe = reached ? 'done' : active ? 'active' : hasCancel ? 'cancel' : '';
-            html += `<span class="tracking-dot ${classe}" onclick="mostrarInfoParadaTrackingLoja(${rangeStart}, ${rangeEnd})"></span>`;
-        }
-        timelineEl.innerHTML = html;
+        const { html: dotsHtml, progressoPct } = montarTimelineRealRota(
+            pacotes, totalPac, 'home-route-dot',
+            (idx) => `mostrarInfoParadaTrackingLoja(${idx}, ${idx + 1})`
+        );
+        timelineEl.innerHTML = `
+            <div class="tracking-route-track-fill" style="width:${progressoPct}%;"></div>
+            <div class="tracking-route-track-line"></div>
+            <div class="tracking-route-dots">${dotsHtml}</div>
+            <span class="tracking-route-bike" style="left: clamp(0px, calc(${progressoPct}% - 18px), calc(100% - 36px));"><img src="img/timeline-icon.png" alt=""></span>
+        `;
     }
 
     // Entregador
