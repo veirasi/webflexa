@@ -1019,7 +1019,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
 .perfil-footer {
     padding: 0 2px; /* Mesma folga lateral dos cards (.perfil-content) */
-    margin-top: 10px;
+    margin-top: 20px;
     margin-bottom: 16px; /* Só o suficiente pra não colar na tab bar flutuante */
 }
 
@@ -1258,7 +1258,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     position: sticky;
     bottom: 0;
     background: white;
-    padding: 12px 25px 10px 25px;
+    padding: 18px 25px 10px 25px;
     margin-left: -25px;
     margin-right: -25px;
     border: none !important;
@@ -3018,7 +3018,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     bottom: 0;
     z-index: 7;
     background: #eef1f5;
-    padding: 8px 16px 14px;
+    padding: 18px 16px 14px;
 }
 
 .rota-detalhe-dots {
@@ -6219,7 +6219,7 @@ body.admin-mode { overflow: auto; }
 .tracking-route-id strong { color:#0f172a; letter-spacing:0.3px; }
 .tracking-label { font-size:11px; text-transform:uppercase; letter-spacing:0.3px; color:#64748b; }
 .tracking-meta { font-weight:800; font-size:12px; color:#475569; }
-.tracking-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; margin-top:12px; }
+.tracking-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; margin: 16px 0; }
 .tracking-grid-2col { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .tracking-cell { background:#f8fafc; border-radius:14px; padding:12px; border:1px solid #e5e7eb; }
 .tracking-cell.dark { background:#f8fafc; border-color:#e5e7eb; }
@@ -6323,8 +6323,8 @@ body.admin-mode { overflow: auto; }
 .tracking-stale-banner p { font-size:12px; color:#9a3412; margin:0 0 8px; font-weight:600; }
 .tracking-stale-banner .tracking-btn.ghost { background:#fff; border:1px solid #fdba74; color:#9a3412; }
 
-.tracking-actions { display:flex; gap:10px; margin-top:14px; }
-.tracking-actions-full { margin-top:18px; }
+.tracking-actions { display:flex; gap:10px; margin-top:20px; }
+.tracking-actions-full { margin-top:24px; }
 .tracking-btn { flex:1; padding:12px; border-radius:var(--radius-md); border:none; font-weight:800; cursor:pointer; }
 .tracking-btn.full { width:100%; }
 .tracking-btn.ghost { background:#1f2937; color:#f8fafc; }
