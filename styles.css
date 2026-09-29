@@ -5955,6 +5955,31 @@ body.usuario-entregador #entregador-rotas-shell {
 .rotas-ent-date { color: var(--text-sub); font-weight: 700; font-size: 11px; }
 .rotas-ent-empty { text-align: center; padding: 18px; border: 1px dashed var(--border-color); border-radius: 12px; color: var(--text-sub); font-weight: 700; background: #fff; }
 
+/* Abas "Entregas" (agrupado por bairro) / "Histórico" na tela Rotas do
+   entregador (pedido do dono 2026-09-29). */
+.rotas-ent-tabs { display: flex; gap: 6px; padding: 4px; margin: 12px 16px 0; background: #f1f5f9; border-radius: 999px; }
+.rotas-ent-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 12px; border: none; border-radius: 999px; background: transparent; color: var(--text-sub); font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
+.rotas-ent-tab.active { background: #fff; color: var(--brand-orange); box-shadow: 0 4px 10px rgba(0,0,0,0.06); }
+.rotas-ent-painel { padding: 0 16px; }
+.rotas-ent-painel.hidden { display: none; }
+
+.entregas-agrupadas-lista { display: flex; flex-direction: column; padding: 14px 0 90px; }
+.entregas-grupo-cidade { display: flex; align-items: center; gap: 6px; margin: 18px 0 6px; font-weight: 900; font-size: 13px; color: var(--brand-orange); text-transform: uppercase; letter-spacing: 0.03em; }
+.entregas-grupo-cidade:first-child { margin-top: 0; }
+.entregas-grupo-bairro { font-weight: 800; font-size: 13px; color: var(--text-main); margin: 4px 0 2px 4px; }
+.entregas-grupo-rua { display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 11px; color: var(--text-sub); margin: 4px 0 6px 8px; }
+.entregas-stop-card { display: flex; align-items: stretch; gap: 8px; background: #fff; border: 1px solid #eef2f6; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.04); padding: 8px; margin-bottom: 8px; }
+.entregas-stop-reorder { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.entregas-stop-reorder button { width: 26px; height: 26px; border: none; border-radius: 8px; background: #f8fafc; color: var(--text-sub); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.entregas-stop-reorder button:disabled { opacity: 0.3; cursor: default; }
+.entregas-stop-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.entregas-stop-info strong { font-size: 13px; color: var(--text-main); line-height: 1.2; }
+.entregas-stop-info small { font-size: 11px; color: var(--text-sub); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entregas-stop-loja { font-size: 10px; font-weight: 800; color: var(--brand-orange); background: #fff3e8; padding: 2px 8px; border-radius: 999px; width: fit-content; }
+.entregas-stop-right { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 6px; }
+.entregas-stop-valor { font-weight: 900; font-size: 13px; color: #16a34a; }
+.entregas-stop-btn { border: none; border-radius: 999px; padding: 7px 14px; font-weight: 800; font-size: 11px; color: #fff; background: linear-gradient(135deg, #f9902f, #e6760c); cursor: pointer; white-space: nowrap; }
+
 
 /* ================= ADMIN MASTER ================= */
 .admin-login { max-width: 380px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 12px; align-items: center; }

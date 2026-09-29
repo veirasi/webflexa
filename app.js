@@ -60,6 +60,7 @@
     agendarBuscaCepCliente: () => agendarBuscaCepCliente,
     agendarBuscaCepLoja: () => agendarBuscaCepLoja,
     ajustarSaldoUsuario: () => ajustarSaldoUsuario,
+    alternarAbaRotasEntregador: () => alternarAbaRotasEntregador,
     alternarAtivoBannerAdmin: () => alternarAtivoBannerAdmin,
     alternarAuth: () => alternarAuth,
     alternarClienteAuthTab: () => alternarClienteAuthTab,
@@ -303,6 +304,7 @@
     mostrarInfoParadaTrackingLoja: () => mostrarInfoParadaTrackingLoja,
     mostrarTelaAdminDashboard: () => mostrarTelaAdminDashboard,
     mostrarTelaAdminLogin: () => mostrarTelaAdminLogin,
+    moverStopEntregadorOrdem: () => moverStopEntregadorOrdem,
     moverSwipePaginaRota: () => moverSwipePaginaRota,
     navegar: () => navegar,
     normalizarCidadeRota: () => normalizarCidadeRota,
@@ -5404,10 +5406,113 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     sincronizarDropdownBuscaEntregador();
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
-  async function renderHistoricoRotasEntregador() {
-    const shell = document.getElementById("entregador-rotas-shell");
-    if (!shell || !usuarioEhEntregador()) return;
-    shell.classList.remove("hidden");
+  var entregadorOrdemManual = /* @__PURE__ */ new Map();
+  function extrairLogradouroPacoteEntregador(pac = {}) {
+    const direto = (pac?.rua || pac?.logradouro || "").toString().trim();
+    if (direto) return direto;
+    const endereco = (pac?.destinoCompleto || pac?.destinoEndereco || pac?.destino || "").toString().trim();
+    if (!endereco) return "";
+    return endereco.split(",")[0].trim();
+  }
+  async function coletarStopsPendentesEntregador() {
+    const rotasNo = window.usuarioLogado?.rotas || {};
+    const rotasEmRota = Object.keys(rotasNo).map((id) => ({ id, ...rotasNo[id] || {} })).filter((r) => normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || "CRIADA") === "EM_ROTA");
+    const stops = [];
+    for (const rota of rotasEmRota) {
+      let pacotes = await garantirPacotesDaRota(rota);
+      if (!pacotes || !pacotes.length) pacotes = prepararPacotesRotaEntregador(rota);
+      pacotes.forEach((p, idx) => {
+        const status = normalizarStatusPacoteEntrega(p?.status);
+        if (status === "CONCLUIDO" || status === "CANCELADO") return;
+        const cidade = (p?.cidade || obterCidadeDestinoPacoteMarketplace(p) || rota?.origemCidade || "").toString().trim() || "Cidade n\xE3o informada";
+        const bairro = (p?.bairroDestino || p?.bairro || "").toString().trim() || "Bairro n\xE3o informado";
+        const logradouro = extrairLogradouroPacoteEntregador(p) || "Endere\xE7o n\xE3o informado";
+        stops.push({
+          pacoteId: String(p?.id || `${rota.id}-${idx}`),
+          rotaId: rota.id,
+          lojistaNome: (rota?.lojistaNome || "Lojista").toString().trim() || "Lojista",
+          destinatario: (p?.destinatario || p?.clienteNome || "Cliente").toString().trim() || "Cliente",
+          enderecoCompleto: montarEnderecoCompletoPacote(p, rota),
+          cidade,
+          bairro,
+          logradouro,
+          valorFrete: Number(p?.valorFrete || 0)
+        });
+      });
+    }
+    return stops;
+  }
+  function ordenarStopsEntregador(stops) {
+    const auto = [...stops].sort((a, b) => a.cidade.localeCompare(b.cidade, "pt-BR") || a.bairro.localeCompare(b.bairro, "pt-BR") || a.logradouro.localeCompare(b.logradouro, "pt-BR") || a.destinatario.localeCompare(b.destinatario, "pt-BR"));
+    auto.forEach((s, idx) => {
+      s.ordemAuto = idx;
+    });
+    return auto.map((s) => ({ ...s, ordemEfetiva: entregadorOrdemManual.has(s.pacoteId) ? entregadorOrdemManual.get(s.pacoteId) : s.ordemAuto })).sort((a, b) => a.ordemEfetiva - b.ordemEfetiva);
+  }
+  function moverStopEntregadorOrdem(pacoteId, direcao) {
+    const lista = window.entregadorStopsOrdenadosCache || [];
+    const idx = lista.findIndex((s) => s.pacoteId === pacoteId);
+    const alvo = idx + direcao;
+    if (idx < 0 || alvo < 0 || alvo >= lista.length) return;
+    const a = lista[idx];
+    const b = lista[alvo];
+    entregadorOrdemManual.set(a.pacoteId, b.ordemEfetiva);
+    entregadorOrdemManual.set(b.pacoteId, a.ordemEfetiva);
+    renderAbaEntregasEntregador();
+  }
+  function montarStopEntregadorHtml(stop, idx, total, mostrarCidade, mostrarBairro, mostrarLogradouro) {
+    const precoTxt = precoParaMoeda(stop.valorFrete);
+    const pacoteIdEsc = String(stop.pacoteId).replace(/'/g, "\\'");
+    const rotaIdEsc = escaparHtmlMarketplace(String(stop.rotaId));
+    return `
+        ${mostrarCidade ? `<div class="entregas-grupo-cidade"><i data-lucide="map-pin" size="13"></i>${escaparHtmlMarketplace(stop.cidade)}</div>` : ""}
+        ${mostrarBairro ? `<div class="entregas-grupo-bairro">${escaparHtmlMarketplace(stop.bairro)}</div>` : ""}
+        ${mostrarLogradouro ? `<div class="entregas-grupo-rua"><i data-lucide="minus" size="11"></i>${escaparHtmlMarketplace(stop.logradouro)}</div>` : ""}
+        <div class="entregas-stop-card">
+            <div class="entregas-stop-reorder">
+                <button type="button" onclick="moverStopEntregadorOrdem('${pacoteIdEsc}', -1)" ${idx === 0 ? "disabled" : ""} aria-label="Mover pra cima"><i data-lucide="chevron-up" size="16"></i></button>
+                <button type="button" onclick="moverStopEntregadorOrdem('${pacoteIdEsc}', 1)" ${idx === total - 1 ? "disabled" : ""} aria-label="Mover pra baixo"><i data-lucide="chevron-down" size="16"></i></button>
+            </div>
+            <div class="entregas-stop-info">
+                <strong>${escaparHtmlMarketplace(stop.destinatario)}</strong>
+                <small>${escaparHtmlMarketplace(stop.enderecoCompleto || stop.logradouro)}</small>
+                <span class="entregas-stop-loja">${escaparHtmlMarketplace(stop.lojistaNome)}</span>
+            </div>
+            <div class="entregas-stop-right">
+                <span class="entregas-stop-valor">${escaparHtmlMarketplace(precoTxt)}</span>
+                <button type="button" class="entregas-stop-btn" onclick="abrirSheetRotaEntregador('${rotaIdEsc}')">Entregar</button>
+            </div>
+        </div>
+    `;
+  }
+  async function renderAbaEntregasEntregador() {
+    const container = document.getElementById("entregador-entregas-conteudo");
+    if (!container) return;
+    container.innerHTML = '<div class="rotas-ent-empty">Carregando entregas...</div>';
+    const stops = await coletarStopsPendentesEntregador();
+    if (!stops.length) {
+      container.innerHTML = '<div class="rotas-ent-empty">Nenhuma entrega pendente agora.</div>';
+      return;
+    }
+    const ordenados = ordenarStopsEntregador(stops);
+    window.entregadorStopsOrdenadosCache = ordenados;
+    let cidadeAnt = null, bairroAnt = null, ruaAnt = null;
+    const html = ordenados.map((stop, idx) => {
+      const mostrarCidade = stop.cidade !== cidadeAnt;
+      const mostrarBairro = mostrarCidade || stop.bairro !== bairroAnt;
+      const mostrarLogradouro = mostrarBairro || stop.logradouro !== ruaAnt;
+      cidadeAnt = stop.cidade;
+      bairroAnt = stop.bairro;
+      ruaAnt = stop.logradouro;
+      return montarStopEntregadorHtml(stop, idx, ordenados.length, mostrarCidade, mostrarBairro, mostrarLogradouro);
+    }).join("");
+    container.innerHTML = `<div class="entregas-agrupadas-lista">${html}</div>`;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  async function renderAbaHistoricoEntregador() {
+    const container = document.getElementById("rotas-painel-historico");
+    if (!container) return;
+    container.innerHTML = '<div class="rotas-ent-empty">Carregando hist\xF3rico...</div>';
     let rotasNo = window.usuarioLogado?.rotas || {};
     if (!rotasNo || !Object.keys(rotasNo).length) {
       const uid = getUsuarioIdAtual();
@@ -5420,22 +5525,47 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     const listaRotas = Object.keys(rotasNo).map((id) => ({ id, ...rotasNo[id] || {} })).map((r) => {
       const statusNorm = normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || "CRIADA");
       const statusVisual = getStatusVisualRota(statusNorm);
-      return {
-        ...r,
-        id: r.id,
-        statusNorm,
-        statusVisual
-      };
+      return { ...r, id: r.id, statusNorm, statusVisual };
     }).filter((r) => ["EM_ROTA", "CONCLUIDO", "CANCELADO"].includes(r.statusNorm)).sort((a, b) => Number(b?.atualizadoEm || b?.criadoEm || 0) - Number(a?.atualizadoEm || a?.criadoEm || 0));
-    const cards = listaRotas.length ? listaRotas.map((r) => montarCardHistoricoRotaEntregador(r)).join("") : '<div class="rotas-ent-empty">Nenhuma rota em andamento ou finalizada.</div>';
+    container.innerHTML = listaRotas.length ? `<div class="rotas-entregador-list">${listaRotas.map((r) => montarCardHistoricoRotaEntregador(r)).join("")}</div>` : '<div class="rotas-ent-empty">Nenhuma rota em andamento ou finalizada.</div>';
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  function alternarAbaRotasEntregador(aba) {
+    const btnEntregas = document.getElementById("rotas-tab-entregas");
+    const btnHistorico = document.getElementById("rotas-tab-historico");
+    const painelEntregas = document.getElementById("rotas-painel-entregas");
+    const painelHistorico = document.getElementById("rotas-painel-historico");
+    if (!btnEntregas || !btnHistorico || !painelEntregas || !painelHistorico) return;
+    const ehEntregas = aba === "entregas";
+    btnEntregas.classList.toggle("active", ehEntregas);
+    btnHistorico.classList.toggle("active", !ehEntregas);
+    painelEntregas.classList.toggle("hidden", !ehEntregas);
+    painelHistorico.classList.toggle("hidden", ehEntregas);
+    if (ehEntregas) renderAbaEntregasEntregador();
+    else renderAbaHistoricoEntregador();
+  }
+  async function renderHistoricoRotasEntregador() {
+    const shell = document.getElementById("entregador-rotas-shell");
+    if (!shell || !usuarioEhEntregador()) return;
+    shell.classList.remove("hidden");
     const headerHtml = renderHeaderGlobal("entregador", Number(window.usuarioLogado?.financeiro?.saldo || 0));
     shell.innerHTML = `
         ${headerHtml}
-        <div class="rotas-entregador-list">
-            ${cards}
+        <div class="rotas-ent-tabs">
+            <button type="button" id="rotas-tab-entregas" class="rotas-ent-tab active" onclick="alternarAbaRotasEntregador('entregas')">
+                <i data-lucide="route" size="15"></i> Entregas
+            </button>
+            <button type="button" id="rotas-tab-historico" class="rotas-ent-tab" onclick="alternarAbaRotasEntregador('historico')">
+                <i data-lucide="history" size="15"></i> Hist\xF3rico
+            </button>
         </div>
+        <div id="rotas-painel-entregas" class="rotas-ent-painel">
+            <div id="entregador-entregas-conteudo"><div class="rotas-ent-empty">Carregando entregas...</div></div>
+        </div>
+        <div id="rotas-painel-historico" class="rotas-ent-painel hidden"></div>
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
+    await renderAbaEntregasEntregador();
   }
   async function renderRotasTelaPrincipal() {
     if (usuarioEhEntregador()) {
