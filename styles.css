@@ -5763,6 +5763,19 @@ body.usuario-entregador #entregador-rotas-shell {
     background-image: repeating-linear-gradient(to bottom, var(--brand-orange) 0px, var(--brand-orange) 4px, transparent 4px, transparent 8px);
 }
 
+/* Origem/destino em dropdown (pedido do dono 2026-09-28) — economiza espaço
+   fechado, e comporta multi-cidades sem estourar a linha do resumo. Mesmo
+   toggle genérico de "Detalhes da corrida" (toggleDetalhesCorrida). */
+#buscar-sheet-content .sheet-route-accordion { border: 1px solid #eef2f6; border-radius: 14px; overflow: hidden; background: #fdfefe; }
+#buscar-sheet-content .sheet-route-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: transparent; border: none; cursor: pointer; }
+#buscar-sheet-content .sheet-route-toggle-summary { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; overflow: hidden; }
+#buscar-sheet-content .sheet-route-toggle-summary strong { font-size: 13px; font-weight: 800; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#buscar-sheet-content .sheet-route-toggle-arrow { color: var(--text-sub); flex-shrink: 0; }
+#buscar-sheet-content .sheet-route-toggle .sheet-details-chevron { transition: transform 0.2s ease; color: var(--text-sub); flex-shrink: 0; }
+#buscar-sheet-content .sheet-route-toggle.is-open .sheet-details-chevron { transform: rotate(180deg); }
+#buscar-sheet-content .sheet-route-timeline { padding: 0 14px 12px; }
+#buscar-sheet-content .sheet-route-timeline.hidden { display: none; }
+
 #buscar-sheet-content .sheet-details-accordion { border: 1px solid #eef2f6; border-radius: 14px; overflow: hidden; background: #fdfefe; }
 #buscar-sheet-content .sheet-details-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: transparent; border: none; font-weight: 700; font-size: 14px; color: var(--text-main); cursor: pointer; }
 #buscar-sheet-content .sheet-details-toggle span { display: flex; align-items: center; gap: 8px; }

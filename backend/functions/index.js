@@ -324,6 +324,18 @@ async function montarMarketplacePublicoDoLojista(uid) {
     pacotesRaizFiltrados[pid] = filtrarCampos(pacotesRaizNo[pid], ALLOWLIST_HISTORICO_ITEM);
   });
 
+  // BUG CORRIGIDO 2026-09-28: faltava espelhar usuarios/{uid}/pacotes (o
+  // modelo "novo" de verdade, o mesmo que resolverEnvioLojista checa
+  // primeiro) — só clientes/historico (antigo) e pacotes/{uid} raiz (bem
+  // legado) estavam sendo espelhados, então uma rota cujos pacotes vivem só
+  // no modelo novo aparecia no marketplace sem nenhum detalhe de destino/
+  // tamanho/valor (achado testando o dropdown de origem/destino).
+  const pacotesNovoNo = usuario.pacotes || {};
+  const pacotesNovoFiltrados = {};
+  Object.keys(pacotesNovoNo).forEach((pid) => {
+    pacotesNovoFiltrados[pid] = filtrarCampos(pacotesNovoNo[pid], ALLOWLIST_HISTORICO_ITEM);
+  });
+
   await marketplaceRef.set({
     perfil: {
       nome: usuario.nome || '',
@@ -339,6 +351,7 @@ async function montarMarketplacePublicoDoLojista(uid) {
     rotas: rotasFiltradas,
     clientes: clientesFiltrados,
     pacotesRaiz: pacotesRaizFiltrados,
+    pacotesNovo: pacotesNovoFiltrados,
     atualizadoEm: Date.now()
   });
 }

@@ -3180,7 +3180,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           clientes: entradaPublica.clientes || {},
           rotas: entradaPublica.rotas || {}
         };
-        window.pacotesRaizCache[uid] = entradaPublica.pacotesRaiz || {};
+        window.pacotesRaizCache[uid] = { ...entradaPublica.pacotesRaiz || {}, ...entradaPublica.pacotesNovo || {} };
         const rotasNo = usuario?.rotas || {};
         const rotaIds = Object.keys(rotasNo || {});
         if (!rotaIds.length) return;
@@ -3524,6 +3524,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const totalPacotesNum = Number(rota.totalPacotes || 0);
     const origemTxt = rota.origemLabel || "Origem n\xE3o informada";
     const destinoTxt = rota.destinoPrincipal || (destinos[0] || "Destino n\xE3o informado");
+    const destinoResumoTxt = destinos.length > 1 ? `${escaparHtmlMarketplace(destinos[0])} +${destinos.length - 1}` : escaparHtmlMarketplace(destinoTxt);
+    const destinosParaListar = destinos.length ? destinos : [destinoTxt];
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" />` : `<span>${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</span>`;
     const tamanhoTxt = rota.tamanhoTxt || "PP/P";
@@ -3557,9 +3559,19 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         <div class="sheet-meta-item"><i data-lucide="flag"></i><strong>${qtdParadas}</strong><small>parada${qtdParadas > 1 ? "s" : ""}</small></div>
     </div>
 
-    <div class="sheet-route-timeline">
-        <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></div>
-        <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(destinoTxt)}</strong></div>
+    <div class="sheet-route-accordion">
+        <button type="button" class="sheet-route-toggle" onclick="toggleDetalhesCorrida(this)">
+            <span class="sheet-route-toggle-summary">
+                <span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong>
+                <i data-lucide="arrow-right" size="13" class="sheet-route-toggle-arrow"></i>
+                <span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${destinoResumoTxt}</strong>
+            </span>
+            <i data-lucide="chevron-down" size="16" class="sheet-details-chevron"></i>
+        </button>
+        <div class="sheet-route-timeline hidden">
+            <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></div>
+            ${destinosParaListar.map((d) => `<div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(d)}</strong></div>`).join("")}
+        </div>
     </div>
 
     <div class="sheet-details-accordion">

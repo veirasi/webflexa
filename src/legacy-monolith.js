@@ -3034,7 +3034,11 @@ async function carregarMarketplaceRotasEntregador() {
                 clientes: entradaPublica.clientes || {},
                 rotas: entradaPublica.rotas || {}
             };
-            window.pacotesRaizCache[uid] = entradaPublica.pacotesRaiz || {};
+            // BUG CORRIGIDO 2026-09-28: faltava a fonte "pacotesNovo" (modelo
+            // usuarios/{uid}/pacotes, o mais usado hoje) no índice — só
+            // pacotesRaiz (bem legado) era combinado aqui, então uma rota com
+            // pacotes só no modelo novo aparecia sem destino/tamanho/valor.
+            window.pacotesRaizCache[uid] = { ...(entradaPublica.pacotesRaiz || {}), ...(entradaPublica.pacotesNovo || {}) };
 
             const rotasNo = usuario?.rotas || {};
             const rotaIds = Object.keys(rotasNo || {});
@@ -3492,6 +3496,13 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
     const totalPacotesNum = Number(rota.totalPacotes || 0);
     const origemTxt = rota.origemLabel || 'Origem não informada';
     const destinoTxt = rota.destinoPrincipal || (destinos[0] || 'Destino não informado');
+    // Resumo fechado do dropdown origem/destino (pedido do dono 2026-09-28):
+    // com 1 só cidade de destino mostra ela; com multi-cidades mostra a
+    // primeira + quantas faltam, pra não estourar a linha do resumo.
+    const destinoResumoTxt = destinos.length > 1
+        ? `${escaparHtmlMarketplace(destinos[0])} +${destinos.length - 1}`
+        : escaparHtmlMarketplace(destinoTxt);
+    const destinosParaListar = destinos.length ? destinos : [destinoTxt];
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const avatar = logo
         ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" />`
@@ -3531,9 +3542,19 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
         <div class="sheet-meta-item"><i data-lucide="flag"></i><strong>${qtdParadas}</strong><small>parada${qtdParadas > 1 ? 's' : ''}</small></div>
     </div>
 
-    <div class="sheet-route-timeline">
-        <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></div>
-        <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(destinoTxt)}</strong></div>
+    <div class="sheet-route-accordion">
+        <button type="button" class="sheet-route-toggle" onclick="toggleDetalhesCorrida(this)">
+            <span class="sheet-route-toggle-summary">
+                <span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong>
+                <i data-lucide="arrow-right" size="13" class="sheet-route-toggle-arrow"></i>
+                <span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${destinoResumoTxt}</strong>
+            </span>
+            <i data-lucide="chevron-down" size="16" class="sheet-details-chevron"></i>
+        </button>
+        <div class="sheet-route-timeline hidden">
+            <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></div>
+            ${destinosParaListar.map((d) => `<div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(d)}</strong></div>`).join('')}
+        </div>
     </div>
 
     <div class="sheet-details-accordion">
