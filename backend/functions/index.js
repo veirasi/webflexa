@@ -572,6 +572,62 @@ async function calcularResumoRotaParaEntregador(lojistaUid, pacoteIds) {
   };
 }
 
+// ===== [ENTREGA FLASH/EXPRESSO — PRAZO DE 2H] (pedido do dono 2026-09-29) =====
+// A promessa de flash/expresso (entregar em até 2h) nunca foi de fato
+// aplicada em código — só existia um campo informativo (temFlash) pra
+// mostrar a tag "⚡ Flash" no marketplace, sem nenhuma trava real. Regra
+// nova: enquanto o entregador tiver QUALQUER pacote flash/expresso ainda
+// não entregue (não checa se o prazo já estourou — se já estourou, ele
+// precisa resolver antes de piorar pegando mais trabalho), ele não pode
+// aceitar rota nova. O prazo em si (aceitoEm + 2h) é calculado no cliente
+// a partir de rota.aceitoEm, que já é gravado de verdade por este mesmo
+// endpoint — não precisa de campo novo no banco.
+const FLASH_PRAZO_MS = 2 * 60 * 60 * 1000;
+
+function pacoteEhFlashServer(pacote) {
+  const servico = String(pacote?.servico || '').toLowerCase();
+  return servico.includes('flash') || servico.includes('expresso');
+}
+
+async function entregadorTemFlashPendente(uidEntregador) {
+  const rotasSnap = await db.ref(`usuarios/${uidEntregador}/rotas`).once('value');
+  const rotasNo = rotasSnap.val() || {};
+  const rotasEmRota = Object.entries(rotasNo)
+    .filter(([, r]) => normalizarStatusRotaServer(r?.status || r?.pagamentoStatus || 'CRIADA') === 'EM_ROTA');
+
+  for (const [rotaId, rota] of rotasEmRota) {
+    const lojistaUid = rota?.origemLojistaUid || rota?.lojistaId || rota?.lojistaUid;
+    const pacoteIds = Array.isArray(rota?.pacoteIds) ? rota.pacoteIds : (Array.isArray(rota?.pacotes) ? rota.pacotes : []);
+    if (!lojistaUid || !pacoteIds.length) continue;
+
+    const [clientesSnap, pacotesSnap] = await Promise.all([
+      db.ref(`usuarios/${lojistaUid}/clientes`).once('value'),
+      db.ref(`usuarios/${lojistaUid}/pacotes`).once('value')
+    ]);
+    const mapa = new Map();
+    const clientesNo = clientesSnap.val() || {};
+    Object.values(clientesNo).forEach((cliente) => {
+      const historico = Array.isArray(cliente?.historico) ? cliente.historico : [];
+      historico.forEach((h) => { if (h?.id) mapa.set(String(h.id), h); });
+    });
+    const pacotesNo = pacotesSnap.val() || {};
+    Object.keys(pacotesNo).forEach((pid) => mapa.set(String(pid), pacotesNo[pid]));
+
+    for (const pid of pacoteIds) {
+      const p = mapa.get(String(pid));
+      if (!p || !pacoteEhFlashServer(p)) continue;
+      const status = String(p?.status || '').toUpperCase();
+      if (status === 'CONCLUIDO' || status === 'CANCELADO') continue;
+      return {
+        bloqueado: true,
+        rotaId,
+        prazoFlashAte: Number(rota?.aceitoEm || rota?.criadoEm || Date.now()) + FLASH_PRAZO_MS
+      };
+    }
+  }
+  return { bloqueado: false };
+}
+
 function normalizarStatusRotaServer(status) {
   const s = String(status || '').trim().toUpperCase().replace(/\s+/g, '_');
   if (!s) return 'BUSCANDO';
@@ -1630,6 +1686,16 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       const tipoRaw = String(tipoSnap.val() || '').toLowerCase();
       if (tipoRaw !== 'entrega' && tipoRaw !== 'entregador') {
         return res.status(403).json({ error: 'Somente entregador pode aceitar rota' });
+      }
+
+      const flashCheck = await entregadorTemFlashPendente(uidEntregador);
+      if (flashCheck.bloqueado) {
+        return res.status(403).json({
+          error: 'Você tem uma entrega Flash pendente — finalize-a antes de aceitar outra rota',
+          motivo: 'flash_pendente',
+          rotaId: flashCheck.rotaId,
+          prazoFlashAte: flashCheck.prazoFlashAte
+        });
       }
 
       // Bloqueio de 5 dias por dívida atrasada (mesma regra de
