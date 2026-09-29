@@ -806,6 +806,7 @@
   ativarModoAdminSeNecessario();
   var modoRastreioPublico = false;
   var tokenRastreioAtual = "";
+  var loginTokenJaTentado = false;
   function ativarModoRastreioSeNecessario() {
     const hash = window.location.hash || "";
     const match = hash.match(/rastreio\/([a-z0-9_-]+)/i);
@@ -814,9 +815,39 @@
       modoRastreioPublico = true;
       document.body.classList.add("modo-rastreio-publico");
       tokenRastreioAtual = match ? match[1] : "";
+      if (!loginTokenJaTentado) {
+        const qIdx = hash.indexOf("?");
+        if (qIdx >= 0) {
+          const loginToken = new URLSearchParams(hash.slice(qIdx + 1)).get("lt");
+          if (loginToken) {
+            loginTokenJaTentado = true;
+            tentarAutoLoginClienteViaLink(loginToken);
+          }
+        }
+      }
       if (document.readyState !== "loading") {
         exibirTelaRastreioPublico(tokenRastreioAtual);
       }
+    }
+  }
+  async function tentarAutoLoginClienteViaLink(loginToken) {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const resp = await fetch(`${FLEXA_PAYMENTS_PROXY_URL}/consumir-login-cliente`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginToken })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.customToken) return;
+      const auth2 = obterClienteAuth();
+      await auth2.signInWithCustomToken(data.customToken);
+      if (data.cadastroCompleto === false) {
+        abrirModalClienteAuth("entrar");
+        abrirClienteAuthCompletarCadastro(data.nome || "");
+      }
+    } catch (err) {
+      console.warn("Falha no login autom\xE1tico do cliente via link:", err);
     }
   }
   document.addEventListener("DOMContentLoaded", ativarModoRastreioSeNecessario);
@@ -7070,14 +7101,24 @@ ${texto}`);
     const digits = normalizarWhatsapp(whatsapp);
     return digits.length <= 11 ? "55" + digits : digits;
   }
-  function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
-    const url = montarUrlRastreioPublico(token);
+  async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
+    const aba = window.open("", "_blank");
+    let loginTokenParam = "";
+    try {
+      const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp });
+      if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
+    } catch (err) {
+      console.warn("Falha ao gerar login autom\xE1tico do cliente:", err);
+    }
+    const url = montarUrlRastreioPublico(token) + loginTokenParam;
     const numero = paraWhatsappInternacional(whatsapp);
     const msg = codigoConfirmacao ? `Acompanhe sua entrega em tempo real: ${url}
 
 Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfirmacao}` : `Acompanhe sua entrega em tempo real: ${url}`;
     const texto = encodeURIComponent(msg);
-    window.open(`https://wa.me/${numero}?text=${texto}`, "_blank");
+    const urlWhatsapp = `https://wa.me/${numero}?text=${texto}`;
+    if (aba) aba.location.href = urlWhatsapp;
+    else window.open(urlWhatsapp, "_blank");
   }
   function abrirModalDetalheRota(rotaId) {
     if (!rotaId) return;

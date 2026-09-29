@@ -191,6 +191,17 @@
       ".write": false
     },
 
+    // Tokens de login automático do cliente final via link de rastreio
+    // (plano 2026-09-28, ver gerarLoginCliente/consumirLoginCliente em
+    // backend/functions/index.js). O cliente que clica no link ainda não
+    // tem NENHUM token de autenticação — a prova de identidade é o próprio
+    // valor aleatório do loginToken, então ninguém (nem autenticado) pode
+    // ler ou escrever aqui direto, só as duas Cloud Functions via Admin SDK.
+    "loginTokens": {
+      ".read": false,
+      ".write": false
+    },
+
     // Só os Cloud Functions tocam aqui via Admin SDK, que ignora estas regras
     // — isto bloqueia qualquer acesso direto do cliente, inclusive leitura.
     "mp_payments": {

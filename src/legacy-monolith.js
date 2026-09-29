@@ -143,6 +143,11 @@ ativarModoAdminSeNecessario();
 // navegador onde um lojista/entregador já está logado.
 let modoRastreioPublico = false;
 let tokenRastreioAtual = '';
+// Uso único de propósito (ver consumirLoginCliente no backend) — essa flag
+// só evita tentar de novo à toa a cada hashchange dentro da mesma aba (ex:
+// navegação interna que não muda o token); a segunda tentativa de qualquer
+// forma seria negada pelo servidor, nunca duplica login.
+let loginTokenJaTentado = false;
 function ativarModoRastreioSeNecessario() {
     const hash = window.location.hash || '';
     const match = hash.match(/rastreio\/([a-z0-9_-]+)/i);
@@ -157,12 +162,61 @@ function ativarModoRastreioSeNecessario() {
         // aberto num computador (ex: WhatsApp Web).
         document.body.classList.add('modo-rastreio-publico');
         tokenRastreioAtual = match ? match[1] : '';
+
+        // Login automático via link (plano 2026-09-28): se a URL trouxer
+        // ?lt=..., tenta autenticar o cliente sozinho, sem nunca mostrar
+        // senha nenhuma — roda em paralelo, nunca bloqueia a exibição do
+        // rastreio (que já funciona sem login).
+        if (!loginTokenJaTentado) {
+            const qIdx = hash.indexOf('?');
+            if (qIdx >= 0) {
+                const loginToken = new URLSearchParams(hash.slice(qIdx + 1)).get('lt');
+                if (loginToken) {
+                    loginTokenJaTentado = true;
+                    tentarAutoLoginClienteViaLink(loginToken);
+                }
+            }
+        }
+
         // Se o app já estava carregado (a aba já tinha o Flex aberto e o
         // link mudou só o hash), o onAuthStateChanged não dispara de novo
         // sozinho — então também mostra a tela direto por aqui.
         if (document.readyState !== 'loading') {
             exibirTelaRastreioPublico(tokenRastreioAtual);
         }
+    }
+}
+
+// Consome o loginToken de uso único (backend) e loga o cliente sozinho na
+// instância secundária de auth, sem nunca expor senha nenhuma. Falha
+// silenciosa de propósito — o rastreio em si nunca depende disso.
+async function tentarAutoLoginClienteViaLink(loginToken) {
+    try {
+        // BUG CORRIGIDO 2026-09-28: esta função é disparada muito cedo no
+        // carregamento do script (por ativarModoRastreioSeNecessario, que já
+        // roda antes até do DOMContentLoaded) — FLEXA_PAYMENTS_PROXY_URL só é
+        // inicializada bem mais abaixo no arquivo, então lê-la aqui direto
+        // pegava undefined (a chamada saía como ".../undefined/consumir-
+        // login-cliente", 404). O setTimeout(0) empurra a leitura pra depois
+        // que o script inteiro já rodou.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const resp = await fetch(`${FLEXA_PAYMENTS_PROXY_URL}/consumir-login-cliente`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loginToken })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.customToken) return;
+
+        const auth2 = obterClienteAuth();
+        await auth2.signInWithCustomToken(data.customToken);
+
+        if (data.cadastroCompleto === false) {
+            abrirModalClienteAuth('entrar');
+            abrirClienteAuthCompletarCadastro(data.nome || '');
+        }
+    } catch (err) {
+        console.warn('Falha no login automático do cliente via link:', err);
     }
 }
 document.addEventListener('DOMContentLoaded', ativarModoRastreioSeNecessario);
@@ -7898,8 +7952,28 @@ function paraWhatsappInternacional(whatsapp) {
     return digits.length <= 11 ? '55' + digits : digits;
 }
 
-function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
-    const url = montarUrlRastreioPublico(token);
+async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
+    // Abre a aba JÁ (síncrono, dentro do próprio clique) e só troca a URL
+    // dela depois — navegadores bloqueiam window.open chamado depois de um
+    // await, mesmo que o clique tenha disparado tudo isso.
+    const aba = window.open('', '_blank');
+
+    // Login automático do cliente embutido no mesmo link (plano 2026-09-28):
+    // antes o acesso à conta exigia um convite separado com usuário+senha
+    // temporária em texto puro — agora o próprio link de rastreio já
+    // autentica o cliente ao clicar, sem nunca mostrar senha nenhuma (ver
+    // gerarLoginCliente/consumirLoginCliente, backend/functions/index.js).
+    // Se a chamada falhar por qualquer motivo, cai pro link normal sem login
+    // automático — o rastreio em si nunca depende disso.
+    let loginTokenParam = '';
+    try {
+        const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp });
+        if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
+    } catch (err) {
+        console.warn('Falha ao gerar login automático do cliente:', err);
+    }
+
+    const url = montarUrlRastreioPublico(token) + loginTokenParam;
     const numero = paraWhatsappInternacional(whatsapp);
     // Código junto na mensagem: é o cliente quem confirma a entrega com o
     // entregador na porta, então ele precisa desse código em mãos (pedido do
@@ -7908,7 +7982,9 @@ function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
         ? `Acompanhe sua entrega em tempo real: ${url}\n\nQuando o entregador chegar, informe este código pra confirmar: ${codigoConfirmacao}`
         : `Acompanhe sua entrega em tempo real: ${url}`;
     const texto = encodeURIComponent(msg);
-    window.open(`https://wa.me/${numero}?text=${texto}`, '_blank');
+    const urlWhatsapp = `https://wa.me/${numero}?text=${texto}`;
+    if (aba) aba.location.href = urlWhatsapp;
+    else window.open(urlWhatsapp, '_blank');
 }
 
 function abrirModalDetalheRota(rotaId) {

@@ -3,6 +3,7 @@ const { onValueWritten } = require('firebase-functions/v2/database');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 admin.initializeApp();
 
@@ -378,6 +379,106 @@ async function requesterEhMasterOuAdmin(requester) {
   return tipo === 'master' || tipo === 'admin';
 }
 
+// ===================== [LOGIN AUTOMÁTICO DO CLIENTE VIA LINK] (plano
+// 2026-09-28) =====================
+// Antes, dar acesso ao cliente final exigia uma ação manual separada do
+// lojista (convidarClienteParaApp) que mandava uma SEGUNDA mensagem de
+// WhatsApp com usuário+senha temporária em TEXTO PURO — exposto em preview
+// de notificação, tela bloqueada, ou pra qualquer um com acesso ao celular
+// do cliente. Agora o link de rastreio (que já é mandado pra TODO pedido)
+// carrega um token de login de uso único — o cliente nunca vê senha
+// nenhuma, só clica e já está autenticado.
+const LOGIN_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+function normalizarWhatsappServer(valor) {
+  return String(valor || '').replace(/\D/g, '');
+}
+
+// Acha (ou cria) a conta do cliente pra este WhatsApp e devolve um
+// loginToken de uso único — chamado pelo LOJISTA (autenticado) no momento
+// de montar a mensagem de rastreio, nunca pelo cliente.
+async function gerarLoginCliente(req, res, requester) {
+  const whatsapp = normalizarWhatsappServer((req.body || {}).whatsapp);
+  if (!whatsapp) {
+    return res.status(400).json({ error: 'Missing required fields', required: ['whatsapp'] });
+  }
+
+  let uid;
+  const emailSnap = await db.ref(`telefoneParaEmail/${whatsapp}`).once('value');
+  if (emailSnap.exists()) {
+    const userRecord = await admin.auth().getUserByEmail(emailSnap.val());
+    uid = userRecord.uid;
+  } else {
+    // Senha aleatória só pra satisfazer o Firebase Auth por baixo — nunca é
+    // exposta em lugar nenhum (o cliente entra sempre via loginToken/custom
+    // token, ou depois via a própria senha que ele mesmo criar ao completar
+    // o cadastro). Mesmo formato de conta que convidarClienteParaApp já cria.
+    const emailConvite = `cliente.${whatsapp}@flex.local`;
+    const senhaInterna = crypto.randomBytes(24).toString('hex');
+    const userRecord = await admin.auth().createUser({ email: emailConvite, password: senhaInterna });
+    uid = userRecord.uid;
+    await db.ref(`usuarios/${uid}`).set({
+      nome: '',
+      email: emailConvite,
+      whatsapp,
+      tipo: 'cliente',
+      criadoEm: Date.now(),
+      convidadoPorUid: requester.uid,
+      cadastroCompleto: false
+    });
+    await db.ref(`telefoneParaEmail/${whatsapp}`).set(emailConvite);
+    await db.ref(`clientesGlobais/${whatsapp}`).set({ nome: '', whatsapp, uid, cadastroCompleto: false });
+  }
+
+  const loginToken = crypto.randomBytes(24).toString('hex');
+  const agora = Date.now();
+  await db.ref(`loginTokens/${loginToken}`).set({
+    uid,
+    whatsapp,
+    criadoEm: agora,
+    expiraEm: agora + LOGIN_TOKEN_TTL_MS,
+    usado: false
+  });
+
+  return res.status(200).json({ loginToken });
+}
+
+// Chamado pelo CLIENTE (sem nenhum token de auth ainda — é o próprio
+// loginToken que prova a identidade aqui). Uso único: marca como usado
+// antes mesmo de gerar o custom token, pra uma corrida de dois cliques
+// simultâneos nunca gerar dois logins válidos do mesmo token.
+async function consumirLoginCliente(req, res) {
+  const loginToken = String((req.body || {}).loginToken || '').trim();
+  if (!loginToken) {
+    return res.status(400).json({ error: 'Missing required fields', required: ['loginToken'] });
+  }
+
+  const tokenRef = db.ref(`loginTokens/${loginToken}`);
+  const tokenSnap = await tokenRef.once('value');
+  const registro = tokenSnap.val();
+  if (!registro) {
+    return res.status(404).json({ error: 'Link de acesso inválido ou já expirado' });
+  }
+  if (registro.usado) {
+    return res.status(409).json({ error: 'Este link de acesso já foi usado' });
+  }
+  if (Number(registro.expiraEm || 0) < Date.now()) {
+    return res.status(410).json({ error: 'Este link de acesso expirou' });
+  }
+
+  await tokenRef.update({ usado: true, usadoEm: Date.now() });
+
+  const customToken = await admin.auth().createCustomToken(registro.uid);
+  const usuarioSnap = await db.ref(`usuarios/${registro.uid}`).once('value');
+  const usuario = usuarioSnap.val() || {};
+
+  return res.status(200).json({
+    customToken,
+    cadastroCompleto: usuario.cadastroCompleto === true,
+    nome: usuario.nome || ''
+  });
+}
+
 // Mesma normalização de normalizarStatusRotaFiltro no frontend (sem a parte
 // de remover acentos — os valores reais gravados no banco pra status de
 // rota são sempre ASCII puro).
@@ -545,9 +646,24 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
+  }
+
+  // Login automático do cliente final via link de rastreio (plano 2026-09-28):
+  // o cliente clica no link SEM estar logado em nada ainda, então esta rota
+  // não pode exigir o Bearer token que todas as outras exigem abaixo — a
+  // prova de identidade aqui é o próprio loginToken (aleatório, uso único,
+  // expira rápido — ver gerarLoginClienteToken). Tratada antes do bloco de
+  // autenticação de propósito.
+  if (path === '/consumir-login-cliente') {
+    try {
+      return await consumirLoginCliente(req, res);
+    } catch (error) {
+      logger.error('consumir_login_cliente_error', error);
+      return res.status(500).json({ error: 'Internal error', message: error.message });
+    }
   }
 
   let ambiente = null;
@@ -555,6 +671,10 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
     const requester = await resolveRequester(req);
     if (!requester) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (path === '/gerar-login-cliente') {
+      return await gerarLoginCliente(req, res, requester);
     }
 
     const token = MP_ACCESS_TOKEN.value();
