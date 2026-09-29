@@ -1688,12 +1688,23 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         }
       }
 
-      const [nomeSnap, fotoSnap] = await Promise.all([
+      const [nomeSnap, fotoSnap, lojistaNomeSnap, lojistaLojaSnap, lojistaFotoSnap, lojistaLogoSnap] = await Promise.all([
         db.ref(`usuarios/${uidEntregador}/nome`).once('value'),
-        db.ref(`usuarios/${uidEntregador}/foto`).once('value')
+        db.ref(`usuarios/${uidEntregador}/foto`).once('value'),
+        db.ref(`usuarios/${lojistaUid}/nome`).once('value'),
+        db.ref(`usuarios/${lojistaUid}/loja`).once('value'),
+        db.ref(`usuarios/${lojistaUid}/foto`).once('value'),
+        db.ref(`usuarios/${lojistaUid}/logo`).once('value')
       ]);
       const entregadorNome = String(nomeSnap.val() || 'Entregador');
       const entregadorFoto = String(fotoSnap.val() || '');
+      // BUG CORRIGIDO 2026-09-29: mesma causa-raiz do fix de origem/destino
+      // acima — lojistaNome/lojistaFoto nunca eram gravados de verdade na
+      // rota, então o espelho do entregador sempre caía no fallback
+      // genérico "Lojista" (card "Em rota"/histórico mostrava só isso em
+      // vez do nome real da loja).
+      const lojistaNomeReal = String(lojistaLojaSnap.val() || lojistaNomeSnap.val() || 'Lojista');
+      const lojistaFotoReal = String(lojistaLogoSnap.val() || lojistaFotoSnap.val() || '');
       const agora = Date.now();
       const codigoConfirmacaoColeta = gerarCodigoConfirmacaoEntregaServer();
 
@@ -1761,8 +1772,12 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         ...rotaAtualizada,
         origemLojistaUid: String(lojistaUid),
         lojistaId: String(lojistaUid),
-        lojistaNome: String(rotaAtualizada?.lojistaNome || 'Lojista'),
-        lojistaFoto: String(rotaAtualizada?.lojistaFoto || ''),
+        lojistaNome: String(rotaAtualizada?.lojistaNome || lojistaNomeReal),
+        lojistaFoto: String(rotaAtualizada?.lojistaFoto || lojistaFotoReal),
+        // montarCardHistoricoRotaEntregador (front) lê lojistaLogo, não
+        // lojistaFoto — grava os dois pra não depender de qual nome de
+        // campo cada tela escolheu ler.
+        lojistaLogo: String(rotaAtualizada?.lojistaLogo || lojistaFotoReal),
         sincronizadaDoLojista: true,
         atualizadoEm: agora,
         origemLabel: rotaAtualizada?.origemLabel || resumoCalculado?.origemLabel || '',
