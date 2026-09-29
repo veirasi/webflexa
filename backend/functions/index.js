@@ -496,6 +496,82 @@ async function consumirLoginCliente(req, res) {
 // Mesma normalização de normalizarStatusRotaFiltro no frontend (sem a parte
 // de remover acentos — os valores reais gravados no banco pra status de
 // rota são sempre ASCII puro).
+// BUG CORRIGIDO 2026-09-28: card "Em rota"/"Rotas Recentes" da home do
+// entregador mostrava "Origem: --" / "Destino: --" sempre. Causa raiz: esses
+// campos (origemLabel/origemCidade/destinos/destinoPrincipal) nunca foram de
+// fato gravados na rota do LOJISTA — eram só computados na hora, client-side,
+// só pra montar a lista do marketplace (carregarMarketplaceRotasEntregador).
+// Então quando o entregador aceitava, `rotaAtualizada` (o nó real da rota)
+// nunca tinha esses campos, e o espelho gravado em
+// usuarios/{uidEntregador}/rotas/{rotaId} caía sempre no fallback vazio.
+// Resolve calculando de verdade a partir do endereço da loja + pacotes da
+// rota (mesma fonte que o índice do marketplace usa) no momento do aceite.
+function resolverCidadeDestinoServer(pacote = {}) {
+  const cidadeDireta = (pacote?.cidadeDestino || pacote?.cidade || '').toString().trim();
+  if (cidadeDireta) return cidadeDireta;
+  const destino = (pacote?.destino || pacote?.destinoEndereco || '').toString().trim();
+  if (!destino) return '';
+  const antesUf = destino.includes('/') ? destino.split('/')[0] : destino;
+  const partes = antesUf.split(',').map((p) => p.trim()).filter(Boolean);
+  return partes.length ? partes[partes.length - 1].replace(/\)$/g, '').trim() : '';
+}
+
+async function calcularResumoRotaParaEntregador(lojistaUid, pacoteIds) {
+  const [enderecoSnap, clientesSnap, pacotesSnap] = await Promise.all([
+    db.ref(`usuarios/${lojistaUid}/endereco`).once('value'),
+    db.ref(`usuarios/${lojistaUid}/clientes`).once('value'),
+    db.ref(`usuarios/${lojistaUid}/pacotes`).once('value')
+  ]);
+  const endereco = enderecoSnap.val() || {};
+  const origemCidade = (endereco.cidade || '').toString().trim();
+  const origemUf = (endereco.uf || endereco.estado || '').toString().trim().toUpperCase();
+  const origemLabel = origemCidade ? (origemUf ? `${origemCidade}, ${origemUf}` : origemCidade) : '';
+  const origemBairro = (endereco.bairro || '').toString().trim();
+
+  const mapaPacotes = new Map();
+  const clientesNo = clientesSnap.val() || {};
+  Object.values(clientesNo).forEach((cliente) => {
+    const historico = Array.isArray(cliente?.historico) ? cliente.historico : [];
+    historico.forEach((h) => {
+      if (!h?.id) return;
+      mapaPacotes.set(String(h.id), {
+        cidade: resolverCidadeDestinoServer(h),
+        bairro: (h?.bairroDestino || '').toString().trim(),
+        distanciaKm: Number(h?.distanciaKm || 0),
+        duracaoMin: Number(h?.duracaoMin || 0),
+        valorFrete: Number(h?.valorFrete || 0)
+      });
+    });
+  });
+  const pacotesNo = pacotesSnap.val() || {};
+  Object.keys(pacotesNo).forEach((pid) => {
+    const p = pacotesNo[pid];
+    mapaPacotes.set(String(pid), {
+      cidade: resolverCidadeDestinoServer(p),
+      bairro: (p?.bairroDestino || '').toString().trim(),
+      distanciaKm: Number(p?.distanciaKm || 0),
+      duracaoMin: Number(p?.duracaoMin || 0),
+      valorFrete: Number(p?.valorFrete || 0)
+    });
+  });
+
+  const pacotesResumo = pacoteIds.map((id) => mapaPacotes.get(String(id))).filter(Boolean);
+  const destinos = [...new Set(pacotesResumo.map((p) => p.cidade).filter(Boolean))];
+  const bairrosDestino = [...new Set(pacotesResumo.map((p) => p.bairro).filter(Boolean))];
+
+  return {
+    origemLabel,
+    origemCidade,
+    origemBairro,
+    destinos,
+    destinoPrincipal: destinos.length > 1 ? 'Multi-cidades' : (destinos[0] || ''),
+    bairrosDestino,
+    distanciaTotal: pacotesResumo.reduce((acc, p) => acc + p.distanciaKm, 0),
+    duracaoTotal: pacotesResumo.reduce((acc, p) => acc + p.duracaoMin, 0),
+    totalFrete: pacotesResumo.reduce((acc, p) => acc + p.valorFrete, 0)
+  };
+}
+
 function normalizarStatusRotaServer(status) {
   const s = String(status || '').trim().toUpperCase().replace(/\s+/g, '_');
   if (!s) return 'BUSCANDO';
@@ -1676,6 +1752,10 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         atualizadoEm: agora
       }).catch(() => {});
 
+      const resumoCalculado = pacoteIds.length
+        ? await calcularResumoRotaParaEntregador(lojistaUid, pacoteIds).catch(() => null)
+        : null;
+
       const rotaNoEntregador = {
         id: String(rotaId),
         ...rotaAtualizada,
@@ -1685,14 +1765,16 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         lojistaFoto: String(rotaAtualizada?.lojistaFoto || ''),
         sincronizadaDoLojista: true,
         atualizadoEm: agora,
-        origemLabel: rotaAtualizada?.origemLabel || '',
-        origemCidade: rotaAtualizada?.origemCidade || '',
-        destinoPrincipal: rotaAtualizada?.destinoPrincipal || '',
-        destinos: rotaAtualizada?.destinos || [],
-        distanciaTotal: rotaAtualizada?.distanciaTotal || 0,
-        duracaoTotal: rotaAtualizada?.duracaoTotal || 0,
+        origemLabel: rotaAtualizada?.origemLabel || resumoCalculado?.origemLabel || '',
+        origemCidade: rotaAtualizada?.origemCidade || resumoCalculado?.origemCidade || '',
+        origemBairro: rotaAtualizada?.origemBairro || resumoCalculado?.origemBairro || '',
+        destinoPrincipal: rotaAtualizada?.destinoPrincipal || resumoCalculado?.destinoPrincipal || '',
+        destinos: (Array.isArray(rotaAtualizada?.destinos) && rotaAtualizada.destinos.length) ? rotaAtualizada.destinos : (resumoCalculado?.destinos || []),
+        bairrosDestino: resumoCalculado?.bairrosDestino || [],
+        distanciaTotal: rotaAtualizada?.distanciaTotal || resumoCalculado?.distanciaTotal || 0,
+        duracaoTotal: rotaAtualizada?.duracaoTotal || resumoCalculado?.duracaoTotal || 0,
         totalPacotes: rotaAtualizada?.totalPacotes || pacoteIds.length || 0,
-        totalFrete: rotaAtualizada?.totalFrete || 0
+        totalFrete: rotaAtualizada?.totalFrete || resumoCalculado?.totalFrete || 0
       };
       await db.ref(`usuarios/${uidEntregador}/rotas/${rotaId}`).set(rotaNoEntregador);
 
