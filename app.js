@@ -5325,6 +5325,8 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       } else if (motivo === "ja_aceita") {
         alert("Essa rota ja foi aceita por outro entregador.");
         await renderRotasMarketplaceEntregador(true);
+      } else if (motivo === "flash_pendente") {
+        alert("Voc\xEA tem uma entrega Flash/Expresso pendente (prazo de 2h) \u2014 finalize essa entrega antes de aceitar outra rota. Veja a aba Rotas > Entregas.");
       } else {
         console.warn("Erro ao aceitar rota marketplace:", err);
         alert("Nao foi possivel aceitar essa rota agora. Tente novamente.");
@@ -5407,6 +5409,39 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
   var entregadorOrdemManual = /* @__PURE__ */ new Map();
+  var FLASH_PRAZO_MS = 2 * 60 * 60 * 1e3;
+  var entregadorFlashTimerInterval = null;
+  function pacoteEhFlashEntregador(pac = {}) {
+    const servico = (pac?.servico || "").toString().toLowerCase();
+    return servico.includes("flash") || servico.includes("expresso");
+  }
+  function formatarContagemFlash(prazoFlashAte) {
+    const restanteMs = prazoFlashAte - Date.now();
+    const restanteMin = Math.round(Math.abs(restanteMs) / 6e4);
+    const h = Math.floor(restanteMin / 60);
+    const m = restanteMin % 60;
+    const txtTempo = h > 0 ? `${h}h ${m}min` : `${m}min`;
+    if (restanteMs < 0) return { texto: `Atrasado ${txtTempo}`, classe: "flash-critico" };
+    if (restanteMs <= 30 * 6e4) return { texto: `${txtTempo} restantes`, classe: "flash-alerta" };
+    return { texto: `${txtTempo} restantes`, classe: "flash-ok" };
+  }
+  function atualizarTimersFlashEntregador() {
+    document.querySelectorAll("[data-flash-deadline]").forEach((el) => {
+      const prazo = Number(el.dataset.flashDeadline);
+      if (!Number.isFinite(prazo)) return;
+      const { texto, classe } = formatarContagemFlash(prazo);
+      el.textContent = texto;
+      el.className = `entregas-flash-timer ${classe}`;
+    });
+  }
+  function iniciarTimerFlashEntregador() {
+    pararTimerFlashEntregador();
+    entregadorFlashTimerInterval = setInterval(atualizarTimersFlashEntregador, 1e3);
+  }
+  function pararTimerFlashEntregador() {
+    if (entregadorFlashTimerInterval) clearInterval(entregadorFlashTimerInterval);
+    entregadorFlashTimerInterval = null;
+  }
   function extrairLogradouroPacoteEntregador(pac = {}) {
     const direto = (pac?.rua || pac?.logradouro || "").toString().trim();
     if (direto) return direto;
@@ -5427,6 +5462,8 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
         const cidade = (p?.cidade || obterCidadeDestinoPacoteMarketplace(p) || rota?.origemCidade || "").toString().trim() || "Cidade n\xE3o informada";
         const bairro = (p?.bairroDestino || p?.bairro || "").toString().trim() || "Bairro n\xE3o informado";
         const logradouro = extrairLogradouroPacoteEntregador(p) || "Endere\xE7o n\xE3o informado";
+        const isFlash = pacoteEhFlashEntregador(p);
+        const aceitoEm = Number(rota?.aceitoEm || rota?.atualizadoEm || rota?.criadoEm || Date.now());
         stops.push({
           pacoteId: String(p?.id || `${rota.id}-${idx}`),
           rotaId: rota.id,
@@ -5436,18 +5473,23 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
           cidade,
           bairro,
           logradouro,
-          valorFrete: Number(p?.valorFrete || 0)
+          valorFrete: Number(p?.valorFrete || 0),
+          isFlash,
+          prazoFlashAte: isFlash ? aceitoEm + FLASH_PRAZO_MS : null
         });
       });
     }
     return stops;
   }
   function ordenarStopsEntregador(stops) {
-    const auto = [...stops].sort((a, b) => a.cidade.localeCompare(b.cidade, "pt-BR") || a.bairro.localeCompare(b.bairro, "pt-BR") || a.logradouro.localeCompare(b.logradouro, "pt-BR") || a.destinatario.localeCompare(b.destinatario, "pt-BR"));
+    const flashStops = stops.filter((s) => s.isFlash).sort((a, b) => a.prazoFlashAte - b.prazoFlashAte);
+    const normais = stops.filter((s) => !s.isFlash);
+    const auto = [...normais].sort((a, b) => a.cidade.localeCompare(b.cidade, "pt-BR") || a.bairro.localeCompare(b.bairro, "pt-BR") || a.logradouro.localeCompare(b.logradouro, "pt-BR") || a.destinatario.localeCompare(b.destinatario, "pt-BR"));
     auto.forEach((s, idx) => {
       s.ordemAuto = idx;
     });
-    return auto.map((s) => ({ ...s, ordemEfetiva: entregadorOrdemManual.has(s.pacoteId) ? entregadorOrdemManual.get(s.pacoteId) : s.ordemAuto })).sort((a, b) => a.ordemEfetiva - b.ordemEfetiva);
+    const normaisOrdenados = auto.map((s) => ({ ...s, ordemEfetiva: entregadorOrdemManual.has(s.pacoteId) ? entregadorOrdemManual.get(s.pacoteId) : s.ordemAuto })).sort((a, b) => a.ordemEfetiva - b.ordemEfetiva);
+    return [...flashStops, ...normaisOrdenados];
   }
   function moverStopEntregadorOrdem(pacoteId, direcao) {
     const lista = window.entregadorStopsOrdenadosCache || [];
@@ -5456,6 +5498,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     if (idx < 0 || alvo < 0 || alvo >= lista.length) return;
     const a = lista[idx];
     const b = lista[alvo];
+    if (a.isFlash || b.isFlash) return;
     entregadorOrdemManual.set(a.pacoteId, b.ordemEfetiva);
     entregadorOrdemManual.set(b.pacoteId, a.ordemEfetiva);
     renderAbaEntregasEntregador();
@@ -5464,23 +5507,29 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     const precoTxt = precoParaMoeda(stop.valorFrete);
     const pacoteIdEsc = String(stop.pacoteId).replace(/'/g, "\\'");
     const rotaIdEsc = escaparHtmlMarketplace(String(stop.rotaId));
+    const reorderHtml = stop.isFlash ? `<div class="entregas-stop-reorder entregas-stop-reorder-flash"><i data-lucide="zap" size="16"></i></div>` : `<div class="entregas-stop-reorder">
+                <button type="button" onclick="moverStopEntregadorOrdem('${pacoteIdEsc}', -1)" ${idx === 0 ? "disabled" : ""} aria-label="Mover pra cima"><i data-lucide="chevron-up" size="16"></i></button>
+                <button type="button" onclick="moverStopEntregadorOrdem('${pacoteIdEsc}', 1)" ${idx === total - 1 ? "disabled" : ""} aria-label="Mover pra baixo"><i data-lucide="chevron-down" size="16"></i></button>
+           </div>`;
+    const flashBadgeHtml = stop.isFlash ? `<div class="entregas-stop-flash-row">
+                <span class="entregas-flash-badge">\u26A1 FLASH</span>
+                <span class="entregas-flash-timer" data-flash-deadline="${stop.prazoFlashAte}">--</span>
+           </div>` : "";
     return `
         ${mostrarCidade ? `<div class="entregas-grupo-cidade"><i data-lucide="map-pin" size="13"></i>${escaparHtmlMarketplace(stop.cidade)}</div>` : ""}
         ${mostrarBairro ? `<div class="entregas-grupo-bairro">${escaparHtmlMarketplace(stop.bairro)}</div>` : ""}
         ${mostrarLogradouro ? `<div class="entregas-grupo-rua"><i data-lucide="minus" size="11"></i>${escaparHtmlMarketplace(stop.logradouro)}</div>` : ""}
-        <div class="entregas-stop-card">
-            <div class="entregas-stop-reorder">
-                <button type="button" onclick="moverStopEntregadorOrdem('${pacoteIdEsc}', -1)" ${idx === 0 ? "disabled" : ""} aria-label="Mover pra cima"><i data-lucide="chevron-up" size="16"></i></button>
-                <button type="button" onclick="moverStopEntregadorOrdem('${pacoteIdEsc}', 1)" ${idx === total - 1 ? "disabled" : ""} aria-label="Mover pra baixo"><i data-lucide="chevron-down" size="16"></i></button>
-            </div>
+        <div class="entregas-stop-card${stop.isFlash ? " entregas-stop-card-flash" : ""}">
+            ${reorderHtml}
             <div class="entregas-stop-info">
+                ${flashBadgeHtml}
                 <strong>${escaparHtmlMarketplace(stop.destinatario)}</strong>
                 <small>${escaparHtmlMarketplace(stop.enderecoCompleto || stop.logradouro)}</small>
                 <span class="entregas-stop-loja">${escaparHtmlMarketplace(stop.lojistaNome)}</span>
             </div>
             <div class="entregas-stop-right">
                 <span class="entregas-stop-valor">${escaparHtmlMarketplace(precoTxt)}</span>
-                <button type="button" class="entregas-stop-btn" onclick="abrirSheetRotaEntregador('${rotaIdEsc}')">Entregar</button>
+                <button type="button" class="entregas-stop-btn${stop.isFlash ? " entregas-stop-btn-flash" : ""}" onclick="abrirSheetRotaEntregador('${rotaIdEsc}')">Entregar</button>
             </div>
         </div>
     `;
@@ -5496,6 +5545,8 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     }
     const ordenados = ordenarStopsEntregador(stops);
     window.entregadorStopsOrdenadosCache = ordenados;
+    const qtdFlash = ordenados.filter((s) => s.isFlash).length;
+    const bannerFlash = qtdFlash ? `<div class="entregas-flash-banner"><i data-lucide="zap" size="15"></i> ${qtdFlash > 1 ? `${qtdFlash} entregas Flash pendentes` : "1 entrega Flash pendente"} \u2014 entregue antes de tudo, voc\xEA n\xE3o pode aceitar rota nova at\xE9 resolver.</div>` : "";
     let cidadeAnt = null, bairroAnt = null, ruaAnt = null;
     const html = ordenados.map((stop, idx) => {
       const mostrarCidade = stop.cidade !== cidadeAnt;
@@ -5506,8 +5557,11 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       ruaAnt = stop.logradouro;
       return montarStopEntregadorHtml(stop, idx, ordenados.length, mostrarCidade, mostrarBairro, mostrarLogradouro);
     }).join("");
-    container.innerHTML = `<div class="entregas-agrupadas-lista">${html}</div>`;
+    container.innerHTML = `${bannerFlash}<div class="entregas-agrupadas-lista">${html}</div>`;
     if (typeof lucide !== "undefined") lucide.createIcons();
+    atualizarTimersFlashEntregador();
+    if (qtdFlash) iniciarTimerFlashEntregador();
+    else pararTimerFlashEntregador();
   }
   async function renderAbaHistoricoEntregador() {
     const container = document.getElementById("rotas-painel-historico");
@@ -5541,8 +5595,12 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     btnHistorico.classList.toggle("active", !ehEntregas);
     painelEntregas.classList.toggle("hidden", !ehEntregas);
     painelHistorico.classList.toggle("hidden", ehEntregas);
-    if (ehEntregas) renderAbaEntregasEntregador();
-    else renderAbaHistoricoEntregador();
+    if (ehEntregas) {
+      renderAbaEntregasEntregador();
+    } else {
+      pararTimerFlashEntregador();
+      renderAbaHistoricoEntregador();
+    }
   }
   async function renderHistoricoRotasEntregador() {
     const shell = document.getElementById("entregador-rotas-shell");
@@ -7348,7 +7406,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         const envioId = h.id || "envio-" + cliente.id + "-" + idx;
         const codigo = envioId.replace("envio-", "").slice(-4);
         const servico = h.servico || "Standard";
-        const flash = servico.toLowerCase() === "flash";
+        const flash = servico.toLowerCase().includes("flash") || servico.toLowerCase().includes("expresso");
         const cidade = (camposEndereco.cidade || cliente.cidade || "Sem cidade").toString().trim() || "Sem cidade";
         const valorFrete = Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0);
         pendentes.push({
@@ -7415,8 +7473,8 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
   }
   function podeSelecionarPacoteRota(pacote) {
     const selecionados = rotaPendentesCache.filter((item) => rotaSelecaoIds.has(item.id));
-    if (pacote.flash && selecionados.some((item) => item.flash)) {
-      alert("Regra Flash: apenas 1 pacote Flash por rota.");
+    if (selecionados.length && pacote.flash !== selecionados[0].flash) {
+      alert(pacote.flash ? "Essa rota j\xE1 tem pacote(s) Start \u2014 n\xE3o d\xE1 pra misturar com Flash. Monte uma rota separada s\xF3 com os pacotes Flash." : "Essa rota j\xE1 tem pacote(s) Flash \u2014 n\xE3o d\xE1 pra misturar com Start. Monte uma rota separada s\xF3 com os pacotes Start.");
       return false;
     }
     const ehColeta = pacote.tipoFluxo === "coleta_reversa";
