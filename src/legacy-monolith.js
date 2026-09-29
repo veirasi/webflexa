@@ -2972,6 +2972,7 @@ function montarMapaPacotesUsuarioMarketplace(clientesNo = {}) {
                 id: idEnvio,
                 clienteNome: (h?.destinatario || cliente?.nome || 'Cliente').toString().trim(),
                 cidade: (h?.cidadeDestino || h?.cidade || cidadeCliente || '').toString().trim(),
+                bairro: (h?.bairroDestino || cliente?.bairro || '').toString().trim(),
                 destino: (h?.destinoEndereco || montarEnderecoParaCalculo(cliente, cliente?.endereco || '') || '').toString().trim(),
                 servico: (h?.servico || 'Standard').toString().trim(),
                 status: normalizarStatusPacoteEntrega(h?.status || 'PENDENTE'),
@@ -2995,6 +2996,7 @@ function montarMapaPacotesUsuarioMarketplace(clientesNo = {}) {
                     id: pid,
                     clienteNome: (p.destinatario || p.cliente || 'Cliente').toString().trim(),
                     cidade: (p.cidadeDestino || p.cidade || '').toString().trim(),
+                    bairro: (p.bairroDestino || '').toString().trim(),
                     destino: (p.destinoEndereco || p.destino || '').toString().trim(),
                     servico: (p.servico || 'Standard').toString().trim(),
                     status: normalizarStatusPacoteEntrega(p.status || 'PENDENTE'),
@@ -3048,6 +3050,7 @@ async function carregarMarketplaceRotasEntregador() {
             const origemCidade = (usuario?.endereco?.cidade || '').toString().trim();
             const origemUf = normalizarUf(usuario?.endereco?.uf || usuario?.endereco?.estado || '');
             const origemLabel = montarCidadeUfMarketplace(origemCidade, origemUf);
+            const origemBairro = (usuario?.endereco?.bairro || '').toString().trim();
 
             const mapaPacotes = montarMapaPacotesUsuarioMarketplace(usuario?.clientes || {});
 
@@ -3083,6 +3086,13 @@ async function carregarMarketplaceRotasEntregador() {
                         .filter(Boolean)
                 )];
                 const totalParadas = enderecosDestino.length || pacotes.length || 1;
+
+                // Bairros de destino (pedido do dono 2026-09-28): pro dropdown
+                // de destino no sheet "Buscar" mostrar o detalhe de cada parada
+                // por bairro, não só a cidade — ordem de aparição, sem repetir.
+                const bairrosDestino = [...new Set(
+                    pacotes.map((p) => (p?.bairro || '').toString().trim()).filter(Boolean)
+                )];
 
                 const totalFrete = Number.isFinite(Number(rota?.totalFrete))
                     ? Number(rota.totalFrete)
@@ -3122,8 +3132,10 @@ async function carregarMarketplaceRotasEntregador() {
                     lojistaLogo: (usuario?.logo || usuario?.foto || ''),
                     origemCidade: origemCidade || '--',
                     origemLabel,
+                    origemBairro,
                     destinoPrincipal,
                     destinos,
+                    bairrosDestino,
                     totalPacotes,
                     totalParadas,
                     totalFrete,
@@ -3496,13 +3508,12 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
     const totalPacotesNum = Number(rota.totalPacotes || 0);
     const origemTxt = rota.origemLabel || 'Origem não informada';
     const destinoTxt = rota.destinoPrincipal || (destinos[0] || 'Destino não informado');
-    // Resumo fechado do dropdown origem/destino (pedido do dono 2026-09-28):
-    // com 1 só cidade de destino mostra ela; com multi-cidades mostra a
-    // primeira + quantas faltam, pra não estourar a linha do resumo.
-    const destinoResumoTxt = destinos.length > 1
-        ? `${escaparHtmlMarketplace(destinos[0])} +${destinos.length - 1}`
-        : escaparHtmlMarketplace(destinoTxt);
-    const destinosParaListar = destinos.length ? destinos : [destinoTxt];
+    // Origem e destino continuam sempre visíveis (igual sempre foi) — o que
+    // muda (pedido do dono 2026-09-28) é que CADA linha vira seu próprio
+    // dropdown independente, revelando os bairros daquele lado especificamente
+    // (não um resumo combinado dos dois, que escondia a cidade por padrão).
+    const bairrosOrigem = rota.origemBairro ? [rota.origemBairro] : [];
+    const bairrosDestino = Array.isArray(rota.bairrosDestino) ? rota.bairrosDestino : [];
     const logo = (rota?.lojistaLogo || "").toString().trim();
     const avatar = logo
         ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" />`
@@ -3542,18 +3553,20 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
         <div class="sheet-meta-item"><i data-lucide="flag"></i><strong>${qtdParadas}</strong><small>parada${qtdParadas > 1 ? 's' : ''}</small></div>
     </div>
 
-    <div class="sheet-route-accordion">
-        <button type="button" class="sheet-route-toggle" onclick="toggleDetalhesCorrida(this)">
-            <span class="sheet-route-toggle-summary">
-                <span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong>
-                <i data-lucide="arrow-right" size="13" class="sheet-route-toggle-arrow"></i>
-                <span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${destinoResumoTxt}</strong>
-            </span>
-            <i data-lucide="chevron-down" size="16" class="sheet-details-chevron"></i>
+    <div class="sheet-route-timeline">
+        <button type="button" class="sheet-route-point-toggle${bairrosOrigem.length ? '' : ' no-chevron'}" onclick="toggleDetalhesCorrida(this)">
+            <span class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></span>
+            ${bairrosOrigem.length ? '<i data-lucide="chevron-down" size="14" class="sheet-details-chevron"></i>' : ''}
         </button>
-        <div class="sheet-route-timeline hidden">
-            <div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-origem"></span><strong>${escaparHtmlMarketplace(origemTxt)}</strong></div>
-            ${destinosParaListar.map((d) => `<div class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(d)}</strong></div>`).join('')}
+        <div class="sheet-route-bairros hidden">
+            ${bairrosOrigem.map((b) => `<span class="sheet-route-bairro-item">${escaparHtmlMarketplace(b)}</span>`).join('')}
+        </div>
+        <button type="button" class="sheet-route-point-toggle${bairrosDestino.length ? '' : ' no-chevron'}" onclick="toggleDetalhesCorrida(this)">
+            <span class="sheet-route-point"><span class="sheet-route-dot sheet-route-dot-destino"></span><strong>${escaparHtmlMarketplace(destinoTxt)}</strong></span>
+            ${bairrosDestino.length ? '<i data-lucide="chevron-down" size="14" class="sheet-details-chevron"></i>' : ''}
+        </button>
+        <div class="sheet-route-bairros hidden">
+            ${bairrosDestino.map((b) => `<span class="sheet-route-bairro-item">${escaparHtmlMarketplace(b)}</span>`).join('')}
         </div>
     </div>
 

@@ -5749,32 +5749,31 @@ body.usuario-entregador #entregador-rotas-shell {
 #buscar-sheet-content .sheet-meta-row .sheet-meta-item strong { display: block; font-size: 15px; color: var(--text-main); }
 #buscar-sheet-content .sheet-meta-row .sheet-meta-item small { display: block; font-size: 11px; font-weight: 600; color: var(--text-sub); }
 
-#buscar-sheet-content .sheet-route-timeline { display: flex; flex-direction: column; }
-#buscar-sheet-content .sheet-route-point { display: flex; align-items: center; gap: 12px; position: relative; padding: 6px 0; }
+#buscar-sheet-content .sheet-route-timeline { display: flex; flex-direction: column; border: 1px solid #eef2f6; border-radius: 14px; background: #fdfefe; overflow: hidden; }
+#buscar-sheet-content .sheet-route-point { display: flex; align-items: center; gap: 12px; }
 #buscar-sheet-content .sheet-route-point strong { font-size: 14px; font-weight: 800; color: var(--text-main); }
 #buscar-sheet-content .sheet-route-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; position: relative; z-index: 1; box-sizing: border-box; }
 #buscar-sheet-content .sheet-route-dot-origem { background: var(--brand-orange); border: 3px solid #ffe4cc; }
 #buscar-sheet-content .sheet-route-dot-destino { background: #fff; border: 2px solid var(--brand-orange); }
-#buscar-sheet-content .sheet-route-point:first-child::after {
+
+/* Origem e destino sempre visíveis (igual sempre foi), cada linha com seu
+   PRÓPRIO dropdown independente de bairros (pedido do dono 2026-09-28) —
+   não um resumo combinado que escondia a cidade por padrão. Mesmo toggle
+   genérico de "Detalhes da corrida" (toggleDetalhesCorrida). */
+#buscar-sheet-content .sheet-route-point-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: transparent; border: none; cursor: pointer; position: relative; }
+#buscar-sheet-content .sheet-route-point-toggle:first-child::after {
     content: '';
     position: absolute;
-    left: 5px; top: 24px; bottom: -6px;
+    left: 19px; top: 26px; bottom: -6px;
     width: 2px;
     background-image: repeating-linear-gradient(to bottom, var(--brand-orange) 0px, var(--brand-orange) 4px, transparent 4px, transparent 8px);
 }
-
-/* Origem/destino em dropdown (pedido do dono 2026-09-28) — economiza espaço
-   fechado, e comporta multi-cidades sem estourar a linha do resumo. Mesmo
-   toggle genérico de "Detalhes da corrida" (toggleDetalhesCorrida). */
-#buscar-sheet-content .sheet-route-accordion { border: 1px solid #eef2f6; border-radius: 14px; overflow: hidden; background: #fdfefe; }
-#buscar-sheet-content .sheet-route-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: transparent; border: none; cursor: pointer; }
-#buscar-sheet-content .sheet-route-toggle-summary { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; overflow: hidden; }
-#buscar-sheet-content .sheet-route-toggle-summary strong { font-size: 13px; font-weight: 800; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#buscar-sheet-content .sheet-route-toggle-arrow { color: var(--text-sub); flex-shrink: 0; }
-#buscar-sheet-content .sheet-route-toggle .sheet-details-chevron { transition: transform 0.2s ease; color: var(--text-sub); flex-shrink: 0; }
-#buscar-sheet-content .sheet-route-toggle.is-open .sheet-details-chevron { transform: rotate(180deg); }
-#buscar-sheet-content .sheet-route-timeline { padding: 0 14px 12px; }
-#buscar-sheet-content .sheet-route-timeline.hidden { display: none; }
+#buscar-sheet-content .sheet-route-point-toggle .sheet-details-chevron { transition: transform 0.2s ease; color: var(--text-sub); flex-shrink: 0; }
+#buscar-sheet-content .sheet-route-point-toggle.is-open .sheet-details-chevron { transform: rotate(180deg); }
+#buscar-sheet-content .sheet-route-point-toggle.no-chevron { cursor: default; }
+#buscar-sheet-content .sheet-route-bairros { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px 38px; }
+#buscar-sheet-content .sheet-route-bairros.hidden { display: none; }
+#buscar-sheet-content .sheet-route-bairro-item { font-size: 12px; font-weight: 700; color: var(--text-sub); background: #f1f5f9; padding: 4px 10px; border-radius: 999px; }
 
 #buscar-sheet-content .sheet-details-accordion { border: 1px solid #eef2f6; border-radius: 14px; overflow: hidden; background: #fdfefe; }
 #buscar-sheet-content .sheet-details-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: transparent; border: none; font-weight: 700; font-size: 14px; color: var(--text-main); cursor: pointer; }

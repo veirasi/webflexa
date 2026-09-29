@@ -265,7 +265,7 @@ function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
 // estes dois triggers (dispara em `usuarios/{uid}` E em `pacotes/{uid}`,
 // porque o app grava pacote em dois modelos — ver resolverEnvioLojista).
 // Isso permite fechar `usuarios/.read` pra master/dono apenas.
-const ALLOWLIST_HISTORICO_ITEM = ['id', 'destino', 'destinoEndereco', 'cidadeDestino', 'cidade', 'servico', 'status', 'statusRaw', 'distanciaKm', 'duracaoMin', 'valorFrete', 'valor', 'tamanho', 'embalagem', 'veiculo', 'tipoFluxo', 'rotaId'];
+const ALLOWLIST_HISTORICO_ITEM = ['id', 'destino', 'destinoEndereco', 'cidadeDestino', 'bairroDestino', 'cidade', 'servico', 'status', 'statusRaw', 'distanciaKm', 'duracaoMin', 'valorFrete', 'valor', 'tamanho', 'embalagem', 'veiculo', 'tipoFluxo', 'rotaId'];
 const ALLOWLIST_CLIENTE_ENDERECO = ['cidade', 'estado', 'uf', 'endereco', 'cep', 'rua', 'num', 'bairro', 'comp'];
 const ALLOWLIST_ROTA_MARKETPLACE = ['status', 'pagamentoStatus', 'totalFrete', 'pacoteIds', 'pacotes', 'quantidade', 'entregadorId', 'aceitoPor', 'criadoEm'];
 
@@ -345,7 +345,8 @@ async function montarMarketplacePublicoDoLojista(uid) {
       endereco: {
         cidade: usuario.endereco?.cidade || '',
         uf: usuario.endereco?.uf || '',
-        estado: usuario.endereco?.estado || ''
+        estado: usuario.endereco?.estado || '',
+        bairro: usuario.endereco?.bairro || ''
       }
     },
     rotas: rotasFiltradas,
