@@ -3019,10 +3019,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                 <div class="loja-desktop-greeting">Ol\xE1, ${escaparHtmlMarketplace(nomeLoja)}</div>
                 <div class="loja-desktop-subgreeting">${escaparHtmlMarketplace(localColeta)}</div>
             </div>
-            <div class="loja-desktop-topbar-actions">
-                <div class="loja-desktop-saldo-pill">${precoParaMoeda(saldoUser)}</div>
-                <button type="button" class="loja-desktop-icon-btn" onclick="abrirPainelNotificacoes()" aria-label="Notifica\xE7\xF5es"><i data-lucide="bell" size="18"></i></button>
-            </div>
+            <div class="loja-desktop-saldo-pill">${precoParaMoeda(saldoUser)}</div>
         </div>
 
         <div class="loja-desktop-content">

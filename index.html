@@ -778,6 +778,20 @@
     </div>
 </aside>
 
+<!-- Cabeçalho universal do desktop lojista (pedido do dono 2026-09-30):
+     fixo, sempre igual em toda tela/sheet — nunca some/reaparece trocando
+     de conteúdo. Só logo + notificações; qualquer coisa específica de
+     tela (saudação, título) mora no CONTEÚDO, abaixo dele. -->
+<div id="loja-desktop-header" class="loja-desktop-header">
+    <div class="loja-desktop-header-logo">
+        <div class="loja-sidebar-logo-badge">F</div>
+        <span>FLEX</span>
+    </div>
+    <button type="button" class="loja-desktop-icon-btn" onclick="abrirPainelNotificacoes()" aria-label="Notificações">
+        <i data-lucide="bell" size="18"></i>
+    </button>
+</div>
+
 <div id="overlay-perfil" class="modal-overlay modal-perfil-overlay profile-account-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:flex-end;">
     <div id="sheet-perfil" class="modal-sheet modal-perfil-sheet profile-account-sheet" style="background:white; width:100%; border-radius:30px 30px 0 0; padding:25px; transform:translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);">
         <div style="width:40px; height:5px; background:#e2e8f0; border-radius:10px; margin:0 auto 20px;"></div>

@@ -197,10 +197,27 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
    JS, que liga/desliga body.lojista-desktop-mode. Mobile, entregador e
    telas menores que 1024px continuam idênticos a como sempre foram. */
 .loja-sidebar { display: none; }
+.loja-desktop-header { display: none; }
 
 body.lojista-desktop-mode { justify-content: flex-start; align-items: stretch; }
 body.lojista-desktop-mode #main-nav,
-body.lojista-desktop-mode .bg-sphere { display: none !important; }
+body.lojista-desktop-mode .bg-sphere,
+body.lojista-desktop-mode .global-header { display: none !important; }
+
+/* Cabeçalho universal (pedido do dono 2026-09-30): fixo, mesma altura e
+   posição em QUALQUER tela/sheet — nunca some/reaparece trocando de
+   conteúdo. Fica acima de tudo (sidebar inclusive na borda), então todo
+   conteúdo (.container e os overlays de navegação) precisa começar
+   64px mais abaixo pra não ficar por baixo dele. */
+body.lojista-desktop-mode .loja-desktop-header {
+    display: flex; align-items: center; justify-content: space-between;
+    position: fixed; top: 0; left: 236px; right: 0; height: 64px;
+    background: #fff; border-bottom: 1px solid #e2e8f0; z-index: 700;
+    padding: 0 28px; transition: left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .loja-desktop-header { left: 76px; }
+.loja-desktop-header-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; color: #0f172a; }
+
 /* Telas ainda não redesenhadas pro desktop (Rotas, Envios, Perfil etc)
    ficam com largura de formulário/card normal, centralizadas ao lado da
    sidebar — sem isso, o conteúdo mobile esticava até a borda da tela.
@@ -212,6 +229,7 @@ body.lojista-desktop-mode .container {
     flex: none;
     min-width: 0;
     padding: 24px 0 40px;
+    margin-top: 64px;
     margin-left: calc(236px + max(32px, (100vw - 236px - 640px) / 2));
     margin-right: auto;
     transition: margin-left 0.18s ease;
@@ -260,10 +278,11 @@ body.loja-sidebar-compact .loja-sidebar-link { justify-content: center; }
 body.loja-sidebar-compact .loja-sidebar-footer { justify-content: center; }
 
 /* ---- Conteúdo do dashboard desktop ---- */
-.loja-desktop-topbar { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 4px; margin-bottom: 8px; }
+/* Só conteúdo (saudação + saldo) — o cabeçalho de verdade agora é
+   .loja-desktop-header, universal, fixo por cima de tudo. */
+.loja-desktop-topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; margin-bottom: 8px; }
 .loja-desktop-greeting { font-size: 16px; font-weight: 800; color: #0f172a; }
 .loja-desktop-subgreeting { font-size: 12px; color: #64748b; }
-.loja-desktop-topbar-actions { display: flex; align-items: center; gap: 14px; }
 .loja-desktop-saldo-pill { background: #fff7ed; color: #c2410c; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 999px; }
 .loja-desktop-icon-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; display: flex; align-items: center; justify-content: center; color: #475569; cursor: pointer; }
 
@@ -349,7 +368,7 @@ body.lojista-desktop-mode .modal-overlay,
 body.lojista-desktop-mode .modal-perfil-overlay,
 body.lojista-desktop-mode .sheet-overlay {
     position: fixed !important;
-    top: 0 !important;
+    top: 64px !important;
     left: 236px !important;
     right: 0 !important;
     bottom: 0 !important;
@@ -367,6 +386,11 @@ body.lojista-desktop-mode.loja-sidebar-compact .modal-perfil-overlay,
 body.lojista-desktop-mode.loja-sidebar-compact .sheet-overlay {
     left: 76px !important;
 }
+/* Sem moldura de "card" (pedido do dono 2026-09-30, 3ª correção): nada de
+   fundo branco arredondado com sombra flutuando sobre o fundo cinza — isso
+   ainda lê como popup. O fundo bate com a página (mesmo #f1f5f9 do
+   overlay), então o formulário é só conteúdo normal da página, só com a
+   largura contida (o único limite que o dono pediu pra manter). */
 body.lojista-desktop-mode .modal-sheet,
 body.lojista-desktop-mode .sheet-buscar,
 body.lojista-desktop-mode .ent-sheet {
@@ -374,8 +398,9 @@ body.lojista-desktop-mode .ent-sheet {
     max-width: 640px !important;
     max-height: none !important;
     margin: 24px 0 40px !important;
-    border-radius: 16px !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     transform: none !important;
 }
 .ui-container { padding-left: 10px; padding-right: 10px; }
