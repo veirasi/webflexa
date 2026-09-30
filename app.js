@@ -449,6 +449,7 @@
     toggleAdminSidebarMobile: () => toggleAdminSidebarMobile,
     toggleAdminTheme: () => toggleAdminTheme,
     toggleDetalhesCorrida: () => toggleDetalhesCorrida,
+    toggleLojaSidebarCompact: () => toggleLojaSidebarCompact,
     togglePacoteRota: () => togglePacoteRota,
     togglePass: () => togglePass,
     usuarioEhEntregador: () => usuarioEhEntregador,
@@ -1563,6 +1564,12 @@
     }
     atualizarEstadoBotaoCentralMenu(targetTela);
     requestAnimationFrame(atualizarIndicadorMenuInferior);
+    const sidebar = document.getElementById("loja-sidebar");
+    if (sidebar) {
+      sidebar.querySelectorAll(".loja-sidebar-link").forEach((item) => item.classList.remove("active"));
+      const ativoSidebar = sidebar.querySelector(`.loja-sidebar-link[data-nav-target="${targetTela}"]`);
+      if (ativoSidebar) ativoSidebar.classList.add("active");
+    }
   }
   function irParaBuscarEntregador() {
     modoRotasEntregador = "BUSCAR";
@@ -1597,6 +1604,25 @@
   }
   window.addEventListener("resize", () => {
     requestAnimationFrame(atualizarIndicadorMenuInferior);
+  });
+  function atualizarModoDesktopLoja() {
+    const tipo = obterTipoUsuarioAtual();
+    const deveAtivar = tipo === "loja" && window.innerWidth >= 1024 && !!getUsuarioIdAtual();
+    const jaAtivo = document.body.classList.contains("lojista-desktop-mode");
+    if (deveAtivar === jaAtivo) return false;
+    document.body.classList.toggle("lojista-desktop-mode", deveAtivar);
+    return true;
+  }
+  function toggleLojaSidebarCompact() {
+    document.body.classList.toggle("loja-sidebar-compact");
+  }
+  window.addEventListener("resize", () => {
+    requestAnimationFrame(() => {
+      const mudou = atualizarModoDesktopLoja();
+      if (mudou && document.getElementById("view-dash-loja")?.classList.contains("active")) {
+        renderizarDashboard(window.usuarioLogado || {});
+      }
+    });
   });
   function navegar(idTela) {
     if (usuarioEhMaster()) {
@@ -2705,6 +2731,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function renderizarDashboard(user) {
     const container = document.getElementById("dash-loader-content");
     if (!container) return;
+    atualizarModoDesktopLoja();
+    const modoDesktop = document.body.classList.contains("lojista-desktop-mode");
     const tipoUser = obterTipoUsuarioAtual();
     const saldoUser = Number(user?.financeiro?.saldo || 0);
     const headerHtml = renderHeaderGlobal(tipoUser, saldoUser);
@@ -2810,7 +2838,27 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                 ${cardEmRota}
             </section>
         ` : "";
-    container.innerHTML = `
+    if (modoDesktop) {
+      container.innerHTML = montarDashboardDesktopLojaHtml({
+        user,
+        saldoUser,
+        localColeta,
+        rotas,
+        envios,
+        rotaAtual,
+        rotasRecentes,
+        progressoPctRota,
+        distanciaTotal,
+        duracaoTotal,
+        cidadeDestino,
+        statusRotaVisual,
+        timelineHtml
+      });
+      sincronizarSidebarLojaConta(user);
+      if (typeof lucide !== "undefined") lucide.createIcons();
+      iniciarTimerFlashEntregador();
+    } else {
+      container.innerHTML = `
         ${headerHtml}
         <div class="home-screen">
             <div class="home-location-strip">
@@ -2857,9 +2905,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             </section>
         </div>
     `;
-    if (typeof lucide !== "undefined") lucide.createIcons();
-    carregarBannersPorPublico("lojista", "banner-lojista-home");
-    carregarDividasEntregadorLojistaHome();
+      if (typeof lucide !== "undefined") lucide.createIcons();
+      carregarBannersPorPublico("lojista", "banner-lojista-home");
+      carregarDividasEntregadorLojistaHome();
+    }
     if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
       dashboardRotasSincronizadas = true;
       carregarRotasDoBanco().then((rotasDb) => {
@@ -2870,6 +2919,181 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       }).catch(() => {
       });
     }
+  }
+  function sincronizarSidebarLojaConta(user) {
+    const avatar = document.getElementById("loja-sidebar-avatar");
+    const nomeEl = document.getElementById("loja-sidebar-nome");
+    const nome = (user?.loja || user?.nome || "Loja").toString().trim() || "Loja";
+    if (nomeEl) nomeEl.textContent = nome;
+    if (avatar) avatar.textContent = nome.slice(0, 2).toUpperCase();
+  }
+  function montarDashboardDesktopLojaHtml({ user, saldoUser, localColeta, rotas, envios, rotaAtual, rotasRecentes, progressoPctRota, distanciaTotal, duracaoTotal, cidadeDestino, statusRotaVisual }) {
+    const nomeLoja = (user?.loja || user?.nome || "Loja").toString().trim() || "Loja";
+    const rotasEmAndamentoCount = rotas.filter((r) => {
+      const st = normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || "CRIADA");
+      return st === "EM_ROTA" || st === "BUSCANDO";
+    }).length;
+    const statusBreakdown = { pendente: 0, emRota: 0, concluido: 0 };
+    envios.forEach((e) => {
+      if (e.categoria === "PACOTE_NOVO") statusBreakdown.pendente += 1;
+      else if (e.categoria === "EM_ROTA" || e.categoria === "BUSCANDO") statusBreakdown.emRota += 1;
+      else if (e.categoria === "ENTREGUE") statusBreakdown.concluido += 1;
+    });
+    const rotasFlashAtivas = [];
+    rotas.forEach((rota) => {
+      const statusNorm = normalizarStatusRotaFiltro(rota?.status || rota?.pagamentoStatus || "CRIADA");
+      if (statusNorm !== "EM_ROTA") return;
+      const pacotesRota = getPacotesDaRota(rota);
+      if (!pacotesRota.some((p) => pacoteEhFlashEntregador(p))) return;
+      const aceitoEm = Number(rota?.aceitoEm || rota?.atualizadoEm || rota?.criadoEm || Date.now());
+      rotasFlashAtivas.push({
+        id: rota.id,
+        entregadorNome: (rota?.entregadorNome || "Entregador").toString(),
+        prazoFlashAte: aceitoEm + FLASH_PRAZO_MS
+      });
+    });
+    rotasFlashAtivas.sort((a, b) => a.prazoFlashAte - b.prazoFlashAte);
+    const statsClientes = clientes.map((c) => {
+      const historico = Array.isArray(c.historico) ? c.historico : [];
+      if (!historico.length) return null;
+      const totalGasto = historico.reduce((acc, h) => acc + (Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0)), 0);
+      const maisRecente = Math.max(...historico.map((h) => Number(h.criadoEm || 0)));
+      return { nome: (c.nome || "Cliente").toString(), totalGasto, maisRecente };
+    }).filter(Boolean);
+    const clienteMaisAtivo = statsClientes.length ? statsClientes.reduce((max, cur) => cur.totalGasto > (max?.totalGasto || 0) ? cur : max, null) : null;
+    const TRES_MESES_MS = 90 * 24 * 60 * 60 * 1e3;
+    const agora = Date.now();
+    const clientesInativosCount = statsClientes.filter((c) => agora - c.maisRecente > TRES_MESES_MS).length;
+    const aceitesPorEntregador = /* @__PURE__ */ new Map();
+    rotas.forEach((rota) => {
+      const entId = rota?.entregadorId || rota?.aceitoPor;
+      if (!entId) return;
+      const atual = aceitesPorEntregador.get(entId) || { nome: (rota?.entregadorNome || "Entregador").toString(), count: 0 };
+      atual.count += 1;
+      aceitesPorEntregador.set(entId, atual);
+    });
+    const entregadorMaisAtivo = aceitesPorEntregador.size ? [...aceitesPorEntregador.values()].reduce((max, cur) => cur.count > (max?.count || 0) ? cur : max, null) : null;
+    const flashHtml = rotasFlashAtivas.length ? rotasFlashAtivas.map((r) => `
+            <div class="loja-flash-card">
+                <div class="loja-flash-card-top">
+                    <span class="entregas-flash-badge">\u26A1 FLASH</span>
+                    <span class="entregas-flash-timer" data-flash-deadline="${r.prazoFlashAte}">--</span>
+                </div>
+                <div class="loja-flash-card-rota">Rota #${escaparHtmlMarketplace(r.id)}</div>
+                <div class="loja-flash-card-entregador">Entregador: ${escaparHtmlMarketplace(r.entregadorNome)}</div>
+            </div>
+        `).join("") : '<div class="loja-flash-empty">Nenhuma rota Flash ativa no momento.</div>';
+    const rotasRecentesHtml = rotasRecentes.length ? rotasRecentes.map((rota) => {
+      const statusNorm = normalizarStatusRotaFiltro(rota?.status || rota?.pagamentoStatus || "CRIADA");
+      const statusVisual = getStatusVisualRota(statusNorm);
+      const qtdPacotes = getPacotesDaRota(rota).length || Number(rota?.quantidade || 0);
+      const dataTxt = rota?.atualizadoEm ? new Date(rota.atualizadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "--";
+      return `
+                <button type="button" class="loja-desktop-rota-row" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
+                    <div>
+                        <div class="loja-desktop-rota-id">Rota #${escaparHtmlMarketplace(String(rota.id))}</div>
+                        <div class="loja-desktop-rota-meta">${qtdPacotes} pacote(s) \xB7 ${dataTxt}</div>
+                    </div>
+                    <span class="loja-desktop-status-pill ${escaparHtmlMarketplace(statusVisual.className)}">${escaparHtmlMarketplace(statusVisual.label)}</span>
+                </button>
+            `;
+    }).join("") : '<div class="loja-desktop-empty">Nenhuma rota recente para exibir.</div>';
+    const emRotaHtml = rotaAtual ? `
+            <div class="loja-desktop-card">
+                <div class="loja-desktop-card-head">
+                    <div class="loja-desktop-card-title">Em rota agora</div>
+                    <span class="loja-desktop-status-pill ${escaparHtmlMarketplace(statusRotaVisual.className)}">${escaparHtmlMarketplace(statusRotaVisual.label)}</span>
+                </div>
+                <div class="loja-desktop-track">
+                    <div class="loja-desktop-track-fill" style="width:${progressoPctRota}%;"></div>
+                </div>
+                <div class="loja-desktop-track-foot">
+                    <span>${escaparHtmlMarketplace(localColeta)} \u2192 ${escaparHtmlMarketplace(cidadeDestino)}</span>
+                    <span>${formatarDistancia(distanciaTotal)} \xB7 ${formatarDuracao(duracaoTotal)} \xB7 ${progressoPctRota}% conclu\xEDdo</span>
+                </div>
+            </div>
+        ` : "";
+    return `
+        <div class="loja-desktop-topbar">
+            <div>
+                <div class="loja-desktop-greeting">Ol\xE1, ${escaparHtmlMarketplace(nomeLoja)}</div>
+                <div class="loja-desktop-subgreeting">${escaparHtmlMarketplace(localColeta)}</div>
+            </div>
+            <div class="loja-desktop-topbar-actions">
+                <div class="loja-desktop-saldo-pill">${precoParaMoeda(saldoUser)}</div>
+                <button type="button" class="loja-desktop-icon-btn" onclick="abrirPainelNotificacoes()" aria-label="Notifica\xE7\xF5es"><i data-lucide="bell" size="18"></i></button>
+            </div>
+        </div>
+
+        <div class="loja-desktop-content">
+
+            <div class="loja-desktop-metrics">
+                <div class="loja-desktop-metric-card">
+                    <div class="loja-desktop-metric-icon icon-orange"><i data-lucide="wallet" size="17"></i></div>
+                    <div class="loja-desktop-metric-label">Saldo dispon\xEDvel</div>
+                    <div class="loja-desktop-metric-value">${precoParaMoeda(saldoUser)}</div>
+                </div>
+                <div class="loja-desktop-metric-card">
+                    <div class="loja-desktop-metric-icon icon-blue"><i data-lucide="route" size="17"></i></div>
+                    <div class="loja-desktop-metric-label">Rotas em andamento</div>
+                    <div class="loja-desktop-metric-value">${rotasEmAndamentoCount}</div>
+                </div>
+                <div class="loja-desktop-metric-card">
+                    <div class="loja-desktop-metric-icon icon-amber"><i data-lucide="package" size="17"></i></div>
+                    <div class="loja-desktop-metric-label">Envios pendentes</div>
+                    <div class="loja-desktop-metric-value">${statusBreakdown.pendente}</div>
+                </div>
+            </div>
+
+            <div class="loja-desktop-flash-section">
+                <div class="loja-desktop-flash-head">
+                    <i data-lucide="zap" size="16" style="color:#ef4444;"></i>
+                    <div class="loja-desktop-card-title">Rotas Flash em andamento</div>
+                    <span class="loja-desktop-flash-badge">PRAZO DE 2H</span>
+                </div>
+                <div class="loja-desktop-flash-grid">${flashHtml}</div>
+            </div>
+
+            <div class="loja-desktop-grid-2col">
+                <div class="loja-desktop-col">
+                    ${emRotaHtml}
+                    <div class="loja-desktop-card">
+                        <div class="loja-desktop-card-title" style="margin-bottom:12px;">Rotas recentes</div>
+                        ${rotasRecentesHtml}
+                    </div>
+                </div>
+                <div class="loja-desktop-col">
+                    <div class="loja-desktop-card">
+                        <div class="loja-desktop-card-title" style="margin-bottom:12px;">Envios por status</div>
+                        <div class="loja-desktop-status-row"><span class="loja-desktop-dot dot-amber"></span><span class="loja-desktop-status-label">Pendente</span><strong>${statusBreakdown.pendente}</strong></div>
+                        <div class="loja-desktop-status-row"><span class="loja-desktop-dot dot-blue"></span><span class="loja-desktop-status-label">Em rota</span><strong>${statusBreakdown.emRota}</strong></div>
+                        <div class="loja-desktop-status-row"><span class="loja-desktop-dot dot-green"></span><span class="loja-desktop-status-label">Conclu\xEDdo</span><strong>${statusBreakdown.concluido}</strong></div>
+                    </div>
+                    <div class="loja-desktop-card loja-desktop-acoes">
+                        <div class="loja-desktop-card-title">A\xE7\xF5es r\xE1pidas</div>
+                        <button type="button" class="loja-desktop-btn-primary" onclick="navegar('view-rotas')">+ Nova rota</button>
+                        <button type="button" class="loja-desktop-btn-outline" onclick="abrirSeletorCliente()">+ Novo envio</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loja-desktop-insights">
+                <div class="loja-desktop-insight-card">
+                    <div class="loja-desktop-insight-head"><div class="loja-desktop-insight-icon icon-orange"><i data-lucide="star" size="15"></i></div><span>Cliente mais ativo</span></div>
+                    ${clienteMaisAtivo ? `<div class="loja-desktop-insight-main">${escaparHtmlMarketplace(clienteMaisAtivo.nome)}</div><div class="loja-desktop-insight-sub">${precoParaMoeda(clienteMaisAtivo.totalGasto)} em pedidos (total)</div>` : '<div class="loja-desktop-insight-sub">Sem dados suficientes ainda.</div>'}
+                </div>
+                <div class="loja-desktop-insight-card">
+                    <div class="loja-desktop-insight-head"><div class="loja-desktop-insight-icon icon-red"><i data-lucide="user-x" size="15"></i></div><span>Clientes inativos (+3 meses)</span></div>
+                    <div class="loja-desktop-insight-main">${clientesInativosCount} cliente${clientesInativosCount === 1 ? "" : "s"}</div>
+                </div>
+                <div class="loja-desktop-insight-card">
+                    <div class="loja-desktop-insight-head"><div class="loja-desktop-insight-icon icon-blue"><i data-lucide="bike" size="15"></i></div><span>Entregador mais ativo</span></div>
+                    ${entregadorMaisAtivo ? `<div class="loja-desktop-insight-main">${escaparHtmlMarketplace(entregadorMaisAtivo.nome)}</div><div class="loja-desktop-insight-sub">${entregadorMaisAtivo.count} rota(s) aceita(s)</div>` : '<div class="loja-desktop-insight-sub">Sem dados suficientes ainda.</div>'}
+                </div>
+            </div>
+
+        </div>
+    `;
   }
   function buscarDadosDoBanco(uid) {
     db.ref("usuarios/" + uid).on("value", (snapshot) => {

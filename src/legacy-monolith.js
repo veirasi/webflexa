@@ -1057,6 +1057,13 @@ function ativarMenuInferior(targetTela) {
 
     atualizarEstadoBotaoCentralMenu(targetTela);
     requestAnimationFrame(atualizarIndicadorMenuInferior);
+
+    const sidebar = document.getElementById('loja-sidebar');
+    if (sidebar) {
+        sidebar.querySelectorAll('.loja-sidebar-link').forEach((item) => item.classList.remove('active'));
+        const ativoSidebar = sidebar.querySelector(`.loja-sidebar-link[data-nav-target="${targetTela}"]`);
+        if (ativoSidebar) ativoSidebar.classList.add('active');
+    }
 }
 function irParaBuscarEntregador() {
     modoRotasEntregador = 'BUSCAR';
@@ -1097,6 +1104,34 @@ function atualizarEstadoBotaoCentralMenu(idTela) {
 
 window.addEventListener('resize', () => {
     requestAnimationFrame(atualizarIndicadorMenuInferior);
+});
+
+// ===== [DASHBOARD DESKTOP DO LOJISTA] (pedido do dono 2026-09-30) =====
+// Sidebar responsiva: em telas largas (>=1024px) e só pra tipo lojista,
+// troca a barra inferior mobile por uma sidebar fixa à esquerda — mesma
+// navegação (navegar/views), zero lógica de negócio duplicada. Retorna se
+// o estado mudou, pra quem chamou saber se precisa re-renderizar a tela
+// atual (o dashboard tem HTML completamente diferente em cada modo).
+function atualizarModoDesktopLoja() {
+    const tipo = obterTipoUsuarioAtual();
+    const deveAtivar = tipo === 'loja' && window.innerWidth >= 1024 && !!getUsuarioIdAtual();
+    const jaAtivo = document.body.classList.contains('lojista-desktop-mode');
+    if (deveAtivar === jaAtivo) return false;
+    document.body.classList.toggle('lojista-desktop-mode', deveAtivar);
+    return true;
+}
+
+function toggleLojaSidebarCompact() {
+    document.body.classList.toggle('loja-sidebar-compact');
+}
+
+window.addEventListener('resize', () => {
+    requestAnimationFrame(() => {
+        const mudou = atualizarModoDesktopLoja();
+        if (mudou && document.getElementById('view-dash-loja')?.classList.contains('active')) {
+            renderizarDashboard(window.usuarioLogado || {});
+        }
+    });
 });
 
 function navegar(idTela) {
@@ -2464,6 +2499,9 @@ function renderizarDashboard(user) {
     const container = document.getElementById('dash-loader-content');
     if (!container) return;
 
+    atualizarModoDesktopLoja();
+    const modoDesktop = document.body.classList.contains('lojista-desktop-mode');
+
     const tipoUser = obterTipoUsuarioAtual();
     const saldoUser = Number(user?.financeiro?.saldo || 0);
     const headerHtml = renderHeaderGlobal(tipoUser, saldoUser);
@@ -2597,7 +2635,16 @@ function renderizarDashboard(user) {
         `
         : '';
 
-    container.innerHTML = `
+    if (modoDesktop) {
+        container.innerHTML = montarDashboardDesktopLojaHtml({
+            user, saldoUser, localColeta, rotas, envios, rotaAtual, rotasRecentes,
+            progressoPctRota, distanciaTotal, duracaoTotal, cidadeDestino, statusRotaVisual, timelineHtml
+        });
+        sincronizarSidebarLojaConta(user);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        iniciarTimerFlashEntregador();
+    } else {
+        container.innerHTML = `
         ${headerHtml}
         <div class="home-screen">
             <div class="home-location-strip">
@@ -2644,10 +2691,10 @@ function renderizarDashboard(user) {
             </section>
         </div>
     `;
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    carregarBannersPorPublico('lojista', 'banner-lojista-home');
-    carregarDividasEntregadorLojistaHome();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        carregarBannersPorPublico('lojista', 'banner-lojista-home');
+        carregarDividasEntregadorLojistaHome();
+    }
 
     if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
         dashboardRotasSincronizadas = true;
@@ -2661,6 +2708,221 @@ function renderizarDashboard(user) {
             .catch(() => {});
     }
 }
+
+function sincronizarSidebarLojaConta(user) {
+    const avatar = document.getElementById('loja-sidebar-avatar');
+    const nomeEl = document.getElementById('loja-sidebar-nome');
+    const nome = (user?.loja || user?.nome || 'Loja').toString().trim() || 'Loja';
+    if (nomeEl) nomeEl.textContent = nome;
+    if (avatar) avatar.textContent = nome.slice(0, 2).toUpperCase();
+}
+
+// ===== [DASHBOARD DESKTOP DO LOJISTA — CONTEÚDO] (pedido do dono 2026-09-30) =====
+// Reaproveita os dados já calculados por renderizarDashboard (rotas, envios,
+// rotaAtual etc) — só ADICIONA as agregações novas que a versão mobile nunca
+// precisou: rotas Flash em andamento com prazo, cliente mais ativo, clientes
+// inativos há +3 meses e entregador com mais aceites. Layout aprovado no
+// mockup (Artifact "Dashboard Desktop Lojista Flex").
+function montarDashboardDesktopLojaHtml({ user, saldoUser, localColeta, rotas, envios, rotaAtual, rotasRecentes, progressoPctRota, distanciaTotal, duracaoTotal, cidadeDestino, statusRotaVisual }) {
+    const nomeLoja = (user?.loja || user?.nome || 'Loja').toString().trim() || 'Loja';
+
+    const rotasEmAndamentoCount = rotas.filter((r) => {
+        const st = normalizarStatusRotaFiltro(r?.status || r?.pagamentoStatus || 'CRIADA');
+        return st === 'EM_ROTA' || st === 'BUSCANDO';
+    }).length;
+
+    const statusBreakdown = { pendente: 0, emRota: 0, concluido: 0 };
+    envios.forEach((e) => {
+        if (e.categoria === 'PACOTE_NOVO') statusBreakdown.pendente += 1;
+        else if (e.categoria === 'EM_ROTA' || e.categoria === 'BUSCANDO') statusBreakdown.emRota += 1;
+        else if (e.categoria === 'ENTREGUE') statusBreakdown.concluido += 1;
+    });
+
+    // Rotas Flash em andamento — mesma trava de prazo de 2h já usada no lado
+    // do entregador (FLASH_PRAZO_MS/pacoteEhFlashEntregador), só que aqui é
+    // visão do lojista: quais das SUAS rotas ativas têm Flash e quanto tempo
+    // falta, pra ele acompanhar risco de atraso mesmo sem falar com o entregador.
+    const rotasFlashAtivas = [];
+    rotas.forEach((rota) => {
+        const statusNorm = normalizarStatusRotaFiltro(rota?.status || rota?.pagamentoStatus || 'CRIADA');
+        if (statusNorm !== 'EM_ROTA') return;
+        const pacotesRota = getPacotesDaRota(rota);
+        if (!pacotesRota.some((p) => pacoteEhFlashEntregador(p))) return;
+        const aceitoEm = Number(rota?.aceitoEm || rota?.atualizadoEm || rota?.criadoEm || Date.now());
+        rotasFlashAtivas.push({
+            id: rota.id,
+            entregadorNome: (rota?.entregadorNome || 'Entregador').toString(),
+            prazoFlashAte: aceitoEm + FLASH_PRAZO_MS
+        });
+    });
+    rotasFlashAtivas.sort((a, b) => a.prazoFlashAte - b.prazoFlashAte);
+
+    // Cliente mais ativo / clientes inativos há +3 meses.
+    const statsClientes = clientes
+        .map((c) => {
+            const historico = Array.isArray(c.historico) ? c.historico : [];
+            if (!historico.length) return null;
+            const totalGasto = historico.reduce((acc, h) => acc + (Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0)), 0);
+            const maisRecente = Math.max(...historico.map((h) => Number(h.criadoEm || 0)));
+            return { nome: (c.nome || 'Cliente').toString(), totalGasto, maisRecente };
+        })
+        .filter(Boolean);
+    const clienteMaisAtivo = statsClientes.length
+        ? statsClientes.reduce((max, cur) => (cur.totalGasto > (max?.totalGasto || 0) ? cur : max), null)
+        : null;
+    const TRES_MESES_MS = 90 * 24 * 60 * 60 * 1000;
+    const agora = Date.now();
+    const clientesInativosCount = statsClientes.filter((c) => (agora - c.maisRecente) > TRES_MESES_MS).length;
+
+    // Entregador com mais rotas aceitas (histórico completo de rotas, não só as ativas).
+    const aceitesPorEntregador = new Map();
+    rotas.forEach((rota) => {
+        const entId = rota?.entregadorId || rota?.aceitoPor;
+        if (!entId) return;
+        const atual = aceitesPorEntregador.get(entId) || { nome: (rota?.entregadorNome || 'Entregador').toString(), count: 0 };
+        atual.count += 1;
+        aceitesPorEntregador.set(entId, atual);
+    });
+    const entregadorMaisAtivo = aceitesPorEntregador.size
+        ? [...aceitesPorEntregador.values()].reduce((max, cur) => (cur.count > (max?.count || 0) ? cur : max), null)
+        : null;
+
+    const flashHtml = rotasFlashAtivas.length
+        ? rotasFlashAtivas.map((r) => `
+            <div class="loja-flash-card">
+                <div class="loja-flash-card-top">
+                    <span class="entregas-flash-badge">⚡ FLASH</span>
+                    <span class="entregas-flash-timer" data-flash-deadline="${r.prazoFlashAte}">--</span>
+                </div>
+                <div class="loja-flash-card-rota">Rota #${escaparHtmlMarketplace(r.id)}</div>
+                <div class="loja-flash-card-entregador">Entregador: ${escaparHtmlMarketplace(r.entregadorNome)}</div>
+            </div>
+        `).join('')
+        : '<div class="loja-flash-empty">Nenhuma rota Flash ativa no momento.</div>';
+
+    const rotasRecentesHtml = rotasRecentes.length
+        ? rotasRecentes.map((rota) => {
+            const statusNorm = normalizarStatusRotaFiltro(rota?.status || rota?.pagamentoStatus || 'CRIADA');
+            const statusVisual = getStatusVisualRota(statusNorm);
+            const qtdPacotes = getPacotesDaRota(rota).length || Number(rota?.quantidade || 0);
+            const dataTxt = rota?.atualizadoEm ? new Date(rota.atualizadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--';
+            return `
+                <button type="button" class="loja-desktop-rota-row" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
+                    <div>
+                        <div class="loja-desktop-rota-id">Rota #${escaparHtmlMarketplace(String(rota.id))}</div>
+                        <div class="loja-desktop-rota-meta">${qtdPacotes} pacote(s) · ${dataTxt}</div>
+                    </div>
+                    <span class="loja-desktop-status-pill ${escaparHtmlMarketplace(statusVisual.className)}">${escaparHtmlMarketplace(statusVisual.label)}</span>
+                </button>
+            `;
+        }).join('')
+        : '<div class="loja-desktop-empty">Nenhuma rota recente para exibir.</div>';
+
+    const emRotaHtml = rotaAtual
+        ? `
+            <div class="loja-desktop-card">
+                <div class="loja-desktop-card-head">
+                    <div class="loja-desktop-card-title">Em rota agora</div>
+                    <span class="loja-desktop-status-pill ${escaparHtmlMarketplace(statusRotaVisual.className)}">${escaparHtmlMarketplace(statusRotaVisual.label)}</span>
+                </div>
+                <div class="loja-desktop-track">
+                    <div class="loja-desktop-track-fill" style="width:${progressoPctRota}%;"></div>
+                </div>
+                <div class="loja-desktop-track-foot">
+                    <span>${escaparHtmlMarketplace(localColeta)} → ${escaparHtmlMarketplace(cidadeDestino)}</span>
+                    <span>${formatarDistancia(distanciaTotal)} · ${formatarDuracao(duracaoTotal)} · ${progressoPctRota}% concluído</span>
+                </div>
+            </div>
+        `
+        : '';
+
+    return `
+        <div class="loja-desktop-topbar">
+            <div>
+                <div class="loja-desktop-greeting">Olá, ${escaparHtmlMarketplace(nomeLoja)}</div>
+                <div class="loja-desktop-subgreeting">${escaparHtmlMarketplace(localColeta)}</div>
+            </div>
+            <div class="loja-desktop-topbar-actions">
+                <div class="loja-desktop-saldo-pill">${precoParaMoeda(saldoUser)}</div>
+                <button type="button" class="loja-desktop-icon-btn" onclick="abrirPainelNotificacoes()" aria-label="Notificações"><i data-lucide="bell" size="18"></i></button>
+            </div>
+        </div>
+
+        <div class="loja-desktop-content">
+
+            <div class="loja-desktop-metrics">
+                <div class="loja-desktop-metric-card">
+                    <div class="loja-desktop-metric-icon icon-orange"><i data-lucide="wallet" size="17"></i></div>
+                    <div class="loja-desktop-metric-label">Saldo disponível</div>
+                    <div class="loja-desktop-metric-value">${precoParaMoeda(saldoUser)}</div>
+                </div>
+                <div class="loja-desktop-metric-card">
+                    <div class="loja-desktop-metric-icon icon-blue"><i data-lucide="route" size="17"></i></div>
+                    <div class="loja-desktop-metric-label">Rotas em andamento</div>
+                    <div class="loja-desktop-metric-value">${rotasEmAndamentoCount}</div>
+                </div>
+                <div class="loja-desktop-metric-card">
+                    <div class="loja-desktop-metric-icon icon-amber"><i data-lucide="package" size="17"></i></div>
+                    <div class="loja-desktop-metric-label">Envios pendentes</div>
+                    <div class="loja-desktop-metric-value">${statusBreakdown.pendente}</div>
+                </div>
+            </div>
+
+            <div class="loja-desktop-flash-section">
+                <div class="loja-desktop-flash-head">
+                    <i data-lucide="zap" size="16" style="color:#ef4444;"></i>
+                    <div class="loja-desktop-card-title">Rotas Flash em andamento</div>
+                    <span class="loja-desktop-flash-badge">PRAZO DE 2H</span>
+                </div>
+                <div class="loja-desktop-flash-grid">${flashHtml}</div>
+            </div>
+
+            <div class="loja-desktop-grid-2col">
+                <div class="loja-desktop-col">
+                    ${emRotaHtml}
+                    <div class="loja-desktop-card">
+                        <div class="loja-desktop-card-title" style="margin-bottom:12px;">Rotas recentes</div>
+                        ${rotasRecentesHtml}
+                    </div>
+                </div>
+                <div class="loja-desktop-col">
+                    <div class="loja-desktop-card">
+                        <div class="loja-desktop-card-title" style="margin-bottom:12px;">Envios por status</div>
+                        <div class="loja-desktop-status-row"><span class="loja-desktop-dot dot-amber"></span><span class="loja-desktop-status-label">Pendente</span><strong>${statusBreakdown.pendente}</strong></div>
+                        <div class="loja-desktop-status-row"><span class="loja-desktop-dot dot-blue"></span><span class="loja-desktop-status-label">Em rota</span><strong>${statusBreakdown.emRota}</strong></div>
+                        <div class="loja-desktop-status-row"><span class="loja-desktop-dot dot-green"></span><span class="loja-desktop-status-label">Concluído</span><strong>${statusBreakdown.concluido}</strong></div>
+                    </div>
+                    <div class="loja-desktop-card loja-desktop-acoes">
+                        <div class="loja-desktop-card-title">Ações rápidas</div>
+                        <button type="button" class="loja-desktop-btn-primary" onclick="navegar('view-rotas')">+ Nova rota</button>
+                        <button type="button" class="loja-desktop-btn-outline" onclick="abrirSeletorCliente()">+ Novo envio</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loja-desktop-insights">
+                <div class="loja-desktop-insight-card">
+                    <div class="loja-desktop-insight-head"><div class="loja-desktop-insight-icon icon-orange"><i data-lucide="star" size="15"></i></div><span>Cliente mais ativo</span></div>
+                    ${clienteMaisAtivo
+                        ? `<div class="loja-desktop-insight-main">${escaparHtmlMarketplace(clienteMaisAtivo.nome)}</div><div class="loja-desktop-insight-sub">${precoParaMoeda(clienteMaisAtivo.totalGasto)} em pedidos (total)</div>`
+                        : '<div class="loja-desktop-insight-sub">Sem dados suficientes ainda.</div>'}
+                </div>
+                <div class="loja-desktop-insight-card">
+                    <div class="loja-desktop-insight-head"><div class="loja-desktop-insight-icon icon-red"><i data-lucide="user-x" size="15"></i></div><span>Clientes inativos (+3 meses)</span></div>
+                    <div class="loja-desktop-insight-main">${clientesInativosCount} cliente${clientesInativosCount === 1 ? '' : 's'}</div>
+                </div>
+                <div class="loja-desktop-insight-card">
+                    <div class="loja-desktop-insight-head"><div class="loja-desktop-insight-icon icon-blue"><i data-lucide="bike" size="15"></i></div><span>Entregador mais ativo</span></div>
+                    ${entregadorMaisAtivo
+                        ? `<div class="loja-desktop-insight-main">${escaparHtmlMarketplace(entregadorMaisAtivo.nome)}</div><div class="loja-desktop-insight-sub">${entregadorMaisAtivo.count} rota(s) aceita(s)</div>`
+                        : '<div class="loja-desktop-insight-sub">Sem dados suficientes ainda.</div>'}
+                </div>
+            </div>
+
+        </div>
+    `;
+}
+
 function buscarDadosDoBanco(uid) {
     // Usamos .on para que qualquer alteração no banco reflita no app em tempo real
     db.ref('usuarios/' + uid).on('value', (snapshot) => {
@@ -15308,6 +15570,7 @@ export {
   toggleAdminSidebarMobile,
   toggleAdminTheme,
   toggleDetalhesCorrida,
+  toggleLojaSidebarCompact,
   togglePacoteRota,
   togglePass,
   usuarioEhEntregador,

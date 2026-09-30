@@ -169,7 +169,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     display: none;
 }
 @media (min-width: 768px) {
-    body:not(.admin-mode):not(.modo-rastreio-publico) #tela-bloqueio-desktop {
+    body:not(.admin-mode):not(.modo-rastreio-publico):not(.lojista-desktop-mode) #tela-bloqueio-desktop {
         display: flex;
         position: fixed;
         inset: 0;
@@ -182,7 +182,7 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
         text-align: center;
         background: var(--color-bg, #f5f7fa);
     }
-    body:not(.admin-mode):not(.modo-rastreio-publico) #tela-bloqueio-desktop ~ * {
+    body:not(.admin-mode):not(.modo-rastreio-publico):not(.lojista-desktop-mode) #tela-bloqueio-desktop ~ * {
         display: none !important;
     }
 }
@@ -190,6 +190,134 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 #tela-bloqueio-desktop { color: var(--brand-orange); }
 #tela-bloqueio-desktop h2 { color: var(--text-main, #0f172a); font-size: 22px; font-weight: 800; margin: 0; }
 #tela-bloqueio-desktop p { font-size: 15px; color: var(--text-sub, #64748b); max-width: 360px; margin: 0; }
+
+/* ================= DASHBOARD DESKTOP DO LOJISTA ================= */
+/* Pedido do dono 2026-09-30: sidebar fixa + dashboard reorganizado só pra
+   lojista em telas largas (>=1024px) — ver atualizarModoDesktopLoja() no
+   JS, que liga/desliga body.lojista-desktop-mode. Mobile, entregador e
+   telas menores que 1024px continuam idênticos a como sempre foram. */
+.loja-sidebar { display: none; }
+
+body.lojista-desktop-mode { justify-content: flex-start; align-items: stretch; }
+body.lojista-desktop-mode #main-nav,
+body.lojista-desktop-mode .bg-sphere { display: none !important; }
+body.lojista-desktop-mode .container {
+    max-width: none;
+    flex: 1;
+    min-width: 0;
+    padding: 0 32px 40px;
+    margin-left: 236px;
+    transition: margin-left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .container { margin-left: 76px; }
+body.lojista-desktop-mode .loja-sidebar { display: flex; }
+body.lojista-desktop-mode.loja-sidebar-compact .loja-sidebar { width: 76px; }
+
+.loja-sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 236px;
+    flex-direction: column; padding: 20px 14px; gap: 8px;
+    background: #fafbfc; border-right: 1px solid #e5e7eb; color: #0f172a;
+    z-index: 500; transition: width 0.18s ease;
+}
+.loja-sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 6px 18px; border-bottom: 1px solid #e5e7eb; margin-bottom: 10px; }
+.loja-sidebar-logo-badge { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg,#f97316,#fb923c); display: flex; align-items: center; justify-content: center; font-weight: 900; color: #fff; font-size: 15px; flex-shrink: 0; }
+.loja-sidebar-logo-text { font-weight: 800; font-size: 17px; color: #0f172a; letter-spacing: 0.3px; white-space: nowrap; }
+.loja-sidebar-collapse-btn { position: absolute; top: 24px; right: -12px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #e5e7eb; background: #fff; color: #475569; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; box-shadow: 0 2px 6px rgba(15,23,42,0.12); }
+body.loja-sidebar-compact .loja-sidebar-collapse-btn svg { transform: rotate(180deg); }
+.loja-sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; margin-top: 4px; }
+.loja-sidebar-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #e5e9ef; color: #1e293b; font-weight: 700; font-size: 13px; }
+.loja-sidebar-link:hover { background: #dde3ea; }
+.loja-sidebar-link.active { background: linear-gradient(135deg,#f97316,#fb923c); color: #fff; box-shadow: 0 4px 10px rgba(249,115,22,0.3); }
+.loja-sidebar-link svg { flex-shrink: 0; }
+.loja-sidebar-footer { border-top: 1px solid #e5e7eb; padding-top: 12px; display: flex; align-items: center; gap: 10px; }
+.loja-sidebar-avatar { width: 30px; height: 30px; border-radius: 50%; background: #e5e9ef; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #1e293b; font-weight: 800; font-size: 12px; }
+.loja-sidebar-account { line-height: 1.25; overflow: hidden; }
+.loja-sidebar-account strong { display: block; font-size: 12px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loja-sidebar-account small { font-size: 10px; color: #64748b; cursor: pointer; }
+
+body.loja-sidebar-compact .loja-sidebar-logo-text,
+body.loja-sidebar-compact .loja-sidebar-link span,
+body.loja-sidebar-compact .loja-sidebar-account { display: none; }
+body.loja-sidebar-compact .loja-sidebar-logo { justify-content: center; }
+body.loja-sidebar-compact .loja-sidebar-link { justify-content: center; }
+body.loja-sidebar-compact .loja-sidebar-footer { justify-content: center; }
+
+/* ---- Conteúdo do dashboard desktop ---- */
+.loja-desktop-topbar { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 4px; margin-bottom: 8px; }
+.loja-desktop-greeting { font-size: 16px; font-weight: 800; color: #0f172a; }
+.loja-desktop-subgreeting { font-size: 12px; color: #64748b; }
+.loja-desktop-topbar-actions { display: flex; align-items: center; gap: 14px; }
+.loja-desktop-saldo-pill { background: #fff7ed; color: #c2410c; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 999px; }
+.loja-desktop-icon-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; display: flex; align-items: center; justify-content: center; color: #475569; cursor: pointer; }
+
+.loja-desktop-content { display: flex; flex-direction: column; gap: 18px; padding-top: 8px; padding-bottom: 40px; }
+
+.loja-desktop-metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+.loja-desktop-metric-card, .loja-desktop-card, .loja-desktop-insight-card { background: #fff; border: 1px solid #eef2f6; border-radius: 16px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+.loja-desktop-metric-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+.loja-desktop-metric-icon.icon-orange { background: #fff7ed; color: #c2410c; }
+.loja-desktop-metric-icon.icon-blue { background: #eff6ff; color: #1d4ed8; }
+.loja-desktop-metric-icon.icon-amber { background: #fef3c7; color: #b45309; }
+.loja-desktop-metric-label { font-size: 12px; color: #64748b; font-weight: 700; }
+.loja-desktop-metric-value { font-size: 22px; color: #0f172a; font-weight: 900; }
+
+.loja-desktop-flash-section { background: #fff; border: 1px solid #fecaca; border-radius: 16px; padding: 18px; box-shadow: 0 4px 12px rgba(239,68,68,0.06); }
+.loja-desktop-flash-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.loja-desktop-flash-badge { font-size: 10px; font-weight: 800; color: #dc2626; background: #fee2e2; padding: 3px 9px; border-radius: 999px; margin-left: auto; }
+.loja-desktop-flash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.loja-flash-card { border: 1px solid #fecaca; background: #fff7f7; border-radius: 12px; padding: 14px; }
+.loja-flash-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.loja-flash-card-rota { font-size: 13px; font-weight: 800; color: #0f172a; }
+.loja-flash-card-entregador { font-size: 11px; color: #64748b; margin-top: 2px; }
+.loja-flash-empty { grid-column: 1 / -1; border: 1px dashed #e2e8f0; background: #fafbfc; border-radius: 12px; padding: 14px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #94a3b8; font-weight: 700; }
+
+.loja-desktop-card-title { font-size: 14px; font-weight: 800; color: #0f172a; }
+.loja-desktop-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.loja-desktop-grid-2col { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: start; }
+.loja-desktop-col { display: flex; flex-direction: column; gap: 16px; }
+
+.loja-desktop-track { height: 6px; border-radius: 999px; background: #f1f5f9; overflow: hidden; margin: 10px 0 8px; }
+.loja-desktop-track-fill { height: 100%; background: linear-gradient(90deg,#f97316,#fb923c); border-radius: 999px; }
+.loja-desktop-track-foot { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 700; }
+
+.loja-desktop-rota-row { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; background: none; border-left: none; border-right: none; border-top: none; cursor: pointer; text-align: left; }
+.loja-desktop-rota-row:last-child { border-bottom: none; }
+.loja-desktop-rota-id { font-size: 13px; font-weight: 700; color: #0f172a; }
+.loja-desktop-rota-meta { font-size: 11px; color: #64748b; }
+.loja-desktop-empty { font-size: 12px; color: #94a3b8; font-weight: 700; padding: 10px 0; }
+
+.loja-desktop-status-pill { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.loja-desktop-status-pill.status-em-rota { background: #eff6ff; color: #1d4ed8; }
+.loja-desktop-status-pill.status-finalizada { background: #ecfdf3; color: #15803d; }
+.loja-desktop-status-pill.status-buscando { background: #fef3c7; color: #b45309; }
+.loja-desktop-status-pill.status-cancelado { background: #fee2e2; color: #dc2626; }
+
+.loja-desktop-status-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.loja-desktop-status-row strong { margin-left: auto; font-size: 13px; font-weight: 800; color: #0f172a; }
+.loja-desktop-status-label { font-size: 12px; color: #334155; font-weight: 600; }
+.loja-desktop-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.loja-desktop-dot.dot-amber { background: #b45309; }
+.loja-desktop-dot.dot-blue { background: #1d4ed8; }
+.loja-desktop-dot.dot-green { background: #15803d; }
+
+.loja-desktop-acoes { display: flex; flex-direction: column; gap: 10px; }
+.loja-desktop-btn-primary, .loja-desktop-btn-outline { border-radius: 12px; padding: 12px; font-weight: 800; font-size: 13px; cursor: pointer; }
+.loja-desktop-btn-primary { border: none; color: #fff; background: linear-gradient(135deg,#f97316,#fb923c); }
+.loja-desktop-btn-outline { border: 1px solid #e2e8f0; color: #0f172a; background: #fff; }
+
+.loja-desktop-insights { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+.loja-desktop-insight-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 800; color: #0f172a; }
+.loja-desktop-insight-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.loja-desktop-insight-icon.icon-orange { background: #fff7ed; color: #c2410c; }
+.loja-desktop-insight-icon.icon-red { background: #fef2f2; color: #dc2626; }
+.loja-desktop-insight-icon.icon-blue { background: #eff6ff; color: #1d4ed8; }
+.loja-desktop-insight-main { font-size: 15px; font-weight: 800; color: #0f172a; }
+.loja-desktop-insight-sub { font-size: 12px; color: #64748b; font-weight: 600; margin-top: 2px; }
+
+@media (max-width: 1279px) {
+    .loja-desktop-grid-2col { grid-template-columns: 1fr; }
+    .loja-desktop-insights, .loja-desktop-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
         .view.active { display: block !important; }
