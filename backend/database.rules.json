@@ -167,6 +167,14 @@
         "taxasAReceber": {
           ".read": "auth != null",
           ".write": "auth != null"
+        },
+
+        // Chamados de suporte (2026-09-29): dono cria/lê os próprios; master
+        // também precisa ler e ATUALIZAR (responder/fechar) o chamado de
+        // OUTRO usuário — mesmo padrão de "saques" acima.
+        "chamados": {
+          ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'",
+          ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'"
         }
       }
     },

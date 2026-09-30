@@ -37,6 +37,7 @@
     abrirPainelListaChat: () => abrirPainelListaChat,
     abrirPainelNotificacoes: () => abrirPainelNotificacoes,
     abrirPainelThreadChat: () => abrirPainelThreadChat,
+    abrirPrivacidadeLgpd: () => abrirPrivacidadeLgpd,
     abrirSeletorCliente: () => abrirSeletorCliente,
     abrirSeletorImagemChat: () => abrirSeletorImagemChat,
     abrirSheetBuscaRota: () => abrirSheetBuscaRota,
@@ -98,6 +99,7 @@
     atualizarUiClienteAuth: () => atualizarUiClienteAuth,
     atualizarWalletChipEntregadorUI: () => atualizarWalletChipEntregadorUI,
     avisarClienteStatusWhatsapp: () => avisarClienteStatusWhatsapp,
+    baixarMeusDadosLgpd: () => baixarMeusDadosLgpd,
     buscarCEP: () => buscarCEP,
     buscarDadosDoBanco: () => buscarDadosDoBanco,
     buscarEndereco: () => buscarEndereco,
@@ -160,6 +162,7 @@
     encerrarListenerMensagensChat: () => encerrarListenerMensagensChat,
     entSheetNext: () => entSheetNext,
     entSheetPrev: () => entSheetPrev,
+    enviarChamadoSuporte: () => enviarChamadoSuporte,
     enviarMensagemChat: () => enviarMensagemChat,
     enviarResetSenhaMaster: () => enviarResetSenhaMaster,
     envioPassaNoFiltro: () => envioPassaNoFiltro,
@@ -176,6 +179,7 @@
     excluirRotaPorId: () => excluirRotaPorId,
     exportarRelatorioCsvAdmin: () => exportarRelatorioCsvAdmin,
     extrairCidadeEnderecoSimples: () => extrairCidadeEnderecoSimples,
+    fecharChamadoAdmin: () => fecharChamadoAdmin,
     fecharModalAcoesCliente: () => fecharModalAcoesCliente,
     fecharModalClienteAuth: () => fecharModalClienteAuth,
     fecharModalDetalheEnvio: () => fecharModalDetalheEnvio,
@@ -203,6 +207,7 @@
     filtrarAdminUsuarios: () => filtrarAdminUsuarios,
     filtrarAdminUsuariosPorTipo: () => filtrarAdminUsuariosPorTipo,
     filtrarBannersAdminPorPublico: () => filtrarBannersAdminPorPublico,
+    filtrarChamadosAdminPorStatus: () => filtrarChamadosAdminPorStatus,
     finalizarSplash: () => finalizarSplash,
     finalizarSwipeEntSheet: () => finalizarSwipeEntSheet,
     finalizarSwipePaginaRota: () => finalizarSwipePaginaRota,
@@ -393,6 +398,7 @@
     renderizarDashboard: () => renderizarDashboard,
     renderizarDashboardEntregador: () => renderizarDashboardEntregador,
     resetClienteForm: () => resetClienteForm,
+    responderChamadoAdmin: () => responderChamadoAdmin,
     resumirCidadesRota: () => resumirCidadesRota,
     resumirRotaParaEntregador: () => resumirRotaParaEntregador,
     rotaMarketplacePassaNoFiltro: () => rotaMarketplacePassaNoFiltro,
@@ -431,6 +437,7 @@
     simularAprovacaoQuitacaoDividaTeste: () => simularAprovacaoQuitacaoDividaTeste,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
     solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
+    solicitarExclusaoDadosLgpd: () => solicitarExclusaoDadosLgpd,
     solicitarSaque: () => solicitarSaque,
     solicitarSubidaCliente: () => solicitarSubidaCliente,
     switchAdminTab: () => switchAdminTab,
@@ -888,6 +895,7 @@
     if (tab === "database") adminListTables();
     if (tab === "banners") renderBannersAdmin();
     if (tab === "ganhos") renderSerieGanhosAdmin();
+    if (tab === "chamados") renderChamadosAdmin();
   }
   function telaInicialPorTipoUsuario(tipo) {
     return tipo === "entregador" ? "view-dash-entregador" : "view-dash-loja";
@@ -8963,6 +8971,109 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       alert("N\xE3o foi poss\xEDvel excluir o banner.");
     }
   }
+  var adminChamadosFiltroStatus = "todos";
+  function filtrarChamadosAdminPorStatus(status, btn) {
+    adminChamadosFiltroStatus = status;
+    document.querySelectorAll("#admin-chamados-tabs .admin-chip").forEach((b) => b.classList.toggle("active", b === btn));
+    renderChamadosAdmin();
+  }
+  async function renderChamadosAdmin() {
+    const wrap = document.getElementById("admin-chamados-lista");
+    if (!wrap) return;
+    wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
+    try {
+      let dataUsers = adminUsersCache;
+      if (!dataUsers) {
+        const snap = await db.ref("usuarios").once("value");
+        dataUsers = snap.val() || {};
+        adminUsersCache = dataUsers;
+      }
+      const lista = [];
+      Object.keys(dataUsers).forEach((uid) => {
+        const chamadosNo = dataUsers[uid]?.chamados || {};
+        Object.keys(chamadosNo).forEach((cid) => {
+          lista.push({
+            uid,
+            nomeUsuario: (dataUsers[uid]?.nome || dataUsers[uid]?.loja || "Usu\xE1rio").toString(),
+            tipoUsuario: (dataUsers[uid]?.tipo || "").toString(),
+            ...chamadosNo[cid],
+            id: cid
+          });
+        });
+      });
+      lista.sort((a, b) => Number(b?.criadoEm || 0) - Number(a?.criadoEm || 0));
+      const filtrados = adminChamadosFiltroStatus === "todos" ? lista : lista.filter((c) => (c.status || "aberto") === adminChamadosFiltroStatus);
+      if (!filtrados.length) {
+        wrap.innerHTML = '<p class="admin-subtle">Nenhum chamado por aqui.</p>';
+        return;
+      }
+      wrap.innerHTML = filtrados.map((c) => montarChamadoAdminHtml(c)).join("");
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    } catch (err) {
+      console.warn("Falha ao carregar chamados:", err);
+      wrap.innerHTML = '<p class="admin-subtle">N\xE3o foi poss\xEDvel carregar os chamados agora.</p>';
+    }
+  }
+  function montarChamadoAdminHtml(c) {
+    const status = c.status || "aberto";
+    const statusClass = status === "respondido" ? "status-em_rota" : status === "fechado" ? "status-concluido" : "status-buscando";
+    const dataTxt = c.criadoEm ? new Date(c.criadoEm).toLocaleString("pt-BR") : "--";
+    const uidEsc = escaparHtmlMarketplace(String(c.uid));
+    const idEsc = escaparHtmlMarketplace(String(c.id));
+    const anexosHtml = Array.isArray(c.anexos) && c.anexos.length ? `<div class="admin-chamado-anexos">${c.anexos.map((a) => `<a href="${escaparHtmlMarketplace(a.url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="paperclip" size="13"></i> ${escaparHtmlMarketplace(a.nome || "anexo")}</a>`).join("")}</div>` : "";
+    const respostaHtml = c.resposta ? `<div class="admin-chamado-resposta"><strong>Resposta enviada:</strong> ${escaparHtmlMarketplace(c.resposta)}</div>` : "";
+    const areaResposta = status === "fechado" ? "" : `<div class="admin-chamado-actions">
+                <textarea id="resposta-${uidEsc}-${idEsc}" placeholder="Escrever resposta pro usu\xE1rio...">${escaparHtmlMarketplace(c.resposta || "")}</textarea>
+                <div class="admin-chamado-btns">
+                    <button type="button" class="btn-main" style="width:auto;" onclick="responderChamadoAdmin('${uidEsc}','${idEsc}')">Responder</button>
+                    <button type="button" class="admin-chip" onclick="fecharChamadoAdmin('${uidEsc}','${idEsc}')">Fechar chamado</button>
+                </div>
+           </div>`;
+    return `
+        <div class="admin-chamado-card">
+            <div class="admin-chamado-head">
+                <div>
+                    <strong>${escaparHtmlMarketplace(c.nomeUsuario)}</strong>
+                    <span class="admin-chip">${escaparHtmlMarketplace(c.tipoUsuario || "--")}</span>
+                    <span class="admin-chamado-categoria">${escaparHtmlMarketplace(CHAMADO_CATEGORIA_LABEL[c.categoria] || "Suporte")}</span>
+                </div>
+                <span class="status-chip ${statusClass}">${CHAMADO_STATUS_LABEL[status] || "Aberto"}</span>
+            </div>
+            <p class="admin-chamado-msg">${escaparHtmlMarketplace(c.mensagem || "")}</p>
+            ${anexosHtml}
+            <p class="admin-chamado-data">${dataTxt}</p>
+            ${respostaHtml}
+            ${areaResposta}
+        </div>
+    `;
+  }
+  async function responderChamadoAdmin(uid, chamadoId) {
+    const textarea = document.getElementById(`resposta-${uid}-${chamadoId}`);
+    const texto = (textarea?.value || "").trim();
+    if (!texto) {
+      alert("Escreva uma resposta antes de enviar.");
+      return;
+    }
+    try {
+      const respondidoEm = Date.now();
+      await db.ref(`usuarios/${uid}/chamados/${chamadoId}`).update({ resposta: texto, status: "respondido", respondidoEm });
+      if (adminUsersCache?.[uid]?.chamados?.[chamadoId]) {
+        Object.assign(adminUsersCache[uid].chamados[chamadoId], { resposta: texto, status: "respondido", respondidoEm });
+      }
+      renderChamadosAdmin();
+    } catch (err) {
+      alert("N\xE3o foi poss\xEDvel enviar a resposta agora.");
+    }
+  }
+  async function fecharChamadoAdmin(uid, chamadoId) {
+    try {
+      await db.ref(`usuarios/${uid}/chamados/${chamadoId}/status`).set("fechado");
+      if (adminUsersCache?.[uid]?.chamados?.[chamadoId]) adminUsersCache[uid].chamados[chamadoId].status = "fechado";
+      renderChamadosAdmin();
+    } catch (err) {
+      alert("N\xE3o foi poss\xEDvel fechar o chamado agora.");
+    }
+  }
   async function pagarRotaComSaldo() {
     if (!rotaDraftAtual) return;
     const total = Number(rotaDraftAtual.totalFrete || 0);
@@ -10895,23 +11006,161 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
         </div>
     `);
   }
+  var SUPORTE_WHATSAPP_NUMERO = "5585981632349";
+  var SUPORTE_EMAIL = "suporte@flexapp.com.br";
   function abrirFaleConosco() {
-    abrirModalInfoPerfil("Fale conosco", `
+    abrirModalInfoPerfil("Suporte", `
         <div class="info-card">
-            <h4>Canais oficiais</h4>
-            <p><strong>WhatsApp suporte:</strong> <a href="https://wa.me/5585988000000" target="_blank" rel="noopener noreferrer">(85) 98800-0000</a></p>
-            <p><strong>E-mail:</strong> <a href="mailto:suporte@flexalog.com.br">suporte@flexalog.com.br</a></p>
-            <p><strong>Comercial:</strong> comercial@flexalog.com.br</p>
+            <h4>Abrir chamado</h4>
+            <p class="admin-subtle">Escolha o tipo de suporte, descreva o problema e anexe print se puder \u2014 ajuda a agilizar.</p>
+            <select id="chamado-categoria" class="suporte-select">
+                <option value="tecnico">Suporte t\xE9cnico</option>
+                <option value="financeiro">Suporte financeiro</option>
+            </select>
+            <textarea id="chamado-mensagem" class="suporte-textarea" rows="4" placeholder="Descreva o problema, com ID da rota/pedido se tiver..."></textarea>
+            <input type="file" id="chamado-anexos" class="suporte-file" multiple accept="image/*,.pdf">
+            <button type="button" class="btn-main" style="width:auto;" onclick="enviarChamadoSuporte()">Enviar chamado</button>
+            <p class="suporte-status" id="chamado-status"></p>
         </div>
         <div class="info-card">
-            <h4>Antes de chamar</h4>
-            <ul>
-                <li>Tenha em maos o ID da rota ou pedido.</li>
-                <li>Explique o problema e quando aconteceu.</li>
-                <li>Se puder, envie print para agilizar o suporte.</li>
-            </ul>
+            <h4>Outros canais</h4>
+            <p><strong>WhatsApp suporte:</strong> <a href="https://wa.me/${SUPORTE_WHATSAPP_NUMERO}" target="_blank" rel="noopener noreferrer">(85) 98163-2349</a></p>
+            <p><strong>E-mail:</strong> <a href="mailto:${SUPORTE_EMAIL}">${SUPORTE_EMAIL}</a></p>
+        </div>
+        <div class="info-card">
+            <h4>Meus chamados</h4>
+            <div id="meus-chamados-lista"><p class="admin-subtle">Carregando...</p></div>
         </div>
     `);
+    renderMeusChamadosSuporte();
+  }
+  async function enviarChamadoSuporte() {
+    const categoriaEl = document.getElementById("chamado-categoria");
+    const mensagemEl = document.getElementById("chamado-mensagem");
+    const anexosEl = document.getElementById("chamado-anexos");
+    const statusEl = document.getElementById("chamado-status");
+    const categoria = categoriaEl?.value || "tecnico";
+    const mensagem = (mensagemEl?.value || "").trim();
+    if (!mensagem) {
+      alert("Descreva o problema antes de enviar.");
+      return;
+    }
+    if (statusEl) statusEl.innerText = "Enviando...";
+    try {
+      await criarChamadoSuporte(categoria, mensagem, Array.from(anexosEl?.files || []));
+      if (mensagemEl) mensagemEl.value = "";
+      if (anexosEl) anexosEl.value = "";
+      if (statusEl) statusEl.innerText = "Chamado enviado! A gente responde por aqui mesmo.";
+      renderMeusChamadosSuporte();
+    } catch (err) {
+      console.warn("Falha ao enviar chamado:", err);
+      if (statusEl) statusEl.innerText = "N\xE3o foi poss\xEDvel enviar agora. Tente de novo ou chame no WhatsApp.";
+    }
+  }
+  async function criarChamadoSuporte(categoria, mensagem, arquivos = []) {
+    const uid = getUsuarioIdAtual();
+    if (!uid) throw new Error("Usu\xE1rio n\xE3o autenticado.");
+    const id = db.ref(`usuarios/${uid}/chamados`).push().key;
+    const anexos = [];
+    for (const arquivo of arquivos) {
+      const storageRef = firebase.storage().ref(`chamados/${uid}/${id}-${arquivo.name}`);
+      await storageRef.put(arquivo);
+      anexos.push({ nome: arquivo.name, url: await storageRef.getDownloadURL() });
+    }
+    await db.ref(`usuarios/${uid}/chamados/${id}`).set({
+      id,
+      categoria,
+      mensagem,
+      anexos,
+      status: "aberto",
+      criadoEm: Date.now()
+    });
+    return id;
+  }
+  var CHAMADO_CATEGORIA_LABEL = {
+    tecnico: "T\xE9cnico",
+    financeiro: "Financeiro",
+    lgpd_exclusao: "LGPD \xB7 Exclus\xE3o de dados"
+  };
+  var CHAMADO_STATUS_LABEL = {
+    aberto: "Aberto",
+    respondido: "Respondido",
+    fechado: "Fechado"
+  };
+  async function renderMeusChamadosSuporte() {
+    const wrap = document.getElementById("meus-chamados-lista");
+    if (!wrap) return;
+    try {
+      const uid = getUsuarioIdAtual();
+      const snap = await db.ref(`usuarios/${uid}/chamados`).once("value");
+      const chamadosNo = snap.val() || {};
+      const lista = Object.values(chamadosNo).sort((a, b) => Number(b?.criadoEm || 0) - Number(a?.criadoEm || 0));
+      if (!lista.length) {
+        wrap.innerHTML = '<p class="admin-subtle">Voc\xEA ainda n\xE3o abriu nenhum chamado.</p>';
+        return;
+      }
+      wrap.innerHTML = lista.map((c) => {
+        const statusClass = c.status === "respondido" ? "status-em_rota" : c.status === "fechado" ? "status-concluido" : "status-buscando";
+        const dataTxt = c.criadoEm ? new Date(c.criadoEm).toLocaleString("pt-BR") : "--";
+        const respostaHtml = c.resposta ? `<div class="suporte-resposta"><strong>Resposta do suporte:</strong> ${escaparHtmlMarketplace(c.resposta)}</div>` : "";
+        return `
+                <div class="suporte-chamado-card">
+                    <div class="suporte-chamado-head">
+                        <span class="status-chip ${statusClass}">${CHAMADO_STATUS_LABEL[c.status] || "Aberto"}</span>
+                        <small>${escaparHtmlMarketplace(CHAMADO_CATEGORIA_LABEL[c.categoria] || "Suporte")} \u2022 ${dataTxt}</small>
+                    </div>
+                    <p>${escaparHtmlMarketplace(c.mensagem || "")}</p>
+                    ${respostaHtml}
+                </div>
+            `;
+      }).join("");
+    } catch (err) {
+      console.warn("Falha ao carregar meus chamados:", err);
+      wrap.innerHTML = '<p class="admin-subtle">N\xE3o foi poss\xEDvel carregar seus chamados agora.</p>';
+    }
+  }
+  function abrirPrivacidadeLgpd() {
+    abrirModalInfoPerfil("Privacidade e LGPD", `
+        <div class="info-card">
+            <h4>Como usamos seus dados</h4>
+            <p>Coletamos nome, contato, endere\xE7o e dados de uso do app pra operar entregas: montar rotas, calcular fretes, processar pagamentos e viabilizar o rastreio dos pedidos. N\xE3o vendemos seus dados a terceiros.</p>
+            <p>Voc\xEA pode, a qualquer momento: pedir uma c\xF3pia dos seus dados, pedir a exclus\xE3o da sua conta, ou corrigir informa\xE7\xF5es erradas direto no seu Perfil.</p>
+        </div>
+        <div class="info-card">
+            <h4>Baixe uma c\xF3pia dos seus dados</h4>
+            <p class="admin-subtle">Gera um arquivo com as informa\xE7\xF5es da sua conta pra voc\xEA guardar ou levar.</p>
+            <button type="button" class="btn-main" style="width:auto;" onclick="baixarMeusDadosLgpd()"><i data-lucide="download" size="16"></i> Baixar meus dados</button>
+        </div>
+        <div class="info-card">
+            <h4>Excluir minha conta</h4>
+            <p class="admin-subtle">Abre um chamado pedindo a exclus\xE3o \u2014 nossa equipe confirma e executa manualmente, garantindo que nenhuma rota/pagamento em andamento seja perdido sem querer.</p>
+            <button type="button" class="btn-main" style="width:auto;" onclick="solicitarExclusaoDadosLgpd()"><i data-lucide="trash-2" size="16"></i> Solicitar exclus\xE3o dos meus dados</button>
+        </div>
+    `);
+  }
+  function baixarMeusDadosLgpd() {
+    const dados = window.usuarioLogado || {};
+    const conteudo = JSON.stringify(dados, null, 2);
+    const blob = new Blob([conteudo], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `meus-dados-flex-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+  async function solicitarExclusaoDadosLgpd() {
+    const confirmado = confirm("Tem certeza? Isso abre um pedido de exclus\xE3o da sua conta \u2014 nossa equipe entra em contato pra confirmar antes de executar.");
+    if (!confirmado) return;
+    try {
+      await criarChamadoSuporte("lgpd_exclusao", "Solicita\xE7\xE3o de exclus\xE3o de conta e dados pessoais (LGPD).", []);
+      alert("Pedido enviado. Nossa equipe vai confirmar com voc\xEA antes de excluir qualquer coisa.");
+    } catch (err) {
+      console.warn("Falha ao solicitar exclus\xE3o:", err);
+      alert("N\xE3o foi poss\xEDvel enviar o pedido agora. Tente de novo ou chame no WhatsApp.");
+    }
   }
   function abrirSobre() {
     abrirModalInfoPerfil("Sobre a Flex Log", `

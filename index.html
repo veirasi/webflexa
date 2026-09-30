@@ -398,6 +398,10 @@
                     <div class="item-left"><i data-lucide="message-square"></i><span>Fale conosco</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
+                <div class="menu-item" onclick="abrirPrivacidadeLgpd()">
+                    <div class="item-left"><i data-lucide="shield-check"></i><span>Privacidade e LGPD</span></div>
+                    <i data-lucide="chevron-right" size="18" class="arrow"></i>
+                </div>
                 <div class="menu-item" onclick="abrirSobre()">
                     <div class="item-left"><i data-lucide="info"></i><span>Sobre a Flex Log</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
@@ -455,6 +459,10 @@
                 </div>
                 <div class="menu-item" onclick="abrirFaleConosco()">
                     <div class="item-left"><i data-lucide="message-square"></i><span>Fale conosco</span></div>
+                    <i data-lucide="chevron-right" size="18" class="arrow"></i>
+                </div>
+                <div class="menu-item" onclick="abrirPrivacidadeLgpd()">
+                    <div class="item-left"><i data-lucide="shield-check"></i><span>Privacidade e LGPD</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
                 <div class="menu-item" onclick="abrirSobre()">
@@ -1501,6 +1509,7 @@
                     <button type="button" class="admin-nav-btn" data-tab="database" onclick="switchAdminTab('database')"><i data-lucide="database" size="18"></i><span class="admin-nav-copy">Banco de dados</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="reports" onclick="switchAdminTab('reports')"><i data-lucide="chart-no-axes-combined" size="18"></i><span class="admin-nav-copy">Relatórios</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="banners" onclick="switchAdminTab('banners')"><i data-lucide="image" size="18"></i><span class="admin-nav-copy">Banners</span></button>
+                    <button type="button" class="admin-nav-btn" data-tab="chamados" onclick="switchAdminTab('chamados')"><i data-lucide="life-buoy" size="18"></i><span class="admin-nav-copy">Chamados</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="settings" onclick="switchAdminTab('settings')"><i data-lucide="settings" size="18"></i><span class="admin-nav-copy">Configurações</span></button>
                 </nav>
                 <div class="admin-sidebar-footer">
@@ -1933,6 +1942,25 @@
                                 <button type="button" class="admin-chip" data-publico="entregador" onclick="filtrarBannersAdminPorPublico('entregador', this)">Entregador</button>
                             </div>
                             <div id="admin-banners-lista" class="admin-banners-lista">
+                                <p class="admin-subtle">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-tab" data-tab="chamados">
+                        <div class="admin-section-heading">
+                            <p class="admin-kicker">Suporte</p>
+                            <h1>Chamados</h1>
+                            <p class="admin-subtle">Chamados abertos por lojistas e entregadores — técnico, financeiro e pedidos de LGPD.</p>
+                        </div>
+                        <div class="admin-panel admin-report-panel">
+                            <div class="admin-banner-tabs" id="admin-chamados-tabs">
+                                <button type="button" class="admin-chip active" data-status="todos" onclick="filtrarChamadosAdminPorStatus('todos', this)">Todos</button>
+                                <button type="button" class="admin-chip" data-status="aberto" onclick="filtrarChamadosAdminPorStatus('aberto', this)">Abertos</button>
+                                <button type="button" class="admin-chip" data-status="respondido" onclick="filtrarChamadosAdminPorStatus('respondido', this)">Respondidos</button>
+                                <button type="button" class="admin-chip" data-status="fechado" onclick="filtrarChamadosAdminPorStatus('fechado', this)">Fechados</button>
+                            </div>
+                            <div id="admin-chamados-lista" class="admin-chamados-lista">
                                 <p class="admin-subtle">Carregando...</p>
                             </div>
                         </div>
