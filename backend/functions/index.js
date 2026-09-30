@@ -641,6 +641,17 @@ function gerarCodigoConfirmacaoEntregaServer() {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
+// Protocolo de pagamento (pedido do dono 2026-09-30): toda transação em
+// financeiro/transacoes ganha um identificador curto e legível pra facilitar
+// achar o comprovante depois — as que envolvem Pix de verdade (cobrança,
+// quitação de dívida) também guardam o paymentId real da Mercado Pago, que é
+// a chave que realmente resolve o comprovante no painel deles.
+function gerarProtocoloTransacaoServer() {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `TX-${ts}-${rand}`;
+}
+
 async function canAccessTenant(requester, tenantId) {
   if (!requester) return false;
 
@@ -1029,9 +1040,14 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
             await saldoRef.set(saldoDepois);
             await marcadorRef.set(Date.now());
             await db.ref(`usuarios/${tenantId}/financeiro/transacoes`).push({
+              protocolo: gerarProtocoloTransacaoServer(),
               tipo: 'CREDITO',
+              metodo: 'pix',
               valor: registro.total,
               descricao: `Cobrança na entrega recebida via Pix (pedido #${registro.envioId})`,
+              remetente: 'Cliente (Pix)',
+              destinatario: 'Carteira da loja',
+              paymentIdMp: String(paymentId),
               criadoEm: Date.now()
             });
             await db.ref(`${envioPath}/cobrancaEntrega`).update({
@@ -1284,9 +1300,14 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
           }
           await marcadorRef.set(Date.now());
           await db.ref(`usuarios/${registro.entregadorId}/financeiro/transacoes`).push({
+            protocolo: gerarProtocoloTransacaoServer(),
             tipo: 'DEBITO_DIVIDA',
+            metodo: 'pix',
             valor: registro.total,
             descricao: 'Dívida quitada via Pix',
+            remetente: 'Você (Pix)',
+            destinatario: 'Flex (quitação de dívida)',
+            paymentIdMp: String(paymentId),
             criadoEm: Date.now()
           });
         }
@@ -1585,7 +1606,9 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       const txRef = db.ref(`usuarios/${entregadorId}/financeiro/transacoes`).push();
       await txRef.set({
         id: txRef.key,
+        protocolo: gerarProtocoloTransacaoServer(),
         tipo: 'CREDITO',
+        metodo: 'interno',
         valor: valorCredito,
         descricao: `Rota ${rotaId} finalizada`,
         criadoEm: agora

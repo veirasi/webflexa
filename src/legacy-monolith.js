@@ -4043,6 +4043,15 @@ function gerarCodigoConfirmacaoEntrega() {
     return String(Math.floor(1000 + Math.random() * 9000));
 }
 
+// Protocolo de pagamento (pedido do dono 2026-09-30) — mesmo gerador do
+// backend (gerarProtocoloTransacaoServer), só que pro lado do cliente cria
+// transação direto (pagamento com saldo, saque marcado como pago).
+function gerarProtocoloTransacao() {
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `TX-${ts}-${rand}`;
+}
+
 function obterCodigoConfirmacaoEsperado(pac = {}) {
     return String(pac?.codigoConfirmacaoEntrega || '').trim();
 }
@@ -5048,7 +5057,9 @@ async function pagarDevolucaoComSaldo() {
         }
 
         await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+            protocolo: gerarProtocoloTransacao(),
             tipo: 'DEBITO',
+            metodo: 'interno',
             valor,
             descricao: `Frete de devolução pago com saldo (pedido #${envioId})`,
             criadoEm: Date.now()
@@ -8102,20 +8113,31 @@ async function marcarSaqueComoPago(lojistaUid, saqueId) {
             return;
         }
 
+        const nomeSnap = await db.ref(`usuarios/${lojistaUid}/nome`).once('value').catch(() => null);
+        const nomeDestinatario = (nomeSnap?.val() || 'Usuário').toString();
+        const protocolo = gerarProtocoloTransacao();
+
         const transRef = db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push();
         await transRef.set({
             id: transRef.key,
+            protocolo,
             tipo: 'DEBITO',
+            metodo: 'pix',
             valor,
             descricao: `Saque pago via Pix (${String(saque.pixTipo || '').toUpperCase()}: ${saque.pixChave || '--'})`,
+            remetente: 'Flex (saque)',
+            destinatario: nomeDestinatario,
+            pixChave: saque.pixChave || '--',
+            pixTipo: String(saque.pixTipo || '').toUpperCase(),
             criadoEm: Date.now()
         });
 
         await saqueRef.update({
             status: 'pago',
-            pagoEm: Date.now()
+            pagoEm: Date.now(),
+            protocolo
         });
-        notificarSucesso('Saque marcado como pago e valor debitado da carteira do usuário.');
+        notificarSucesso(`Saque marcado como pago. Protocolo: ${protocolo}`);
         await renderDashboardMaster();
     } catch (err) {
         console.warn('Falha ao marcar saque como pago:', err);
@@ -8846,9 +8868,13 @@ async function creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envio
         const resultado = await ajustarSaldoUsuario(lojistaUid, valor);
         if (!resultado.ok) return;
         await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+            protocolo: gerarProtocoloTransacao(),
             tipo: 'CREDITO',
+            metodo: 'pix',
             valor,
-            descricao: `Cobrança na entrega recebida via Pix (pedido #${envioId})`,
+            descricao: `Cobrança na entrega recebida via Pix (pedido #${envioId}) [TESTE]`,
+            remetente: 'Cliente (Pix simulado — ambiente teste)',
+            destinatario: 'Carteira da loja',
             criadoEm: Date.now()
         });
     } catch (err) {
@@ -13174,9 +13200,14 @@ function formatarDataExtrato(ts) {
     });
 }
 
+// Cache da última lista carregada, só pra abrir o detalhe (abrirDetalheTransacaoExtrato)
+// sem precisar buscar de novo no banco — mesmo padrão de rotaEntSheetPacotes etc.
+let extratoTransacoesCache = [];
+
 function renderExtratoPagamento(transacoes = []) {
     const list = document.getElementById('pag-extrato-list');
     if (!list) return;
+    extratoTransacoesCache = Array.isArray(transacoes) ? transacoes : [];
 
     if (!Array.isArray(transacoes) || !transacoes.length) {
         list.innerHTML = '<div class="pagamento-extrato-empty">Sem transacoes ainda.</div>';
@@ -13190,8 +13221,9 @@ function renderExtratoPagamento(transacoes = []) {
         const valorClasse = isCredito ? 'credito' : 'debito';
         const valorTxt = `${sinal} ${precoParaMoeda(Number(item?.valor || 0))}`;
         const descricao = (item?.descricao || 'Movimentacao').toString();
+        const idEsc = escaparHtmlMarketplace(String(item?.id || ''));
         return `
-            <div class="pagamento-extrato-item">
+            <div class="pagamento-extrato-item clicavel" onclick="abrirDetalheTransacaoExtrato('${idEsc}')">
                 <div class="top">
                     <span class="tipo">${isCredito ? 'Credito' : 'Debito'}</span>
                     <span class="valor ${valorClasse}">${valorTxt}</span>
@@ -13201,6 +13233,47 @@ function renderExtratoPagamento(transacoes = []) {
             </div>
         `;
     }).join('');
+}
+
+const TRANSACAO_TIPO_LABEL = {
+    CREDITO: 'Crédito',
+    DEBITO: 'Débito',
+    DEBITO_DIVIDA: 'Débito (quitação de dívida)'
+};
+
+function abrirDetalheTransacaoExtrato(id) {
+    const item = extratoTransacoesCache.find((t) => String(t?.id) === String(id));
+    if (!item) return;
+
+    const tipo = String(item?.tipo || '').toUpperCase();
+    const isCredito = tipo === 'CREDITO';
+    const metodo = item?.metodo === 'pix' ? 'Pix' : 'Interno (carteira Flex)';
+    const valorTxt = precoParaMoeda(Number(item?.valor || 0));
+
+    const linhaOpcional = (rotulo, valor) => valor
+        ? `<p><strong>${escaparHtmlMarketplace(rotulo)}:</strong> ${escaparHtmlMarketplace(String(valor))}</p>`
+        : '';
+
+    abrirModalInfoPerfil('Detalhe da transação', `
+        <div class="info-card">
+            <h4>${isCredito ? 'Crédito' : (TRANSACAO_TIPO_LABEL[tipo] || 'Débito')}</h4>
+            <p class="extrato-detalhe-valor ${isCredito ? 'credito' : 'debito'}">${isCredito ? '+' : '-'} ${valorTxt}</p>
+            <p><strong>Protocolo:</strong> ${escaparHtmlMarketplace(item?.protocolo || item?.id || '--')}</p>
+            <p><strong>Método:</strong> ${metodo}</p>
+            <p><strong>Data e hora:</strong> ${formatarDataExtrato(item?.criadoEm)}</p>
+            ${linhaOpcional('Remetente', item?.remetente)}
+            ${linhaOpcional('Destinatário', item?.destinatario)}
+            ${linhaOpcional('Chave Pix', item?.pixChave)}
+            ${linhaOpcional('Tipo de chave', item?.pixTipo)}
+            ${linhaOpcional('ID do pagamento na Mercado Pago', item?.paymentIdMp)}
+            <p><strong>Descrição:</strong> ${escaparHtmlMarketplace(item?.descricao || '--')}</p>
+        </div>
+        ${item?.paymentIdMp ? `
+        <div class="info-card">
+            <h4>Comprovante na Mercado Pago</h4>
+            <p class="admin-subtle">Use o ID do pagamento acima pra localizar o comprovante oficial no painel da Mercado Pago (Atividades → busca por ID).</p>
+        </div>` : ''}
+    `);
 }
 
 async function carregarExtratoPagamento() {
@@ -14797,6 +14870,7 @@ export {
   abrirAjuda,
   abrirChatDaRota,
   abrirCriarRota,
+  abrirDetalheTransacaoExtrato,
   abrirEdicaoDestinoEnvio,
   abrirEditarCliente,
   abrirFaleConosco,

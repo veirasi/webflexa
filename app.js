@@ -11,6 +11,7 @@
     abrirAjuda: () => abrirAjuda,
     abrirChatDaRota: () => abrirChatDaRota,
     abrirCriarRota: () => abrirCriarRota,
+    abrirDetalheTransacaoExtrato: () => abrirDetalheTransacaoExtrato,
     abrirEdicaoDestinoEnvio: () => abrirEdicaoDestinoEnvio,
     abrirEditarCliente: () => abrirEditarCliente,
     abrirFaleConosco: () => abrirFaleConosco,
@@ -3979,6 +3980,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function gerarCodigoConfirmacaoEntrega() {
     return String(Math.floor(1e3 + Math.random() * 9e3));
   }
+  function gerarProtocoloTransacao() {
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `TX-${ts}-${rand}`;
+  }
   function obterCodigoConfirmacaoEsperado(pac = {}) {
     return String(pac?.codigoConfirmacaoEntrega || "").trim();
   }
@@ -4756,7 +4762,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         return;
       }
       await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+        protocolo: gerarProtocoloTransacao(),
         tipo: "DEBITO",
+        metodo: "interno",
         valor,
         descricao: `Frete de devolu\xE7\xE3o pago com saldo (pedido #${envioId})`,
         criadoEm: Date.now()
@@ -7214,19 +7222,29 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
         alert(resultado.saldoInsuficiente ? "O usu\xE1rio n\xE3o tem mais saldo suficiente pra cobrir esse saque (pode j\xE1 ter gastado). N\xE3o foi marcado como pago." : "N\xE3o foi poss\xEDvel debitar o saldo agora. Tente novamente.");
         return;
       }
+      const nomeSnap = await db.ref(`usuarios/${lojistaUid}/nome`).once("value").catch(() => null);
+      const nomeDestinatario = (nomeSnap?.val() || "Usu\xE1rio").toString();
+      const protocolo = gerarProtocoloTransacao();
       const transRef = db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push();
       await transRef.set({
         id: transRef.key,
+        protocolo,
         tipo: "DEBITO",
+        metodo: "pix",
         valor,
         descricao: `Saque pago via Pix (${String(saque.pixTipo || "").toUpperCase()}: ${saque.pixChave || "--"})`,
+        remetente: "Flex (saque)",
+        destinatario: nomeDestinatario,
+        pixChave: saque.pixChave || "--",
+        pixTipo: String(saque.pixTipo || "").toUpperCase(),
         criadoEm: Date.now()
       });
       await saqueRef.update({
         status: "pago",
-        pagoEm: Date.now()
+        pagoEm: Date.now(),
+        protocolo
       });
-      notificarSucesso("Saque marcado como pago e valor debitado da carteira do usu\xE1rio.");
+      notificarSucesso(`Saque marcado como pago. Protocolo: ${protocolo}`);
       await renderDashboardMaster();
     } catch (err) {
       console.warn("Falha ao marcar saque como pago:", err);
@@ -7802,9 +7820,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       const resultado = await ajustarSaldoUsuario(lojistaUid, valor);
       if (!resultado.ok) return;
       await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+        protocolo: gerarProtocoloTransacao(),
         tipo: "CREDITO",
+        metodo: "pix",
         valor,
-        descricao: `Cobran\xE7a na entrega recebida via Pix (pedido #${envioId})`,
+        descricao: `Cobran\xE7a na entrega recebida via Pix (pedido #${envioId}) [TESTE]`,
+        remetente: "Cliente (Pix simulado \u2014 ambiente teste)",
+        destinatario: "Carteira da loja",
         criadoEm: Date.now()
       });
     } catch (err) {
@@ -11187,9 +11209,11 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       minute: "2-digit"
     });
   }
+  var extratoTransacoesCache = [];
   function renderExtratoPagamento(transacoes = []) {
     const list = document.getElementById("pag-extrato-list");
     if (!list) return;
+    extratoTransacoesCache = Array.isArray(transacoes) ? transacoes : [];
     if (!Array.isArray(transacoes) || !transacoes.length) {
       list.innerHTML = '<div class="pagamento-extrato-empty">Sem transacoes ainda.</div>';
       return;
@@ -11201,8 +11225,9 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       const valorClasse = isCredito ? "credito" : "debito";
       const valorTxt = `${sinal} ${precoParaMoeda(Number(item?.valor || 0))}`;
       const descricao = (item?.descricao || "Movimentacao").toString();
+      const idEsc = escaparHtmlMarketplace(String(item?.id || ""));
       return `
-            <div class="pagamento-extrato-item">
+            <div class="pagamento-extrato-item clicavel" onclick="abrirDetalheTransacaoExtrato('${idEsc}')">
                 <div class="top">
                     <span class="tipo">${isCredito ? "Credito" : "Debito"}</span>
                     <span class="valor ${valorClasse}">${valorTxt}</span>
@@ -11212,6 +11237,40 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
             </div>
         `;
     }).join("");
+  }
+  var TRANSACAO_TIPO_LABEL = {
+    CREDITO: "Cr\xE9dito",
+    DEBITO: "D\xE9bito",
+    DEBITO_DIVIDA: "D\xE9bito (quita\xE7\xE3o de d\xEDvida)"
+  };
+  function abrirDetalheTransacaoExtrato(id) {
+    const item = extratoTransacoesCache.find((t) => String(t?.id) === String(id));
+    if (!item) return;
+    const tipo = String(item?.tipo || "").toUpperCase();
+    const isCredito = tipo === "CREDITO";
+    const metodo = item?.metodo === "pix" ? "Pix" : "Interno (carteira Flex)";
+    const valorTxt = precoParaMoeda(Number(item?.valor || 0));
+    const linhaOpcional = (rotulo, valor) => valor ? `<p><strong>${escaparHtmlMarketplace(rotulo)}:</strong> ${escaparHtmlMarketplace(String(valor))}</p>` : "";
+    abrirModalInfoPerfil("Detalhe da transa\xE7\xE3o", `
+        <div class="info-card">
+            <h4>${isCredito ? "Cr\xE9dito" : TRANSACAO_TIPO_LABEL[tipo] || "D\xE9bito"}</h4>
+            <p class="extrato-detalhe-valor ${isCredito ? "credito" : "debito"}">${isCredito ? "+" : "-"} ${valorTxt}</p>
+            <p><strong>Protocolo:</strong> ${escaparHtmlMarketplace(item?.protocolo || item?.id || "--")}</p>
+            <p><strong>M\xE9todo:</strong> ${metodo}</p>
+            <p><strong>Data e hora:</strong> ${formatarDataExtrato(item?.criadoEm)}</p>
+            ${linhaOpcional("Remetente", item?.remetente)}
+            ${linhaOpcional("Destinat\xE1rio", item?.destinatario)}
+            ${linhaOpcional("Chave Pix", item?.pixChave)}
+            ${linhaOpcional("Tipo de chave", item?.pixTipo)}
+            ${linhaOpcional("ID do pagamento na Mercado Pago", item?.paymentIdMp)}
+            <p><strong>Descri\xE7\xE3o:</strong> ${escaparHtmlMarketplace(item?.descricao || "--")}</p>
+        </div>
+        ${item?.paymentIdMp ? `
+        <div class="info-card">
+            <h4>Comprovante na Mercado Pago</h4>
+            <p class="admin-subtle">Use o ID do pagamento acima pra localizar o comprovante oficial no painel da Mercado Pago (Atividades \u2192 busca por ID).</p>
+        </div>` : ""}
+    `);
   }
   async function carregarExtratoPagamento() {
     const path = caminhoFinanceiroUsuario();

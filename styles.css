@@ -4786,6 +4786,12 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
     color: #64748b;
 }
 
+.pagamento-extrato-item.clicavel { cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease; }
+.pagamento-extrato-item.clicavel:active { transform: scale(0.98); }
+.extrato-detalhe-valor { font-size: 24px; font-weight: 900; margin: 4px 0 10px; }
+.extrato-detalhe-valor.credito { color: #047857; }
+.extrato-detalhe-valor.debito { color: #b91c1c; }
+
 .pagamento-extrato-empty {
     font-size: 12px;
     color: #94a3b8;
