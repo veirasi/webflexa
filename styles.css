@@ -403,6 +403,51 @@ body.lojista-desktop-mode .ent-sheet {
     box-shadow: none !important;
     transform: none !important;
 }
+
+/* ---- "Criar Rota" redesenhado pra desktop de verdade ---- */
+/* Pedido do dono 2026-09-30, 4ª correção: reaproveitar o HTML/CSS mobile
+   só trocando a moldura por fora não é design desktop — ainda parece uma
+   tela mobile encolhida dentro de uma página maior. Aqui o conteúdo é
+   reorganizado de propósito: sem barra de arrastar, cabeçalho normal de
+   página, lista de pacotes em grade (usa a largura disponível, não uma
+   coluna única), botão de ação no tamanho normal (não esticado borda a
+   borda). Essa tela não tem campo de texto de verdade (é seleção, não
+   formulário), então não faz sentido limitar a 640px — só telas com
+   campos de formulário (Dados da Conta, Pagamento etc) mantêm esse
+   limite. Modelo pra redesenhar as próximas telas do mesmo jeito. */
+body.lojista-desktop-mode #sheet-rota {
+    max-width: 1040px !important;
+    background: transparent !important;
+    padding: 8px 0 60px !important;
+}
+body.lojista-desktop-mode .rota-flow-handle { display: none !important; }
+body.lojista-desktop-mode .rota-flow-header {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 0 20px !important;
+}
+body.lojista-desktop-mode .rota-flow-header-row { justify-content: flex-start !important; }
+body.lojista-desktop-mode .rota-flow-header-row h2 { text-align: left !important; font-size: 24px !important; }
+body.lojista-desktop-mode .rota-flow-step-label { text-align: left !important; margin-top: 4px !important; }
+body.lojista-desktop-mode .rota-flow-body { overflow-y: visible !important; padding: 0 !important; }
+body.lojista-desktop-mode .rota-flow-help { font-size: 14px !important; max-width: 720px; }
+body.lojista-desktop-mode .rota-pending-list {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+    gap: 12px !important;
+}
+body.lojista-desktop-mode .rota-flow-footer {
+    position: static !important;
+    background: transparent !important;
+    padding: 24px 0 0 !important;
+    display: flex !important;
+}
+body.lojista-desktop-mode .rota-flow-footer .btn-main {
+    width: auto !important;
+    min-width: 260px;
+    padding: 14px 28px !important;
+}
+
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
         .view.active { display: block !important; }
