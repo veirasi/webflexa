@@ -201,15 +201,27 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 body.lojista-desktop-mode { justify-content: flex-start; align-items: stretch; }
 body.lojista-desktop-mode #main-nav,
 body.lojista-desktop-mode .bg-sphere { display: none !important; }
+/* Telas ainda não redesenhadas pro desktop (Rotas, Envios, Perfil etc)
+   ficam com largura de formulário/card normal, centralizadas ao lado da
+   sidebar — sem isso, o conteúdo mobile esticava até a borda da tela.
+   A própria tela Dashboard (.loja-desktop-content) já tem grid pensado
+   pra largura toda, então fica de fora desse limite. */
 body.lojista-desktop-mode .container {
-    max-width: none;
-    flex: 1;
+    max-width: 640px;
+    width: 100%;
+    flex: none;
     min-width: 0;
-    padding: 0 32px 40px;
-    margin-left: 236px;
+    padding: 24px 0 40px;
+    margin-left: calc(236px + max(32px, (100vw - 236px - 640px) / 2));
+    margin-right: auto;
     transition: margin-left 0.18s ease;
 }
-body.lojista-desktop-mode.loja-sidebar-compact .container { margin-left: 76px; }
+body.lojista-desktop-mode .container:has(#view-dash-loja.active) {
+    max-width: 1240px;
+    margin-left: calc(236px + max(24px, (100vw - 236px - 1240px) / 2));
+}
+body.lojista-desktop-mode.loja-sidebar-compact .container { margin-left: calc(76px + max(32px, (100vw - 76px - 640px) / 2)); }
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-dash-loja.active) { margin-left: calc(76px + max(24px, (100vw - 76px - 1240px) / 2)); }
 body.lojista-desktop-mode .loja-sidebar { display: flex; }
 body.lojista-desktop-mode.loja-sidebar-compact .loja-sidebar { width: 76px; }
 
@@ -229,6 +241,11 @@ body.loja-sidebar-compact .loja-sidebar-collapse-btn svg { transform: rotate(180
 .loja-sidebar-link:hover { background: #dde3ea; }
 .loja-sidebar-link.active { background: linear-gradient(135deg,#f97316,#fb923c); color: #fff; box-shadow: 0 4px 10px rgba(249,115,22,0.3); }
 .loja-sidebar-link svg { flex-shrink: 0; }
+/* Regra global "span, label { color: var(--color-text-sub) }" pega o <span>
+   do rótulo direto (herança só vale quando nada casa com o próprio
+   elemento) e apagava o branco do item ativo — mesmo bug/fix já usado no
+   admin-sidebar (.admin-nav-btn .admin-nav-copy { color: inherit; }). */
+.loja-sidebar-link span { color: inherit; }
 .loja-sidebar-footer { border-top: 1px solid #e5e7eb; padding-top: 12px; display: flex; align-items: center; gap: 10px; }
 .loja-sidebar-avatar { width: 30px; height: 30px; border-radius: 50%; background: #e5e9ef; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #1e293b; font-weight: 800; font-size: 12px; }
 .loja-sidebar-account { line-height: 1.25; overflow: hidden; }
@@ -317,6 +334,46 @@ body.loja-sidebar-compact .loja-sidebar-footer { justify-content: center; }
 @media (max-width: 1279px) {
     .loja-desktop-grid-2col { grid-template-columns: 1fr; }
     .loja-desktop-insights, .loja-desktop-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+/* ---- Modais "sheet" no modo desktop ---- */
+/* Pedido do dono 2026-09-30: os ~20 modais bottom-sheet do app (cada um
+   com sua própria função abrir/fechar, ver core/ui-sheet.js) não têm uma
+   classe única — mas quase todos seguem a mesma convenção de nomes
+   (overlay-X/X-overlay + modal-overlay, sheet-X/X-sheet + modal-sheet, ou
+   a família sheet-overlay/sheet-buscar). Em vez de colar embaixo
+   ocupando a tela toda (jeito mobile) ou virar um diálogo com fundo
+   escurecido (isso ainda "parece" modal), o conteúdo aparece centralizado
+   na área de conteúdo, sem fundo escurecido — igual o Dashboard, que
+   nunca teve essa sensação de modal.  */
+body.lojista-desktop-mode .modal-overlay,
+body.lojista-desktop-mode .modal-perfil-overlay,
+body.lojista-desktop-mode .sheet-overlay {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 90px 0 40px calc(236px + 40px) !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    transition: padding-left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .modal-overlay,
+body.lojista-desktop-mode.loja-sidebar-compact .modal-perfil-overlay,
+body.lojista-desktop-mode.loja-sidebar-compact .sheet-overlay {
+    padding-left: calc(76px + 40px) !important;
+}
+body.lojista-desktop-mode .modal-sheet,
+body.lojista-desktop-mode .sheet-buscar,
+body.lojista-desktop-mode .ent-sheet {
+    width: min(560px, calc(100vw - 236px - 80px)) !important;
+    max-height: calc(100vh - 130px) !important;
+    overflow-y: auto !important;
+    border-radius: 24px !important;
+    transform: none !important;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .modal-sheet,
+body.lojista-desktop-mode.loja-sidebar-compact .sheet-buscar,
+body.lojista-desktop-mode.loja-sidebar-compact .ent-sheet {
+    width: min(560px, calc(100vw - 76px - 80px)) !important;
 }
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
