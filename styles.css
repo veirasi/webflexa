@@ -336,44 +336,47 @@ body.loja-sidebar-compact .loja-sidebar-footer { justify-content: center; }
     .loja-desktop-insights, .loja-desktop-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
-/* ---- Modais "sheet" no modo desktop ---- */
-/* Pedido do dono 2026-09-30: os ~20 modais bottom-sheet do app (cada um
-   com sua própria função abrir/fechar, ver core/ui-sheet.js) não têm uma
-   classe única — mas quase todos seguem a mesma convenção de nomes
-   (overlay-X/X-overlay + modal-overlay, sheet-X/X-sheet + modal-sheet, ou
-   a família sheet-overlay/sheet-buscar). Em vez de colar embaixo
-   ocupando a tela toda (jeito mobile) ou virar um diálogo com fundo
-   escurecido (isso ainda "parece" modal), o conteúdo aparece centralizado
-   na área de conteúdo, sem fundo escurecido — igual o Dashboard, que
-   nunca teve essa sensação de modal.  */
+/* ---- Navegação (não modal) no modo desktop ---- */
+/* Pedido do dono 2026-09-30, 2ª correção: nada de cartão flutuante
+   centralizado nem fundo escurecido/claro por baixo — isso ainda "parece"
+   modal/mobile. O certo é comportamento de app desktop de verdade: clicar
+   num botão SUBSTITUI o conteúdo da área principal (ao lado da sidebar,
+   preenchendo o espaço todo, sem flutuar por cima de nada), com o botão
+   fechar/voltar que cada sheet já tem servindo de navegação de volta —
+   sem tocar nas ~20 funções abrir/fechar específicas de cada modal (ver
+   core/ui-sheet.js), só a moldura visual muda. */
 body.lojista-desktop-mode .modal-overlay,
 body.lojista-desktop-mode .modal-perfil-overlay,
 body.lojista-desktop-mode .sheet-overlay {
-    align-items: center !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 236px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    align-items: flex-start !important;
     justify-content: center !important;
-    padding: 90px 0 40px calc(236px + 40px) !important;
-    background: transparent !important;
+    padding: 0 !important;
+    background: #f1f5f9 !important;
     backdrop-filter: none !important;
-    transition: padding-left 0.18s ease;
+    overflow-y: auto !important;
+    z-index: 600;
+    transition: left 0.18s ease;
 }
 body.lojista-desktop-mode.loja-sidebar-compact .modal-overlay,
 body.lojista-desktop-mode.loja-sidebar-compact .modal-perfil-overlay,
 body.lojista-desktop-mode.loja-sidebar-compact .sheet-overlay {
-    padding-left: calc(76px + 40px) !important;
+    left: 76px !important;
 }
 body.lojista-desktop-mode .modal-sheet,
 body.lojista-desktop-mode .sheet-buscar,
 body.lojista-desktop-mode .ent-sheet {
-    width: min(560px, calc(100vw - 236px - 80px)) !important;
-    max-height: calc(100vh - 130px) !important;
-    overflow-y: auto !important;
-    border-radius: 24px !important;
+    width: 100% !important;
+    max-width: 640px !important;
+    max-height: none !important;
+    margin: 24px 0 40px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
     transform: none !important;
-}
-body.lojista-desktop-mode.loja-sidebar-compact .modal-sheet,
-body.lojista-desktop-mode.loja-sidebar-compact .sheet-buscar,
-body.lojista-desktop-mode.loja-sidebar-compact .ent-sheet {
-    width: min(560px, calc(100vw - 76px - 80px)) !important;
 }
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
