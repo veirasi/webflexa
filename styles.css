@@ -516,9 +516,9 @@ body.lojista-desktop-mode .rota-flow-step-label { text-align: left !important; m
 body.lojista-desktop-mode .rota-flow-body { overflow-y: visible !important; padding: 0 !important; }
 body.lojista-desktop-mode .rota-flow-help { font-size: 14px !important; max-width: 720px; }
 body.lojista-desktop-mode .rota-pending-list {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
-    gap: 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
 }
 body.lojista-desktop-mode .rota-flow-footer {
     position: static !important;
@@ -530,6 +530,63 @@ body.lojista-desktop-mode .rota-flow-footer .btn-main {
     width: auto !important;
     min-width: 260px;
     padding: 14px 28px !important;
+}
+
+/* ---- Criar Rota: 2 colunas (pedidos | pagamento) simultâneas, pedido
+   do dono 2026-10-01 — mesmo espírito da tela Rotas (sem navegação
+   sequencial em telas largas): as 2 etapas ficam visíveis ao mesmo
+   tempo, reaproveitando o MESMO estado (rotaModalStep) e as MESMAS
+   funções (irParaPagamentoRota/confirmarPagamentoRota) que o mobile já
+   usa — só a exibição muda. A lista de pedidos trava (fica apagada,
+   sem clique) assim que o Pix é gerado, pra não deixar o lojista mudar
+   a seleção e desalinhar do valor já cobrado; "← voltar" (continua
+   visível) desfaz e libera de novo. */
+body.lojista-desktop-mode .rota-flow-body {
+    display: grid !important;
+    grid-template-columns: 1fr 360px !important;
+    gap: 20px !important;
+    align-items: start !important;
+}
+body.lojista-desktop-mode #rota-flow-step-1,
+body.lojista-desktop-mode #rota-flow-step-2 {
+    display: block !important;
+}
+body.lojista-desktop-mode #rota-flow-step-2 {
+    background: #fff; border: 1px solid #eef2f6; border-radius: 16px; padding: 20px;
+}
+body.lojista-desktop-mode #rota-flow-step-2 .rota-pix-card {
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin-bottom: 18px !important;
+}
+body.lojista-desktop-mode #rota-flow-step-2 .rota-pix-card:last-child { margin-bottom: 0 !important; }
+body.lojista-desktop-mode #rota-flow-step-label { display: none !important; }
+body.lojista-desktop-mode .rota-flow-col-title {
+    display: block !important;
+    font-size: 12px; font-weight: 800; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    margin: 0 0 14px;
+}
+body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-2:not(.hidden)) #rota-flow-step-1 {
+    opacity: 0.55 !important;
+    pointer-events: none !important;
+}
+body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) #rota-flow-step-1,
+body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) #rota-flow-step-2 {
+    display: none !important;
+}
+body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) #rota-flow-step-3 {
+    grid-column: 1 / -1 !important;
+}
+body.lojista-desktop-mode .rota-flow-footer { justify-content: flex-end !important; }
+body.lojista-desktop-mode .rota-flow-footer .btn-main {
+    width: 360px !important;
+    min-width: 0 !important;
+}
+body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ .rota-flow-footer {
+    justify-content: center !important;
 }
 
 .ui-container { padding-left: 10px; padding-right: 10px; }
@@ -2717,6 +2774,10 @@ body.lojista-desktop-mode .rota-flow-footer .btn-main {
     color: #94a3b8;
     font-weight: 700;
 }
+
+/* Título de cada coluna no layout desktop 2-colunas — não aparece no
+   mobile (continua sem título extra dentro do step, só o cabeçalho). */
+.rota-flow-col-title { display: none; }
 
 .rota-flow-body {
     flex: 1;
