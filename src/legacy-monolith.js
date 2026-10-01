@@ -1134,7 +1134,26 @@ window.addEventListener('resize', () => {
     });
 });
 
+// Pedido do dono 2026-09-30: no desktop, o botão da sidebar tem PRIORIDADE
+// — clicar nele precisa SEMPRE trocar o conteúdo, mesmo com um sheet
+// aberto por cima (antes só o X do sheet fechava, deixando o botão da
+// sidebar "inútil"). Fecha genericamente qualquer overlay/sheet aberto
+// via DOM (sem precisar conhecer as ~20 funções abrir/fechar
+// específicas de cada um — ver core/ui-sheet.js) antes de trocar de tela.
+function fecharTodosOverlaysLojaDesktop() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) return;
+    // overlay-rota-detalhe (painel fixo da tela Rotas) também é fechado aqui
+    // normalmente — ele só volta a aparecer via CSS (:has(#view-rotas.active))
+    // quando a tela Rotas estiver mesmo ativa; fora dela, fica escondido
+    // igual qualquer outro, senão "vazava" por cima da próxima tela.
+    document.querySelectorAll('.modal-overlay, .modal-perfil-overlay, .sheet-overlay').forEach((el) => {
+        el.style.display = 'none';
+        el.classList.remove('show', 'is-open');
+    });
+}
+
 function navegar(idTela) {
+    fecharTodosOverlaysLojaDesktop();
     if (usuarioEhMaster()) {
         mostrarTelaAdminDashboard();
         return;
@@ -1207,6 +1226,7 @@ function navegar(idTela) {
     if (telaAlvo === 'view-rotas') {
         if (typeof atualizarLocalColetaDinamico === 'function') atualizarLocalColetaDinamico();
         if (typeof renderRotasTelaPrincipal === 'function') renderRotasTelaPrincipal();
+        resetarPainelDetalheRotaDesktop();
     }
     if (telaAlvo === 'view-buscar') {
         renderTelaBuscarEntregador(true);
@@ -2714,7 +2734,7 @@ function sincronizarSidebarLojaConta(user) {
     const nomeEl = document.getElementById('loja-sidebar-nome');
     const nome = (user?.loja || user?.nome || 'Loja').toString().trim() || 'Loja';
     if (nomeEl) nomeEl.textContent = nome;
-    if (avatar) avatar.textContent = nome.slice(0, 2).toUpperCase();
+    if (avatar) aplicarFotoComPlaceholder(avatar, user?.foto || user?.logo || '');
 }
 
 // ===== [DASHBOARD DESKTOP DO LOJISTA — CONTEÚDO] (pedido do dono 2026-09-30) =====
@@ -8565,9 +8585,23 @@ function abrirModalDetalheRota(rotaId) {
     const sheet = document.getElementById('sheet-rota-detalhe');
     if (!overlay || !sheet) return;
 
+    // No painel fixo do desktop (tela Rotas), "abrir" é só trocar o estado
+    // vazio pelo conteúdo — o overlay já fica sempre visível ali (ver CSS).
+    document.getElementById('rota-detalhe-vazio')?.classList.add('hidden');
+    document.getElementById('rota-detalhe-conteudo')?.classList.remove('hidden');
+
     overlay.style.display = 'flex';
     requestAnimationFrame(() => sheet.classList.add('show'));
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Estado padrão do painel fixo de detalhe (desktop, tela Rotas) — chamado
+// toda vez que se entra/recarrega a tela Rotas, pra não ficar mostrando
+// o detalhe de uma rota de uma visita anterior.
+function resetarPainelDetalheRotaDesktop() {
+    rotaDetalheAtual = null;
+    document.getElementById('rota-detalhe-vazio')?.classList.remove('hidden');
+    document.getElementById('rota-detalhe-conteudo')?.classList.add('hidden');
 }
 
 function fecharModalDetalheRota() {
@@ -15321,6 +15355,7 @@ export {
   fecharSwipesEnvio,
   fecharSwipesRota,
   fecharToastSuave,
+  fecharTodosOverlaysLojaDesktop,
   filtrarAdminBuscaAtiva,
   filtrarAdminPacotes,
   filtrarAdminUsuarios,

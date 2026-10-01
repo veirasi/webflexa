@@ -203,6 +203,7 @@
     fecharSwipesEnvio: () => fecharSwipesEnvio,
     fecharSwipesRota: () => fecharSwipesRota,
     fecharToastSuave: () => fecharToastSuave,
+    fecharTodosOverlaysLojaDesktop: () => fecharTodosOverlaysLojaDesktop,
     filtrarAdminBuscaAtiva: () => filtrarAdminBuscaAtiva,
     filtrarAdminPacotes: () => filtrarAdminPacotes,
     filtrarAdminUsuarios: () => filtrarAdminUsuarios,
@@ -1624,7 +1625,15 @@
       }
     });
   });
+  function fecharTodosOverlaysLojaDesktop() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) return;
+    document.querySelectorAll(".modal-overlay, .modal-perfil-overlay, .sheet-overlay").forEach((el) => {
+      el.style.display = "none";
+      el.classList.remove("show", "is-open");
+    });
+  }
   function navegar(idTela) {
+    fecharTodosOverlaysLojaDesktop();
     if (usuarioEhMaster()) {
       mostrarTelaAdminDashboard();
       return;
@@ -1686,6 +1695,7 @@
     if (telaAlvo === "view-rotas") {
       if (typeof atualizarLocalColetaDinamico === "function") atualizarLocalColetaDinamico();
       if (typeof renderRotasTelaPrincipal === "function") renderRotasTelaPrincipal();
+      resetarPainelDetalheRotaDesktop();
     }
     if (telaAlvo === "view-buscar") {
       renderTelaBuscarEntregador(true);
@@ -2925,7 +2935,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const nomeEl = document.getElementById("loja-sidebar-nome");
     const nome = (user?.loja || user?.nome || "Loja").toString().trim() || "Loja";
     if (nomeEl) nomeEl.textContent = nome;
-    if (avatar) avatar.textContent = nome.slice(0, 2).toUpperCase();
+    if (avatar) aplicarFotoComPlaceholder(avatar, user?.foto || user?.logo || "");
   }
   function montarDashboardDesktopLojaHtml({ user, saldoUser, localColeta, rotas, envios, rotaAtual, rotasRecentes, progressoPctRota, distanciaTotal, duracaoTotal, cidadeDestino, statusRotaVisual }) {
     const nomeLoja = (user?.loja || user?.nome || "Loja").toString().trim() || "Loja";
@@ -7595,9 +7605,16 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const overlay = document.getElementById("overlay-rota-detalhe");
     const sheet = document.getElementById("sheet-rota-detalhe");
     if (!overlay || !sheet) return;
+    document.getElementById("rota-detalhe-vazio")?.classList.add("hidden");
+    document.getElementById("rota-detalhe-conteudo")?.classList.remove("hidden");
     overlay.style.display = "flex";
     requestAnimationFrame(() => sheet.classList.add("show"));
     if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+  function resetarPainelDetalheRotaDesktop() {
+    rotaDetalheAtual = null;
+    document.getElementById("rota-detalhe-vazio")?.classList.remove("hidden");
+    document.getElementById("rota-detalhe-conteudo")?.classList.add("hidden");
   }
   function fecharModalDetalheRota() {
     const overlay = document.getElementById("overlay-rota-detalhe");

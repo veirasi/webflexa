@@ -621,6 +621,10 @@
 
 <div id="overlay-rota-detalhe" class="modal-overlay rota-detalhe-overlay" onclick="fecharModalDetalheRota()" style="display:none;">
     <div id="sheet-rota-detalhe" class="modal-sheet rota-detalhe-sheet" onclick="event.stopPropagation()">
+        <!-- Painel fixo da tela Rotas no desktop (pedido do dono 2026-09-30):
+             sem rota clicada, mostra só esse texto simples, igual o mockup. -->
+        <div id="rota-detalhe-vazio" class="rota-detalhe-vazio hidden">Sem Detalhes</div>
+        <div id="rota-detalhe-conteudo">
         <div class="rota-detalhe-header">
             <div class="modal-handle"></div>
             <div class="rota-detalhe-header-row">
@@ -662,6 +666,7 @@
             <div class="rota-detalhe-actions">
                 <button id="rota-detalhe-delete-btn" class="rota-detalhe-delete-btn" type="button" onclick="excluirRotaAtualComConfirmacao()">Excluir</button>
             </div>
+        </div>
         </div>
     </div>
 </div>
@@ -740,8 +745,8 @@
      de negócio duplicada. -->
 <aside id="loja-sidebar" class="loja-sidebar">
     <div class="loja-sidebar-logo">
-        <div class="loja-sidebar-logo-badge">F</div>
-        <span class="loja-sidebar-logo-text">FLEX</span>
+        <img id="loja-sidebar-avatar" class="loja-sidebar-avatar" src="img/avatar.png" alt="">
+        <span class="loja-sidebar-logo-text" id="loja-sidebar-nome">Loja</span>
     </div>
     <button type="button" class="loja-sidebar-collapse-btn" onclick="toggleLojaSidebarCompact()" aria-label="Recolher ou abrir menu lateral">
         <i data-lucide="chevron-left" size="13"></i>
@@ -756,13 +761,13 @@
         <a href="#" class="loja-sidebar-link" data-nav-target="view-novo-envio" onclick="navegar('view-novo-envio'); return false;">
             <i data-lucide="package" size="18"></i><span>Envios</span>
         </a>
-        <a href="#" class="loja-sidebar-link" onclick="abrirPagamento(); return false;">
+        <a href="#" class="loja-sidebar-link" onclick="fecharTodosOverlaysLojaDesktop(); abrirPagamento(); return false;">
             <i data-lucide="wallet" size="18"></i><span>Financeiro</span>
         </a>
         <a href="#" class="loja-sidebar-link" data-nav-target="view-chat" onclick="ativarAbaChat(); return false;">
             <i data-lucide="message-circle" size="18"></i><span>Chat</span>
         </a>
-        <a href="#" class="loja-sidebar-link" onclick="abrirFaleConosco(); return false;">
+        <a href="#" class="loja-sidebar-link" onclick="fecharTodosOverlaysLojaDesktop(); abrirFaleConosco(); return false;">
             <i data-lucide="life-buoy" size="18"></i><span>Suporte</span>
         </a>
         <a href="#" class="loja-sidebar-link" data-nav-target="view-perfil" onclick="irParaPerfil(); return false;">
@@ -770,11 +775,9 @@
         </a>
     </nav>
     <div class="loja-sidebar-footer">
-        <div class="loja-sidebar-avatar" id="loja-sidebar-avatar">?</div>
-        <div class="loja-sidebar-account">
-            <strong id="loja-sidebar-nome">Loja</strong>
-            <small onclick="logoutReal()">Sair</small>
-        </div>
+        <button type="button" class="loja-sidebar-logout-btn" onclick="logoutReal()">
+            <i data-lucide="log-out" size="16"></i><span>Sair</span>
+        </button>
     </div>
 </aside>
 
@@ -783,13 +786,12 @@
      de conteúdo. Só logo + notificações; qualquer coisa específica de
      tela (saudação, título) mora no CONTEÚDO, abaixo dele. -->
 <div id="loja-desktop-header" class="loja-desktop-header">
-    <div class="loja-desktop-header-logo">
-        <div class="loja-sidebar-logo-badge">F</div>
-        <span>FLEX</span>
+    <div class="loja-desktop-header-actions">
+        <img src="img/logoflexa.png" alt="Flex" class="loja-desktop-header-logo-img">
+        <button type="button" class="loja-desktop-icon-btn" onclick="abrirPainelNotificacoes()" aria-label="Notificações">
+            <i data-lucide="bell" size="18"></i>
+        </button>
     </div>
-    <button type="button" class="loja-desktop-icon-btn" onclick="abrirPainelNotificacoes()" aria-label="Notificações">
-        <i data-lucide="bell" size="18"></i>
-    </button>
 </div>
 
 <div id="overlay-perfil" class="modal-overlay modal-perfil-overlay profile-account-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:flex-end;">
