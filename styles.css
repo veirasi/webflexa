@@ -811,9 +811,15 @@ body.lojista-desktop-mode .envio-detalhe-vazio {
     padding-top: 40px;
 }
 
-/* ---- Fluxo "Novo Pedido": cliente (esquerda) + formulário (direita) ---- */
+/* ---- Fluxo "Novo Pedido": cliente (esquerda) + formulário (direita) ----
+   display NÃO é forçado aqui (bug encontrado 2026-10-01): com
+   display:flex!important o elemento ficava SEMPRE presente e clicável
+   (só invisível via opacity:0 quando fechado), roubando todo clique da
+   lista de pedidos por baixo. Quem controla show/hide continua sendo
+   só o JS de sempre (abrirSeletorCliente/fecharSeletorCliente, via
+   style.display inline) — aqui só define POSIÇÃO pra quando estiver
+   aberto. */
 body.lojista-desktop-mode #modal-seletor-cliente {
-    display: flex !important;
     position: fixed !important;
     top: 64px !important;
     left: 236px !important;
@@ -845,7 +851,6 @@ body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet {
 body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet-handle { display: none !important; }
 
 body.lojista-desktop-mode #modal-envio-detalhes {
-    display: flex !important;
     position: fixed !important;
     top: 64px !important;
     left: 656px !important;
