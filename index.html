@@ -164,6 +164,10 @@
 
 <section id="view-novo-envio" class="view">
     <div class="envio-screen">
+        <div class="envio-desktop-header">
+            <h2>Pedidos</h2>
+            <button type="button" class="btn-main envio-desktop-novo-btn" onclick="abrirSeletorCliente()">+ Novo Pedido</button>
+        </div>
         <button class="envio-cta" type="button" onclick="abrirSeletorCliente()">
             <div>
                 <span class="envio-cta-kicker">Add</span>
@@ -764,7 +768,7 @@
             <i data-lucide="map" size="18"></i><span>Rotas</span>
         </a>
         <a href="#" class="loja-sidebar-link" data-nav-target="view-novo-envio" onclick="navegar('view-novo-envio'); return false;">
-            <i data-lucide="package" size="18"></i><span>Envios</span>
+            <i data-lucide="package" size="18"></i><span>Pedidos</span>
         </a>
         <a href="#" class="loja-sidebar-link" onclick="fecharTodosOverlaysLojaDesktop(); abrirPagamento(); return false;">
             <i data-lucide="wallet" size="18"></i><span>Financeiro</span>
@@ -1055,6 +1059,8 @@
 </div>
 <div id="modal-envio-detalhes" class="modal-perfil-overlay">
     <div class="modal-perfil-sheet envio-sheet-modal" style="display: flex; flex-direction: column; max-height: 84vh;">
+        <div id="envio-detalhes-vazio" class="envio-detalhe-vazio">Selecione um cliente pra começar um novo pedido.</div>
+        <div id="envio-detalhes-conteudo" class="hidden">
         <div class="sheet-header">
             <div class="envio-sheet-handle" style="width: 40px; height: 4px; background: #e2e8f0; border-radius: 10px; margin: 0 auto 10px;"></div>
             <div class="sheet-header-row">
@@ -1347,6 +1353,7 @@
         <div id="modal-envio-footer-step-1" class="envio-sheet-footer" style="flex-shrink: 0; padding-top: 15px; background: white;">
             <button class="btn-main" onclick="irParaVeiculos()" style="margin-top: 0;">Opções de envio</button>
         </div>
+        </div>
     </div>
 </div>
 
@@ -1437,6 +1444,8 @@
 </div>
 <div id="modal-detalhe-envio" class="modal-perfil-overlay" onclick="fecharModalDetalheEnvio()">
     <div class="modal-perfil-sheet envio-detalhe-sheet" onclick="event.stopPropagation()">
+        <div id="envio-detalhe-vazio" class="envio-detalhe-vazio">Selecione um pedido pra ver os detalhes.</div>
+        <div id="envio-detalhe-conteudo" class="hidden">
         <div class="sheet-header envio-detalhe-header">
             <div class="selector-sheet-handle"></div>
             <div class="sheet-header-row envio-detalhe-header-row">
@@ -1509,6 +1518,7 @@
 
         <div class="envio-detalhe-footer">
             <button class="btn-salvar envio-detalhe-btn-excluir" type="button" style="width: 100%;" onclick="excluirEnvioAtualNoModal()">Excluir envio</button>
+        </div>
         </div>
     </div>
 </div>

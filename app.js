@@ -1052,6 +1052,8 @@
     modal.style.display = "flex";
     requestAnimationFrame(() => modal.classList.add("is-open"));
     setModalEnvioStep(1);
+    document.getElementById("envio-detalhes-vazio")?.classList.add("hidden");
+    document.getElementById("envio-detalhes-conteudo")?.classList.remove("hidden");
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
   function fecharModalEnvioDetalhes() {
@@ -1062,6 +1064,16 @@
       modal.style.display = "none";
     }, 250);
     setModalEnvioStep(1);
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      const seletor = document.getElementById("modal-seletor-cliente");
+      if (seletor) {
+        if (typeof fecharSwipesClientesSelector === "function") fecharSwipesClientesSelector();
+        seletor.classList.remove("is-open");
+        setTimeout(() => {
+          seletor.style.display = "none";
+        }, 220);
+      }
+    }
   }
   function abrirModalNovoCliente() {
     const modal = document.getElementById("modal-novo-cliente");
@@ -1696,6 +1708,9 @@
       if (typeof atualizarLocalColetaDinamico === "function") atualizarLocalColetaDinamico();
       if (typeof renderRotasTelaPrincipal === "function") renderRotasTelaPrincipal();
       resetarPainelDetalheRotaDesktop();
+    }
+    if (telaAlvo === "view-novo-envio") {
+      resetarPainelDetalheEnvioDesktop();
     }
     if (telaAlvo === "view-buscar") {
       renderTelaBuscarEntregador(true);
@@ -7616,6 +7631,11 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     document.getElementById("rota-detalhe-vazio")?.classList.remove("hidden");
     document.getElementById("rota-detalhe-conteudo")?.classList.add("hidden");
   }
+  function resetarPainelDetalheEnvioDesktop() {
+    envioDetalheAtualId = null;
+    document.getElementById("envio-detalhe-vazio")?.classList.remove("hidden");
+    document.getElementById("envio-detalhe-conteudo")?.classList.add("hidden");
+  }
   function fecharModalDetalheRota() {
     const overlay = document.getElementById("overlay-rota-detalhe");
     const sheet = document.getElementById("sheet-rota-detalhe");
@@ -9683,6 +9703,15 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
     modal.style.display = "flex";
     requestAnimationFrame(() => modal.classList.add("is-open"));
     renderClientesSelector(document.getElementById("buscar-cliente")?.value || "");
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      const modalEnvio = document.getElementById("modal-envio-detalhes");
+      if (modalEnvio) {
+        modalEnvio.style.display = "flex";
+        requestAnimationFrame(() => modalEnvio.classList.add("is-open"));
+      }
+      document.getElementById("envio-detalhes-vazio")?.classList.remove("hidden");
+      document.getElementById("envio-detalhes-conteudo")?.classList.add("hidden");
+    }
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
   async function obterBloqueioNovoEnvioPorDividaEntregador() {
@@ -9789,6 +9818,16 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
     setTimeout(() => {
       modal.style.display = "none";
     }, 220);
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      const modalEnvio = document.getElementById("modal-envio-detalhes");
+      if (modalEnvio) {
+        modalEnvio.classList.remove("is-open");
+        setTimeout(() => {
+          modalEnvio.style.display = "none";
+        }, 250);
+        setModalEnvioStep(1);
+      }
+    }
   }
   function abrirNovoClientePeloSeletor() {
     fecharSeletorCliente();
@@ -10113,6 +10152,10 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     }).join("");
   }
   function selecionarClienteNoSheet(id, nome, endereco, whats) {
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      irParaPasso2(id, nome, endereco, whats);
+      return;
+    }
     fecharSeletorCliente();
     setTimeout(() => {
       irParaPasso2(id, nome, endereco, whats);
@@ -10434,6 +10477,8 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     if (!modal) return;
     modal.style.display = "flex";
     requestAnimationFrame(() => modal.classList.add("is-open"));
+    document.getElementById("envio-detalhe-vazio")?.classList.add("hidden");
+    document.getElementById("envio-detalhe-conteudo")?.classList.remove("hidden");
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
   function fecharModalDetalheEnvio() {

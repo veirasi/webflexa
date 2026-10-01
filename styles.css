@@ -725,6 +725,153 @@ body.lojista-desktop-mode.chat-thread-open .chat-compose {
     flex-shrink: 0;
 }
 
+/* ===================== PEDIDOS (Envios) DESKTOP, pedido do dono 2026-10-01 =====================
+   Mesmo padrão da tela Rotas: lista à esquerda, painel fixo "Detalhes do
+   Envio" à direita (mostra placeholder até clicar num pedido). O fluxo
+   "Novo Pedido" (escolher cliente + formulário de 4 passos) vira um par
+   de colunas (cliente à esquerda, formulário à direita) que cobre a
+   tela enquanto aberto — fecha e volta pra lista normal igual já
+   fechava no mobile, só a moldura/posicionamento muda. Nenhuma lógica
+   de negócio foi duplicada: mesmas funções (abrirSeletorCliente,
+   irParaPasso2, setModalEnvioStep etc) continuam fazendo tudo. */
+body.lojista-desktop-mode .container:has(#view-novo-envio.active) {
+    max-width: none !important;
+    margin-left: 236px !important;
+    margin-right: 424px !important;
+    padding: 24px 24px 40px 32px !important;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-novo-envio.active) {
+    margin-left: 76px !important;
+}
+
+body.lojista-desktop-mode .envio-desktop-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+body.lojista-desktop-mode .envio-desktop-header h2 { font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; }
+body.lojista-desktop-mode .envio-desktop-novo-btn { width: auto !important; margin-top: 0 !important; padding: 12px 22px !important; }
+body.lojista-desktop-mode .envio-cta { display: none !important; }
+
+/* ---- Painel fixo "Detalhes do Envio" (ver pedido existente) ----
+   Some automaticamente enquanto o fluxo "Novo Pedido" está aberto
+   (:not(:has(#modal-envio-detalhes.is-open))) pra não disputar espaço
+   com ele — reaparece sozinho assim que esse fluxo fecha, via CSS. */
+body.lojista-desktop-mode:has(#view-novo-envio.active):not(:has(#modal-envio-detalhes.is-open)) #modal-detalhe-envio {
+    display: flex !important;
+    position: fixed !important;
+    top: 64px !important;
+    left: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 400px !important;
+    background: #f1f5f9 !important;
+    border-left: 1px solid #e2e8f0 !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    overflow-y: auto !important;
+    z-index: 650 !important;
+    backdrop-filter: none !important;
+}
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .envio-detalhe-sheet {
+    width: 100% !important;
+    max-width: 360px !important;
+    max-height: none !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 1px solid #eef2f6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+    transform: none !important;
+    padding: 20px !important;
+}
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .selector-sheet-handle,
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .selector-close-btn {
+    display: none !important;
+}
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .envio-detalhe-header,
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .envio-detalhe-footer {
+    position: static !important;
+    background: transparent !important;
+}
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .envio-detalhe-header { padding: 0 0 14px !important; }
+body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .envio-detalhe-footer { padding: 14px 0 0 !important; }
+body.lojista-desktop-mode .envio-detalhe-vazio {
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: center;
+    padding-top: 40px;
+}
+
+/* ---- Fluxo "Novo Pedido": cliente (esquerda) + formulário (direita) ---- */
+body.lojista-desktop-mode #modal-seletor-cliente {
+    display: flex !important;
+    position: fixed !important;
+    top: 64px !important;
+    left: 236px !important;
+    right: auto !important;
+    bottom: 0 !important;
+    width: 420px !important;
+    background: #f1f5f9 !important;
+    border-right: 1px solid #e2e8f0 !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    overflow-y: auto !important;
+    z-index: 640 !important;
+    backdrop-filter: none !important;
+    transition: left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact #modal-seletor-cliente { left: 76px !important; }
+body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    padding: 0 !important;
+}
+body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet-handle { display: none !important; }
+
+body.lojista-desktop-mode #modal-envio-detalhes {
+    display: flex !important;
+    position: fixed !important;
+    top: 64px !important;
+    left: 656px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: auto !important;
+    background: #f1f5f9 !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    overflow-y: auto !important;
+    z-index: 640 !important;
+    backdrop-filter: none !important;
+    transition: left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact #modal-envio-detalhes { left: 496px !important; }
+body.lojista-desktop-mode #modal-envio-detalhes .envio-sheet-modal {
+    width: 100% !important;
+    max-width: 560px !important;
+    max-height: none !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 1px solid #eef2f6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+    transform: none !important;
+    padding: 24px !important;
+}
+body.lojista-desktop-mode #modal-envio-detalhes .envio-sheet-handle { display: none !important; }
+body.lojista-desktop-mode #modal-envio-detalhes .sheet-header { position: static !important; }
+
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
         .view.active { display: block !important; }
@@ -2028,6 +2175,14 @@ body.lojista-desktop-mode.chat-thread-open .chat-compose {
     margin: 0;
     padding: 4px 0 120px;
 }
+
+/* Cabeçalho "Pedidos" + botão "Novo Pedido" (desktop) e placeholders dos
+   painéis fixos de detalhe — só existem/aparecem em telas largas, ver
+   bloco "PEDIDOS/ENVIOS DESKTOP" mais abaixo. No mobile ficam ocultos e
+   o conteúdo real continua filho direto do flex column de sempre
+   (display:contents não gera caixa própria). */
+.envio-desktop-header { display: none; }
+#envio-detalhe-conteudo, #envio-detalhes-conteudo { display: contents; }
 
 .envio-cta {
     width: 100%;
