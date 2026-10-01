@@ -610,7 +610,7 @@ body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ 
    o restante). */
 body.lojista-desktop-mode .pagamento-sheet {
     max-width: 1040px !important;
-    padding: 8px 0 60px !important;
+    padding: 8px 0 120px !important;
 }
 body.lojista-desktop-mode .pagamento-sheet-header {
     position: static !important;

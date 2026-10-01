@@ -13253,10 +13253,33 @@ async function carregarDadosPagamento() {
 function abrirPagamento() {
     abrirModalSheetGenerico('modal-pagamento');
     carregarDadosPagamento();
+    marcarSidebarLojaAtivoFinanceiro();
 }
 
 function fecharModalPagamento() {
     fecharModalSheetGenerico('modal-pagamento');
+    resincronizarSidebarLojaComViewAtual();
+}
+
+// Financeiro (pedido do dono 2026-10-01): o botão "Financeiro" do menu
+// lateral não navega pra uma view de verdade, só abre o modal Pagamento
+// por cima da tela atual — sem isso, ativarMenuInferior (que só conhece
+// views via data-nav-target) nunca marcava esse item como ativo.
+function marcarSidebarLojaAtivoFinanceiro() {
+    const sidebar = document.getElementById('loja-sidebar');
+    if (!sidebar) return;
+    sidebar.querySelectorAll('.loja-sidebar-link').forEach((item) => item.classList.remove('active'));
+    document.getElementById('loja-sidebar-link-financeiro')?.classList.add('active');
+}
+
+// Ao fechar o Financeiro, volta o destaque pra tela que já estava aberta
+// por baixo (Dashboard, Rotas etc), em vez de deixar nenhum item ativo.
+function resincronizarSidebarLojaComViewAtual() {
+    const sidebar = document.getElementById('loja-sidebar');
+    const viewAtual = document.querySelector('.view.active')?.id;
+    if (!sidebar || !viewAtual) return;
+    sidebar.querySelectorAll('.loja-sidebar-link').forEach((item) => item.classList.remove('active'));
+    sidebar.querySelector(`.loja-sidebar-link[data-nav-target="${viewAtual}"]`)?.classList.add('active');
 }
 
 function lerValorMonetarioInput(valor) {

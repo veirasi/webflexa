@@ -11227,9 +11227,24 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   function abrirPagamento() {
     abrirModalSheetGenerico("modal-pagamento");
     carregarDadosPagamento();
+    marcarSidebarLojaAtivoFinanceiro();
   }
   function fecharModalPagamento() {
     fecharModalSheetGenerico("modal-pagamento");
+    resincronizarSidebarLojaComViewAtual();
+  }
+  function marcarSidebarLojaAtivoFinanceiro() {
+    const sidebar = document.getElementById("loja-sidebar");
+    if (!sidebar) return;
+    sidebar.querySelectorAll(".loja-sidebar-link").forEach((item) => item.classList.remove("active"));
+    document.getElementById("loja-sidebar-link-financeiro")?.classList.add("active");
+  }
+  function resincronizarSidebarLojaComViewAtual() {
+    const sidebar = document.getElementById("loja-sidebar");
+    const viewAtual = document.querySelector(".view.active")?.id;
+    if (!sidebar || !viewAtual) return;
+    sidebar.querySelectorAll(".loja-sidebar-link").forEach((item) => item.classList.remove("active"));
+    sidebar.querySelector(`.loja-sidebar-link[data-nav-target="${viewAtual}"]`)?.classList.add("active");
   }
   function lerValorMonetarioInput(valor) {
     return parseMoedaParaNumero((valor || "").toString().trim());
