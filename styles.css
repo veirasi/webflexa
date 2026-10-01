@@ -228,12 +228,14 @@ body.lojista-desktop-mode.loja-sidebar-compact .loja-desktop-header { left: 76px
    num card, não é mais um sheet que abre/fecha por cima. */
 body.lojista-desktop-mode .container:has(#view-rotas.active) {
     max-width: none !important;
+    width: calc(100vw - 236px - 424px) !important;
     margin-left: 236px !important;
     margin-right: 424px !important;
     padding: 24px 24px 40px 32px !important;
     transition: margin-left 0.18s ease;
 }
 body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-rotas.active) {
+    width: calc(100vw - 76px - 424px) !important;
     margin-left: 76px !important;
 }
 
@@ -736,11 +738,13 @@ body.lojista-desktop-mode.chat-thread-open .chat-compose {
    irParaPasso2, setModalEnvioStep etc) continuam fazendo tudo. */
 body.lojista-desktop-mode .container:has(#view-novo-envio.active) {
     max-width: none !important;
+    width: calc(100vw - 236px - 424px) !important;
     margin-left: 236px !important;
     margin-right: 424px !important;
     padding: 24px 24px 40px 32px !important;
 }
 body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-novo-envio.active) {
+    width: calc(100vw - 76px - 424px) !important;
     margin-left: 76px !important;
 }
 
@@ -771,14 +775,15 @@ body.lojista-desktop-mode:has(#view-novo-envio.active):not(:has(#modal-envio-det
     align-items: flex-start !important;
     justify-content: center !important;
     padding: 24px !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
     z-index: 650 !important;
     backdrop-filter: none !important;
 }
 body.lojista-desktop-mode:has(#view-novo-envio.active) #modal-detalhe-envio .envio-detalhe-sheet {
     width: 100% !important;
     max-width: 360px !important;
-    max-height: none !important;
+    height: calc(100vh - 112px) !important;
+    max-height: calc(100vh - 112px) !important;
     margin: 0 !important;
     background: #fff !important;
     border: 1px solid #eef2f6 !important;
@@ -851,7 +856,7 @@ body.lojista-desktop-mode #modal-envio-detalhes {
     align-items: flex-start !important;
     justify-content: center !important;
     padding: 24px !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
     z-index: 640 !important;
     backdrop-filter: none !important;
     transition: left 0.18s ease;
@@ -860,7 +865,8 @@ body.lojista-desktop-mode.loja-sidebar-compact #modal-envio-detalhes { left: 496
 body.lojista-desktop-mode #modal-envio-detalhes .envio-sheet-modal {
     width: 100% !important;
     max-width: 560px !important;
-    max-height: none !important;
+    height: calc(100vh - 112px) !important;
+    max-height: calc(100vh - 112px) !important;
     margin: 0 !important;
     background: #fff !important;
     border: 1px solid #eef2f6 !important;
