@@ -831,24 +831,48 @@ body.lojista-desktop-mode #modal-seletor-cliente {
     align-items: flex-start !important;
     justify-content: center !important;
     padding: 24px !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
     z-index: 640 !important;
     backdrop-filter: none !important;
     transition: left 0.18s ease;
 }
 body.lojista-desktop-mode.loja-sidebar-compact #modal-seletor-cliente { left: 76px !important; }
+/* Card branco de pontas arredondadas (pedido do dono 2026-10-01) cobrindo
+   título+busca até o botão "Novo Cliente" — igual o detalhe de Rotas/
+   Envio, só que aqui a lista de clientes rola por dentro do card (flex),
+   com o título/busca e o botão sempre visíveis, sem cortar nada. */
 body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet {
     width: 100% !important;
     max-width: 100% !important;
-    max-height: none !important;
+    height: 100% !important;
+    max-height: 100% !important;
     margin: 0 !important;
-    background: transparent !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
+    background: #fff !important;
+    border: 1px solid #eef2f6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
     transform: none !important;
-    padding: 0 !important;
+    padding: 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
 }
 body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet-handle { display: none !important; }
+body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet-header {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 0 12px !important;
+    flex-shrink: 0;
+}
+body.lojista-desktop-mode #modal-seletor-cliente .selector-clients-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 0 12px;
+}
+body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet-footer {
+    flex-shrink: 0;
+    padding-top: 4px;
+}
 
 body.lojista-desktop-mode #modal-envio-detalhes {
     position: fixed !important;
