@@ -532,6 +532,8 @@
         </div>
 
         <div id="chat-thread-panel" class="chat-thread-panel hidden">
+            <div id="chat-thread-vazio" class="chat-thread-vazio">Selecione uma conversa pra ver as mensagens.</div>
+            <div id="chat-thread-conteudo" class="hidden">
             <div class="chat-thread-header">
                 <button type="button" class="chat-back-btn" onclick="voltarListaChats()">
                     <i data-lucide="arrow-left" size="18"></i>
@@ -550,6 +552,7 @@
                 <input id="chat-input-image" type="file" accept="image/*" style="display:none;" onchange="selecionarImagemChat(event)">
                 <button type="button" class="chat-compose-btn" onclick="abrirSeletorImagemChat()"><i data-lucide="image-plus" size="18"></i></button>
                 <button type="button" class="chat-compose-btn chat-compose-send" onclick="enviarMensagemChat()"><i data-lucide="send" size="18"></i></button>
+            </div>
             </div>
         </div>
     </div>

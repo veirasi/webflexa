@@ -221,15 +221,6 @@ body.lojista-desktop-mode .loja-desktop-header {
 }
 body.lojista-desktop-mode.loja-sidebar-compact .loja-desktop-header { left: 76px; }
 
-/* Barra de digitar do chat (pedido do dono 2026-09-30): esticava borda a
-   borda da tela toda — limita e centraliza na área de conteúdo, igual
-   os formulários. */
-body.lojista-desktop-mode .chat-thread-open .chat-compose {
-    left: 236px !important; right: 0 !important;
-    max-width: 640px !important; margin: 0 auto !important;
-}
-body.lojista-desktop-mode.loja-sidebar-compact .chat-thread-open .chat-compose { left: 76px !important; }
-
 /* ---- Tela Rotas: 2 colunas (lista | detalhe fixo) ---- */
 /* Pedido do dono 2026-09-30, mockup detalhado: lista de rotas à esquerda
    (usa a largura disponível, não os 640px de formulário), painel de
@@ -313,12 +304,14 @@ body.lojista-desktop-mode .container {
     margin-right: auto;
     transition: margin-left 0.18s ease;
 }
-body.lojista-desktop-mode .container:has(#view-dash-loja.active) {
+body.lojista-desktop-mode .container:has(#view-dash-loja.active),
+body.lojista-desktop-mode .container:has(#view-chat.active) {
     max-width: 1240px;
     margin-left: calc(236px + max(24px, (100vw - 236px - 1240px) / 2));
 }
 body.lojista-desktop-mode.loja-sidebar-compact .container { margin-left: calc(76px + max(32px, (100vw - 76px - 640px) / 2)); }
-body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-dash-loja.active) { margin-left: calc(76px + max(24px, (100vw - 76px - 1240px) / 2)); }
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-dash-loja.active),
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-chat.active) { margin-left: calc(76px + max(24px, (100vw - 76px - 1240px) / 2)); }
 body.lojista-desktop-mode .loja-sidebar { display: flex; }
 body.lojista-desktop-mode.loja-sidebar-compact .loja-sidebar { width: 76px; }
 
@@ -476,6 +469,7 @@ body.lojista-desktop-mode.loja-sidebar-compact .sheet-overlay {
    overlay), então o formulário é só conteúdo normal da página, só com a
    largura contida (o único limite que o dono pediu pra manter). */
 body.lojista-desktop-mode .modal-sheet,
+body.lojista-desktop-mode .modal-perfil-sheet,
 body.lojista-desktop-mode .sheet-buscar,
 body.lojista-desktop-mode .ent-sheet {
     width: 100% !important;
@@ -487,6 +481,15 @@ body.lojista-desktop-mode .ent-sheet {
     box-shadow: none !important;
     transform: none !important;
 }
+/* .modal-perfil-sheet (Pagamento, Suporte/Info, Endereço, Rastrear rota,
+   histórico, novo cliente etc — ~10 telas reaproveitam essa MESMA classe
+   genérica) ainda tinha opacity/transform de bottom-sheet mobile mesmo
+   com o resto já achatado acima. */
+body.lojista-desktop-mode .modal-perfil-sheet {
+    opacity: 1 !important;
+    padding: 8px 0 60px !important;
+}
+body.lojista-desktop-mode .modal-perfil-overlay.is-open .modal-perfil-sheet { transform: none !important; }
 
 /* ---- "Criar Rota" redesenhado pra desktop de verdade ---- */
 /* Pedido do dono 2026-09-30, 4ª correção: reaproveitar o HTML/CSS mobile
@@ -511,7 +514,13 @@ body.lojista-desktop-mode .rota-flow-header {
     padding: 0 0 20px !important;
 }
 body.lojista-desktop-mode .rota-flow-header-row { justify-content: flex-start !important; }
-body.lojista-desktop-mode .rota-flow-header-row h2 { text-align: left !important; font-size: 24px !important; }
+body.lojista-desktop-mode .rota-flow-header-row h2 { text-align: left !important; font-size: 24px !important; order: 1; }
+/* Botão "voltar" reservava espaço invisível (visibility:hidden) antes do
+   título, empurrando-o pra direita e desalinhando do texto de baixo —
+   joga ele pra DEPOIS do título (perto do ×) via order, então o título
+   sempre começa no mesmo x, esteja o voltar visível ou não. */
+body.lojista-desktop-mode #rota-flow-back { order: 2; }
+body.lojista-desktop-mode .rota-flow-header-row > button:last-child { order: 3; }
 body.lojista-desktop-mode .rota-flow-step-label { text-align: left !important; margin-top: 4px !important; }
 body.lojista-desktop-mode .rota-flow-body { overflow-y: visible !important; padding: 0 !important; }
 body.lojista-desktop-mode .rota-flow-help { font-size: 14px !important; max-width: 720px; }
@@ -587,6 +596,133 @@ body.lojista-desktop-mode .rota-flow-footer .btn-main {
 }
 body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ .rota-flow-footer {
     justify-content: center !important;
+}
+
+/* ---- Financeiro (Pagamento): 2 colunas, pedido do dono 2026-10-01 ----
+   Esquerda: saldo + dívida (se houver) + formulários (saque, dados
+   bancários, Pix) empilhados. Direita: extrato de transações, que pode
+   crescer bastante e merece sua própria coluna ao lado dos formulários
+   em vez de empurrar tudo pra baixo numa coluna só. grid-template-areas
+   fixa o layout independente de qual seção está visível (a dívida, por
+   ex., some quando não há débito — a trilha dela só encolhe, não quebra
+   o restante). */
+body.lojista-desktop-mode .pagamento-sheet {
+    max-width: 1040px !important;
+    padding: 8px 0 60px !important;
+}
+body.lojista-desktop-mode .pagamento-sheet-header {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 0 20px !important;
+}
+body.lojista-desktop-mode .pagamento-sheet .sheet-header-row { justify-content: flex-start !important; }
+body.lojista-desktop-mode .pagamento-sheet .sheet-title { text-align: left !important; font-size: 24px !important; flex: 1; }
+body.lojista-desktop-mode .pagamento-body {
+    max-height: none !important;
+    overflow: visible !important;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+        "saldo saldo"
+        "divida divida"
+        "saque extrato"
+        "banco extrato"
+        "pix extrato";
+    gap: 20px;
+    align-items: start;
+}
+body.lojista-desktop-mode .pagamento-body > div:nth-child(1) { grid-area: saldo; }
+body.lojista-desktop-mode .pagamento-body > div:nth-child(2) { grid-area: divida; }
+body.lojista-desktop-mode .pagamento-body > div:nth-child(3) { grid-area: saque; }
+body.lojista-desktop-mode .pagamento-body > div:nth-child(4) { grid-area: banco; }
+body.lojista-desktop-mode .pagamento-body > div:nth-child(5) { grid-area: pix; }
+body.lojista-desktop-mode .pagamento-body > div:nth-child(6) { grid-area: extrato; }
+body.lojista-desktop-mode .pagamento-body .pagamento-section,
+body.lojista-desktop-mode .pagamento-body .pagamento-saldo-card { margin-bottom: 0; }
+body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky {
+    position: static !important;
+    max-width: 1040px;
+}
+body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky { justify-content: flex-end !important; }
+body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky .btn-salvar { flex: none !important; width: 360px !important; }
+
+/* ---- Suporte / Privacidade / Sobre (#modal-info-perfil): mesma moldura
+   achatada acima, só um pouco mais largo que um formulário puro (texto +
+   pequenos forms, sem lista densa — não precisa de 2 colunas como o
+   Financeiro). ---- */
+body.lojista-desktop-mode .info-sheet {
+    max-width: 760px !important;
+    padding: 8px 0 60px !important;
+}
+body.lojista-desktop-mode .info-sheet-header {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 0 20px !important;
+}
+body.lojista-desktop-mode .info-sheet .sheet-header-row { justify-content: flex-start !important; }
+body.lojista-desktop-mode .info-sheet .sheet-title { text-align: left !important; font-size: 24px !important; flex: 1; }
+body.lojista-desktop-mode .info-body { max-height: none !important; overflow: visible !important; }
+
+/* ---- Chat: lista + conversa lado a lado, sempre visíveis (mesmo
+   espírito da tela Rotas), pedido do dono 2026-10-01. Painel da direita
+   mostra placeholder até uma conversa ser clicada; a mesma troca de
+   classe hidden/vazio que o mobile já usa (abrirPainelThreadChat/
+   abrirPainelListaChat) decide o que aparece, só a exibição muda. ---- */
+body.lojista-desktop-mode .chat-screen {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 20px;
+    height: calc(100vh - 128px);
+    min-height: 0;
+}
+body.lojista-desktop-mode .chat-list-panel,
+body.lojista-desktop-mode .chat-thread-panel {
+    display: flex !important;
+    height: 100%;
+    min-height: 0;
+}
+body.lojista-desktop-mode .chat-list-panel {
+    width: 360px;
+    flex-shrink: 0;
+    overflow-y: auto;
+}
+body.lojista-desktop-mode .chat-list { padding-bottom: 20px; }
+body.lojista-desktop-mode .chat-thread-panel {
+    flex: 1;
+    min-width: 0;
+    background: #fff;
+    border: 1px solid #eef2f6;
+    border-radius: 16px;
+    padding: 20px;
+    overflow: hidden;
+}
+body.lojista-desktop-mode #chat-thread-vazio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: center;
+}
+body.lojista-desktop-mode #chat-thread-conteudo {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+}
+body.lojista-desktop-mode .chat-thread-header { flex-shrink: 0; }
+body.lojista-desktop-mode .chat-messages { flex: 1; min-height: 0; overflow-y: auto; }
+body.lojista-desktop-mode.chat-thread-open .chat-compose {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    max-width: none !important;
+    margin: 12px 0 0 !important;
+    flex-shrink: 0;
 }
 
 .ui-container { padding-left: 10px; padding-right: 10px; }
@@ -4596,6 +4732,12 @@ body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ 
     gap: 12px;
     height: 100%;
 }
+
+/* Mantém header/mensagens/compose como filhos diretos do flex column da
+   thread no mobile (display:contents não gera caixa própria) — no desktop
+   vira coluna de verdade (ver bloco "CHAT DESKTOP" mais abaixo). */
+#chat-thread-conteudo { display: contents; }
+.chat-thread-vazio { display: none; }
 
 .chat-list-header {
     display: flex;

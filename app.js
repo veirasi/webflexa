@@ -10876,6 +10876,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     const threadPanel = document.getElementById("chat-thread-panel");
     if (listPanel) listPanel.classList.add("hidden");
     if (threadPanel) threadPanel.classList.remove("hidden");
+    document.getElementById("chat-thread-vazio")?.classList.add("hidden");
+    document.getElementById("chat-thread-conteudo")?.classList.remove("hidden");
     const nav = document.getElementById("main-nav");
     if (nav) nav.style.display = "none";
     document.body.classList.add("chat-thread-open");
@@ -10885,6 +10887,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     const threadPanel = document.getElementById("chat-thread-panel");
     if (threadPanel) threadPanel.classList.add("hidden");
     if (listPanel) listPanel.classList.remove("hidden");
+    document.getElementById("chat-thread-vazio")?.classList.remove("hidden");
+    document.getElementById("chat-thread-conteudo")?.classList.add("hidden");
     const nav = document.getElementById("main-nav");
     if (nav) nav.style.display = "flex";
     document.body.classList.remove("chat-thread-open");
