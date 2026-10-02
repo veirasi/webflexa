@@ -7386,6 +7386,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     });
     await Promise.all(promessas);
     notificarSucesso("Status dos pacotes atualizado.");
+    adminUsersCache = null;
     await adminCarregarPacotes();
   }
   async function adminExcluirPacote(lojistaUid, envioId) {
@@ -7414,6 +7415,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       });
       await db.ref().update(updates);
       notificarSucesso("Pacote exclu\xEDdo.");
+      adminUsersCache = null;
       await adminCarregarPacotes();
     } catch (err) {
       console.warn("Falha ao excluir pacote (admin):", err);

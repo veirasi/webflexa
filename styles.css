@@ -7053,31 +7053,38 @@ body.usuario-entregador #entregador-rotas-shell {
 .admin-tab.active { display: block; }
 .admin-tab.hidden { display: none; }
 body.admin-mode { overflow: auto; }
-.admin-sidebar { background: #0f172a; color: #e2e8f0; padding: 18px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 0; height: 100vh; box-shadow: 6px 0 20px rgba(0,0,0,0.08); }
-.admin-sidebar-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.5px; color: #fff; }
+/* Sidebar clara (pedido do dono 2026-10-02: "muda a cor de fundo de azul
+   escuro por um cinza claro um branco gelo com botao laranja ativo") —
+   mesmo tom/borda já usado na sidebar desktop do lojista (.loja-sidebar)
+   pra ficar consistente entre os dois painéis desktop do app. Botão ativo
+   continua laranja (não mudou). overflow-y:auto é o fix de "encaixar
+   certinho o botão sair": a lista de nav (11 itens + submenu) podia passar
+   de 100vh em telas mais baixas e empurrar o rodapé (e-mail + Sair) pra
+   fora da área visível sem nenhum jeito de rolar até ele. */
+.admin-sidebar { background: #fafbfc; color: #334155; padding: 18px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; border-right: 1px solid #e5e7eb; }
+.admin-sidebar-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.5px; color: #0f172a; }
 .admin-sidebar-logo .admin-nav-copy { color: inherit; }
-.admin-logo-badge { display: inline-flex; align-items: center; justify-content: center; background: #fff; border-radius: 10px; padding: 6px 8px; line-height: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
+/* Fundo branco do logo removido — só fazia sentido contra a sidebar
+   escura antiga; numa sidebar já clara vira um retângulo sem função. */
+.admin-logo-badge { display: inline-flex; align-items: center; justify-content: center; line-height: 0; }
 .admin-logo-badge img { width: 90px; display: block; }
-.admin-nav-btn { border: none; background: rgba(255,255,255,0.06); color: #fff; padding: 10px 12px; border-radius: 10px; text-align: left; font-weight: 700; cursor: pointer; transition: transform 0.1s ease, background 0.2s, color 0.2s; }
-.admin-nav-btn:hover { background: rgba(255,255,255,0.12); transform: translateX(2px); }
+.admin-nav-btn { border: none; background: transparent; color: #475569; padding: 10px 12px; border-radius: 10px; text-align: left; font-weight: 700; cursor: pointer; transition: transform 0.1s ease, background 0.2s, color 0.2s; }
+.admin-nav-btn:hover { background: rgba(15,23,42,0.05); transform: translateX(2px); }
 .admin-nav-btn.active { background: linear-gradient(135deg, #f97316, #fb923c); color: #fff; box-shadow: 0 6px 14px rgba(249,115,22,0.3); }
-/* Regra global "span, label { color: var(--color-text-sub) }" (styles.css:151)
-   pega o <span class="admin-nav-copy"> diretamente (herança só vale quando
-   nada casa com o próprio elemento) e apagava o branco do texto ativo,
-   mesmo o ícone (svg, não é span) ficando branco certinho. Força herdar do
-   botão pai. */
 .admin-nav-btn .admin-nav-copy { color: inherit; }
 
 .admin-nav-submenu { display: none; flex-direction: column; gap: 2px; padding-left: 30px; margin: -2px 0 4px; }
 .admin-nav-submenu.open { display: flex; }
-.admin-nav-subitem { border: none; background: transparent; color: #cbd5e1; padding: 7px 10px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.2s, color 0.2s; }
-.admin-nav-subitem:hover { background: rgba(255,255,255,0.08); color: #fff; }
-.admin-nav-subitem.active { background: rgba(249,115,22,0.18); color: #fb923c; }
+.admin-nav-subitem { border: none; background: transparent; color: #64748b; padding: 7px 10px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.admin-nav-subitem:hover { background: rgba(15,23,42,0.05); color: #0f172a; }
+.admin-nav-subitem.active { background: rgba(249,115,22,0.12); color: #da6f18; }
 .admin-layout.compact .admin-nav-submenu { display: none !important; }
 
 .admin-tab { display: none; width: 100%; }
 .admin-tab.active { display: block; }
-.admin-sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #cbd5e1; }
+.admin-sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #94a3b8; padding-top: 12px; border-top: 1px solid #eef1f6; }
+.admin-sidebar-footer #admin-user-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-sidebar-footer .admin-chip { width: 100%; justify-content: center; box-sizing: border-box; }
 .admin-main { padding: 24px; animation: fadeIn 0.25s ease; }
 .admin-kicker { font-size: 12px; letter-spacing: 0.4px; text-transform: uppercase; color: #64748b; font-weight: 800; }
 .admin-tab.hidden { display: none; }

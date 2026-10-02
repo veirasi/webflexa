@@ -8296,6 +8296,7 @@ async function adminSalvarPacotes() {
 
     await Promise.all(promessas);
     notificarSucesso('Status dos pacotes atualizado.');
+    adminUsersCache = null;
     await adminCarregarPacotes();
 }
 
@@ -8329,6 +8330,12 @@ async function adminExcluirPacote(lojistaUid, envioId) {
 
         await db.ref().update(updates);
         notificarSucesso('Pacote excluído.');
+        // adminCarregarPacotes reaproveita adminUsersCache quando já existe
+        // (carregado antes pela própria Visão Geral ou por uma chamada
+        // anterior desta mesma aba) — sem invalidar aqui, o pacote recém
+        // excluído continuava aparecendo na lista (já tinha sumido do banco
+        // de verdade, só a aba não sabia disso ainda).
+        adminUsersCache = null;
         await adminCarregarPacotes();
     } catch (err) {
         console.warn('Falha ao excluir pacote (admin):', err);
