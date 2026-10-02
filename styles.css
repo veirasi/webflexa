@@ -156,7 +156,17 @@ h2 { font-size: var(--font-subtitle); font-weight: var(--font-weight-semibold); 
 p  { font-size: var(--font-body); line-height: 1.5; color: var(--color-text); }
 span, label { font-size: var(--font-label); color: var(--color-text-sub); }
 
-.container { width: 100%; max-width: 420px; min-height: 100vh; min-height: 100dvh; padding: 24px 10px 80px 10px; position: relative; z-index: 1; }
+/* max-width !important (pedido do dono 2026-10-02, tela de login
+   esticando a tela toda): o Tailwind (cdn.tailwindcss.com, carregado só
+   pra 2-3 classes utilitárias pontuais) injeta seu PRÓPRIO ".container"
+   com max-width responsivo (640/768/1024/1280/1536px) — mesmo nome de
+   classe que a gente já usava pro wrapper geral do app. Em qualquer tela
+   que NÃO é o modo desktop do lojista (login, recuperar senha, rastreio
+   público, app inteiro do entregador), isso vazava e esticava o card
+   além dos 420px pretendidos. Isso ficou invisível até agora porque o
+   antigo aviso "abra no celular" cobria a tela toda pra qualquer largura
+   >=768px — só apareceu depois que esse aviso foi removido. */
+.container { width: 100%; max-width: 420px !important; min-height: 100vh; min-height: 100dvh; padding: 24px 10px 80px 10px; position: relative; z-index: 1; }
 .container { background: var(--ui-color-bg, transparent); }
 
 /* ================= DASHBOARD DESKTOP DO LOJISTA ================= */
@@ -316,7 +326,7 @@ body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .sheet-
    A própria tela Dashboard (.loja-desktop-content) já tem grid pensado
    pra largura toda, então fica de fora desse limite. */
 body.lojista-desktop-mode .container {
-    max-width: 640px;
+    max-width: 640px !important;
     width: 100%;
     flex: none;
     min-width: 0;
@@ -328,7 +338,7 @@ body.lojista-desktop-mode .container {
 }
 body.lojista-desktop-mode .container:has(#view-dash-loja.active),
 body.lojista-desktop-mode .container:has(#view-chat.active) {
-    max-width: 1240px;
+    max-width: 1240px !important;
     width: min(1240px, calc(100vw - 236px - 48px)) !important;
     margin-left: calc(236px + max(24px, (100vw - 236px - 1240px) / 2));
 }
