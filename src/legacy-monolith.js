@@ -1488,8 +1488,10 @@ function atualizarAvisoAmbientePix() {
     }
 
     if (mercadoPagoAmbienteAtual === 'producao') {
-        aviso.className = 'rota-pix-env rota-pix-env-ok';
-        aviso.innerText = 'Ambiente PRODUÇÃO ativo para cobrança Pix.';
+        // Aviso removido (pedido do dono 2026-10-02) — mesma lógica do aviso
+        // de ambiente TESTE acima: só poluía o card, nada de funcional muda.
+        aviso.className = 'rota-pix-env';
+        aviso.innerText = '';
         return;
     }
 
@@ -9724,7 +9726,7 @@ async function irParaPagamentoRota() {
         if (mercadoPagoAmbienteAtual === 'teste') {
             setStatusPagamentoPixRota('Pix de teste gerado. Em banco real ele pode ser recusado.', 'warning');
         } else {
-            setStatusPagamentoPixRota('Pix gerado com sucesso. Aguardando pagamento.', 'pending');
+            setStatusPagamentoPixRota('Pix gerado com sucesso. Aguardando pagamento...', 'pending');
         }
         renderEtapaModalRota();
     } catch (erro) {

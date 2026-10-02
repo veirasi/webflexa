@@ -1898,8 +1898,8 @@
       return;
     }
     if (mercadoPagoAmbienteAtual === "producao") {
-      aviso.className = "rota-pix-env rota-pix-env-ok";
-      aviso.innerText = "Ambiente PRODU\xC7\xC3O ativo para cobran\xE7a Pix.";
+      aviso.className = "rota-pix-env";
+      aviso.innerText = "";
       return;
     }
     aviso.className = "rota-pix-env rota-pix-env-warning";
@@ -8465,7 +8465,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       if (mercadoPagoAmbienteAtual === "teste") {
         setStatusPagamentoPixRota("Pix de teste gerado. Em banco real ele pode ser recusado.", "warning");
       } else {
-        setStatusPagamentoPixRota("Pix gerado com sucesso. Aguardando pagamento.", "pending");
+        setStatusPagamentoPixRota("Pix gerado com sucesso. Aguardando pagamento...", "pending");
       }
       renderEtapaModalRota();
     } catch (erro) {
