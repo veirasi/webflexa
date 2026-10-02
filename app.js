@@ -3670,11 +3670,18 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     notificacoesListenerRef = ref;
     notificacoesListenerCb = callback;
   }
+  var notificacoesSinoTemNaoLida = false;
+  var chatSinoTemNaoLido = false;
+  function atualizarSinoNaoLido() {
+    const acender = notificacoesSinoTemNaoLida || chatSinoTemNaoLido;
+    document.querySelectorAll(".gh-bell").forEach((bell) => {
+      bell.classList.toggle("has-unread", acender);
+    });
+  }
   function atualizarBadgeNotificacoes() {
     const naoLidas = notificacoesCache.filter((n) => !n?.lida).length;
-    document.querySelectorAll(".gh-bell").forEach((bell) => {
-      bell.classList.toggle("has-unread", naoLidas > 0);
-    });
+    notificacoesSinoTemNaoLida = naoLidas > 0;
+    atualizarSinoNaoLido();
   }
   function formatarHoraNotificacao(ts) {
     const n = Number(ts || 0);
@@ -11230,17 +11237,15 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   }
   function atualizarBadgeChatSimples(chatsObj = {}) {
     const navChat = document.getElementById("nav-chat");
-    if (!navChat) return;
-    if (document.getElementById("view-chat")?.classList.contains("active")) {
-      navChat.classList.remove("has-unread");
-      return;
-    }
-    const temNaoLida = Object.values(chatsObj || {}).some((chat) => {
+    const chatViewAtiva = document.getElementById("view-chat")?.classList.contains("active");
+    const temNaoLida = !chatViewAtiva && Object.values(chatsObj || {}).some((chat) => {
       const meta = chat?.meta || {};
       if (meta.lidoEm === void 0 || meta.lidoEm === null) return false;
       return Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
     });
-    navChat.classList.toggle("has-unread", temNaoLida);
+    if (navChat) navChat.classList.toggle("has-unread", temNaoLida);
+    chatSinoTemNaoLido = temNaoLida;
+    atualizarSinoNaoLido();
   }
   function abrirSeletorImagemChat() {
     const input = document.getElementById("chat-input-image");

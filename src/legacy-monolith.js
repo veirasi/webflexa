@@ -3650,11 +3650,27 @@ function iniciarListenerNotificacoes() {
     notificacoesListenerCb = callback;
 }
 
+// O sino (.gh-bell) acende pra duas fontes diferentes de "não lido":
+// notificações de rota (notificacoesCache) E mensagens de chat
+// (atualizarBadgeChatSimples, mais abaixo) — pedido do dono 2026-10-02:
+// "o sino notificação do entregador também precisa sinalizar mensagem não
+// lida". Cada fonte só sabe o PRÓPRIO estado; sem esses dois caches
+// separados, a função que rodasse por último apagaria sozinha o aceso
+// que a outra tinha acabado de ligar.
+let notificacoesSinoTemNaoLida = false;
+let chatSinoTemNaoLido = false;
+
+function atualizarSinoNaoLido() {
+    const acender = notificacoesSinoTemNaoLida || chatSinoTemNaoLido;
+    document.querySelectorAll('.gh-bell').forEach((bell) => {
+        bell.classList.toggle('has-unread', acender);
+    });
+}
+
 function atualizarBadgeNotificacoes() {
     const naoLidas = notificacoesCache.filter((n) => !n?.lida).length;
-    document.querySelectorAll('.gh-bell').forEach((bell) => {
-        bell.classList.toggle('has-unread', naoLidas > 0);
-    });
+    notificacoesSinoTemNaoLida = naoLidas > 0;
+    atualizarSinoNaoLido();
 }
 
 function formatarHoraNotificacao(ts) {
@@ -13304,11 +13320,8 @@ function limparBadgeChat() {
 
 function atualizarBadgeChatSimples(chatsObj = {}) {
     const navChat = document.getElementById('nav-chat');
-    if (!navChat) return;
-    if (document.getElementById('view-chat')?.classList.contains('active')) {
-        navChat.classList.remove('has-unread');
-        return;
-    }
+    const chatViewAtiva = document.getElementById('view-chat')?.classList.contains('active');
+
     // Não lido de verdade: última mensagem do chat é mais nova que a última
     // vez que este usuário abriu essa conversa (meta.lidoEm, gravado em
     // abrirThreadChat/enviarMensagemChat). Antes disso o dot só checava se
@@ -13320,12 +13333,21 @@ function atualizarBadgeChatSimples(chatsObj = {}) {
     // este código) agora conta como lido; só concorre pra bolinha quando o
     // campo existe de verdade (gravado por abrirThreadChat, ou 0 explícito
     // gravado por enviarMensagemChat pro destinatário de uma mensagem nova).
-    const temNaoLida = Object.values(chatsObj || {}).some((chat) => {
+    // Enquanto a tela de Chat já está aberta, conta como lido pros dois
+    // indicadores (nav + sino) — igual já era só pro nav antes.
+    const temNaoLida = !chatViewAtiva && Object.values(chatsObj || {}).some((chat) => {
         const meta = chat?.meta || {};
         if (meta.lidoEm === undefined || meta.lidoEm === null) return false;
         return Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
     });
-    navChat.classList.toggle('has-unread', temNaoLida);
+    if (navChat) navChat.classList.toggle('has-unread', temNaoLida);
+
+    // Sino (.gh-bell) — pedido do dono 2026-10-02: "o sino notificação do
+    // entregador também precisa sinalizar mensagem não lida". Mesma fonte
+    // de dado, só soma com o estado de notificações de rota em vez de
+    // sobrescrever (ver atualizarSinoNaoLido).
+    chatSinoTemNaoLido = temNaoLida;
+    atualizarSinoNaoLido();
 }
 
 function abrirSeletorImagemChat() {
