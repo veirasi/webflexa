@@ -293,6 +293,7 @@
     marcarNotificacaoLida: () => marcarNotificacaoLida,
     marcarRotaCanceladaSeVazia: () => marcarRotaCanceladaSeVazia,
     marcarSaqueComoPago: () => marcarSaqueComoPago,
+    marcarSidebarLojaAtivoPorId: () => marcarSidebarLojaAtivoPorId,
     marcarTodasNotificacoesLidas: () => marcarTodasNotificacoesLidas,
     montarCardBuscaEntregador: () => montarCardBuscaEntregador,
     montarCardHistoricoRotaEntregador: () => montarCardHistoricoRotaEntregador,
@@ -11234,10 +11235,13 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     resincronizarSidebarLojaComViewAtual();
   }
   function marcarSidebarLojaAtivoFinanceiro() {
+    marcarSidebarLojaAtivoPorId("loja-sidebar-link-financeiro");
+  }
+  function marcarSidebarLojaAtivoPorId(id) {
     const sidebar = document.getElementById("loja-sidebar");
     if (!sidebar) return;
     sidebar.querySelectorAll(".loja-sidebar-link").forEach((item) => item.classList.remove("active"));
-    document.getElementById("loja-sidebar-link-financeiro")?.classList.add("active");
+    document.getElementById(id)?.classList.add("active");
   }
   function resincronizarSidebarLojaComViewAtual() {
     const sidebar = document.getElementById("loja-sidebar");
@@ -11311,6 +11315,7 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   }
   function fecharModalInfoPerfil() {
     fecharModalSheetGenerico("modal-info-perfil");
+    resincronizarSidebarLojaComViewAtual();
   }
   function abrirAjuda() {
     abrirModalInfoPerfil("Central de ajuda", `
