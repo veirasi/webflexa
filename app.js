@@ -6086,7 +6086,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       let { html: dotsHtml, progressoPct } = montarTimelineRealRota(pacotes, qtd, "rastrear-dot");
       if (statusNorm === "CONCLUIDO") progressoPct = 100;
       if (statusNorm === "BUSCANDO") progressoPct = 0;
-      const bikeLeft = `clamp(0px, calc(${progressoPct}% - 10px), calc(100% - 20px))`;
+      const bikeLeft = `clamp(8px, calc(${progressoPct}% - 18px), calc(100% - 44px))`;
       return `
             <button type="button" class="rastrear-card" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
                 <div class="rastrear-card-head">

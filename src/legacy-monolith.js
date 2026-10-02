@@ -6697,7 +6697,15 @@ async function renderListaModalRastrearRotas() {
         let { html: dotsHtml, progressoPct } = montarTimelineRealRota(pacotes, qtd, 'rastrear-dot');
         if (statusNorm === 'CONCLUIDO') progressoPct = 100;
         if (statusNorm === 'BUSCANDO') progressoPct = 0;
-        const bikeLeft = `clamp(0px, calc(${progressoPct}% - 10px), calc(100% - 20px))`;
+        // Clamp ajustado pro ícone real (.rastrear-track-bike, 36px de
+        // largura) — a conta antiga (-10px / 100%-20px) presumia um ícone de
+        // ~20px e deixava a bolinha vazar pra fora do card perto de 100% de
+        // progresso (pedido do dono 2026-10-02: "a bolinha ta colando e
+        // ultrapassando o card"). -18px é metade de 36px (centraliza de
+        // verdade); 100%-44px garante a borda direita do ícone parando
+        // exatamente onde a linha pontilhada termina (mesmo respiro de 8px
+        // que .rastrear-track-line já usa dos dois lados).
+        const bikeLeft = `clamp(8px, calc(${progressoPct}% - 18px), calc(100% - 44px))`;
 
         return `
             <button type="button" class="rastrear-card" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
