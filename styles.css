@@ -951,7 +951,7 @@ body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-perfil.activ
     width: calc(100vw - 76px) !important;
     margin-left: 76px !important;
 }
-body.lojista-desktop-mode #view-perfil {
+body.lojista-desktop-mode #view-perfil.active {
     display: grid !important;
     grid-template-columns: 1fr 360px;
     gap: 24px;
