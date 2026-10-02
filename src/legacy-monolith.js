@@ -1478,8 +1478,12 @@ function atualizarAvisoAmbientePix() {
     }
 
     if (mercadoPagoAmbienteAtual === 'teste') {
-        aviso.className = 'rota-pix-env rota-pix-env-warning';
-        aviso.innerText = 'Ambiente TESTE: alguns bancos podem recusar o Pix. Para pagamento real, use credencial PROD.';
+        // Aviso removido (pedido do dono 2026-10-02) — poluía o card de
+        // pagamento sem agregar nada pro lojista real; o escape hatch de
+        // simular pagamento aprovado em ambiente teste continua intacto
+        // (ver irParaPagamentoRota), só o texto deste aviso que some.
+        aviso.className = 'rota-pix-env';
+        aviso.innerText = '';
         return;
     }
 
@@ -8797,6 +8801,20 @@ function atualizarResumoSelecaoRota() {
     if (totalEl) totalEl.innerText = selecionados.length + ' pacotes selecionados';
     if (cidadesEl) cidadesEl.innerText = cidades.size + '/3 cidades';
     if (actionBtn && rotaModalStep === 1) actionBtn.disabled = selecionados.length === 0;
+
+    // Prévia do card de pagamento (coluna direita no desktop, visível antes
+    // de clicar em "Pagamento" de verdade — pedido do dono 2026-10-02: o
+    // card de Pix aparecia vazio/zerado porque só irParaPagamentoRota()
+    // calcula esse total, e essa função só roda DEPOIS do clique). Mesmo
+    // cálculo (valorFrete de cada pacote selecionado), só que ao vivo a
+    // cada pacote marcado/desmarcado, sem gerar nenhuma cobrança ainda.
+    const previewQtd = document.getElementById('rota-preview-qtd');
+    const previewTotal = document.getElementById('rota-preview-total');
+    if (previewQtd || previewTotal) {
+        const totalFrete = selecionados.reduce((acc, p) => acc + Number(p.valorFrete || 0), 0);
+        if (previewQtd) previewQtd.innerText = String(selecionados.length);
+        if (previewTotal) previewTotal.innerText = precoParaMoeda(totalFrete);
+    }
 }
 
 function renderListaPendentesRota() {

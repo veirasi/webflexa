@@ -1893,8 +1893,8 @@
       return;
     }
     if (mercadoPagoAmbienteAtual === "teste") {
-      aviso.className = "rota-pix-env rota-pix-env-warning";
-      aviso.innerText = "Ambiente TESTE: alguns bancos podem recusar o Pix. Para pagamento real, use credencial PROD.";
+      aviso.className = "rota-pix-env";
+      aviso.innerText = "";
       return;
     }
     if (mercadoPagoAmbienteAtual === "producao") {
@@ -7760,6 +7760,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     if (totalEl) totalEl.innerText = selecionados.length + " pacotes selecionados";
     if (cidadesEl) cidadesEl.innerText = cidades.size + "/3 cidades";
     if (actionBtn && rotaModalStep === 1) actionBtn.disabled = selecionados.length === 0;
+    const previewQtd = document.getElementById("rota-preview-qtd");
+    const previewTotal = document.getElementById("rota-preview-total");
+    if (previewQtd || previewTotal) {
+      const totalFrete = selecionados.reduce((acc, p) => acc + Number(p.valorFrete || 0), 0);
+      if (previewQtd) previewQtd.innerText = String(selecionados.length);
+      if (previewTotal) previewTotal.innerText = precoParaMoeda(totalFrete);
+    }
   }
   function renderListaPendentesRota() {
     const container = document.getElementById("rota-pending-list");

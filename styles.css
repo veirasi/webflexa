@@ -622,6 +622,23 @@ body.lojista-desktop-mode #rota-flow-step-2 .rota-pix-card {
 }
 body.lojista-desktop-mode #rota-flow-step-2 .rota-pix-card:last-child { margin-bottom: 0 !important; }
 body.lojista-desktop-mode #rota-flow-step-label { display: none !important; }
+
+/* Prévia de pagamento vs. opções de pagamento de verdade (pedido do dono
+   2026-10-02): no desktop #rota-flow-step-2 fica sempre renderizado (ver
+   regra acima), mesmo enquanto rotaModalStep ainda é 1 — antes disso, o
+   card de Pix aparecia visível só que vazio/zerado, e o botão "Copiar
+   código Pix" não fazia sentido nenhum logo de cara. Em vez de mostrar os
+   dois juntos, usa a classe .hidden que o JS já controla certinho
+   (renderEtapaModalRota só tira ela quando rotaModalStep realmente chega
+   em 2, depois de clicar "Pagamento" e irParaPagamentoRota rodar) pra
+   decidir qual dos dois blocos mostrar — mesmo quando o CONTAINER inteiro
+   é forçado visível por fora. Não é regra exclusiva de desktop: no mobile
+   o step2 já fica genuinamente escondido até esse ponto, então nunca dá
+   pra ver a prévia lá, mas a regra não atrapalha em nada. */
+#rota-flow-step-2.hidden #rota-pagamento-detalhes { display: none; }
+#rota-flow-step-2:not(.hidden) #rota-pagamento-preview { display: none; }
+.rota-pagamento-preview-stats { display: flex; gap: 28px; margin-bottom: 14px; }
+.rota-pagamento-preview-valor { display: block; font-size: 26px; font-weight: 800; color: var(--text-main, #0f172a); margin-top: 4px; }
 body.lojista-desktop-mode .rota-flow-col-title {
     display: block !important;
     font-size: 12px; font-weight: 800; color: #94a3b8;
