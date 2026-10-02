@@ -265,11 +265,21 @@ body.lojista-desktop-mode:has(#view-rotas.active) .rota-detalhe-footer { padding
 body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota {
     right: 424px !important;
     justify-content: flex-start !important;
+    overflow-x: hidden !important;
 }
 body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .rastrear-sheet {
     max-width: none !important;
     width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
     padding: 24px 24px 40px 32px !important;
+}
+/* Sem scroll próprio no meio da lista (pedido do dono 2026-10-02) — o
+   overlay (.modal-perfil-overlay, já com overflow-y:auto pela regra
+   genérica) é o único container que rola; a lista cresce com os cards. */
+body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .rastrear-list {
+    flex: none !important;
+    overflow: visible !important;
 }
 .loja-desktop-header-actions { display: flex; align-items: center; gap: 16px; }
 .loja-desktop-header-logo-img { height: 26px; width: auto; display: block; }

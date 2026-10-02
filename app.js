@@ -8952,7 +8952,6 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const sucessoHtml = pedidoConcluidoParaCliente ? `<div class="rastreio-pub-sucesso">
                 <div class="rastreio-pub-sucesso-check"><i data-lucide="check-circle-2"></i></div>
                 <h3>${ehColetaReversaTexto ? "Pedido recebido com sucesso!" : "Pedido entregue com sucesso!"}</h3>
-                <p class="rastreio-pub-sucesso-pontos">\u{1F389} Parab\xE9ns, voc\xEA ganhou <strong>+1 ponto</strong>!</p>
             </div>` : "";
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";

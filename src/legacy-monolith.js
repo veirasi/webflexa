@@ -10378,10 +10378,9 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     // reversa o cliente já entregou o pacote ao entregador (retiradaConfirmada,
     // mesmo que o entregador ainda esteja a caminho da loja pra fechar a
     // devolução) — a timeline/status de "a caminho" deixam de fazer sentido
-    // pra ele. Troca tudo por um cartão único. O "+1 ponto" é só o TEXTO já
-    // preparado pro futuro sistema de fidelidade (pontos acumulativos,
-    // trocáveis por frete grátis, também creditados assistindo vídeo de
-    // publicidade) — não grava nem soma nada de verdade ainda, é cosmético.
+    // pra ele. Troca tudo por um cartão único. O texto de "+1 ponto" foi
+    // removido (pedido do dono 2026-10-02): como não grava/soma nada de
+    // verdade ainda, só confundia o cliente.
     const pedidoConcluidoParaCliente = ehColetaReversaTexto
         ? pacoteInfo.retiradaConfirmada === true
         : pacoteInfo.status === 'ENTREGUE';
@@ -10389,7 +10388,6 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
         ? `<div class="rastreio-pub-sucesso">
                 <div class="rastreio-pub-sucesso-check"><i data-lucide="check-circle-2"></i></div>
                 <h3>${ehColetaReversaTexto ? 'Pedido recebido com sucesso!' : 'Pedido entregue com sucesso!'}</h3>
-                <p class="rastreio-pub-sucesso-pontos">🎉 Parabéns, você ganhou <strong>+1 ponto</strong>!</p>
             </div>`
         : '';
 
