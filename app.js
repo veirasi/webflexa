@@ -6087,6 +6087,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       if (statusNorm === "CONCLUIDO") progressoPct = 100;
       if (statusNorm === "BUSCANDO") progressoPct = 0;
       const bikeLeft = `clamp(8px, calc(${progressoPct}% - 18px), calc(100% - 44px))`;
+      const fillWidth = `calc(${progressoPct}% - ${(progressoPct * 16 / 100).toFixed(2)}px)`;
       return `
             <button type="button" class="rastrear-card" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
                 <div class="rastrear-card-head">
@@ -6096,7 +6097,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
                 <div class="rastrear-card-meta">${qtd} pacote(s) \u2022 ${resumoCidade.principal || "--"} \u2022 ${precoParaMoeda(Number(rota?.totalFrete || 0))}</div>
                 <div class="rastrear-track-wrap">
                     <span class="rastrear-track-time">${tempoHint}</span>
-                    <div class="rastrear-track-fill" style="width:${progressoPct}%;"></div>
+                    <div class="rastrear-track-fill" style="width:${fillWidth};"></div>
                     <div class="rastrear-track-line"></div>
                     <div class="rastrear-track-dots">${dotsHtml}</div>
                     <span class="rastrear-track-bike" style="left:${bikeLeft};"><img src="img/timeline-icon.png" alt=""></span>

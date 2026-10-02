@@ -6706,6 +6706,16 @@ async function renderListaModalRastrearRotas() {
         // exatamente onde a linha pontilhada termina (mesmo respiro de 8px
         // que .rastrear-track-line já usa dos dois lados).
         const bikeLeft = `clamp(8px, calc(${progressoPct}% - 18px), calc(100% - 44px))`;
+        // .rastrear-track-fill começa em left:8px (mesmo respiro da linha
+        // pontilhada), mas sua largura era só "${progressoPct}%" — uma
+        // porcentagem da caixa INTEIRA do track-wrap, sem descontar esse
+        // respiro de 8px nem o de right:8px do outro lado. Em 100% de
+        // progresso isso fazia a linha preenchida ultrapassar o fim da
+        // linha pontilhada e encostar quase na borda do card (pedido do
+        // dono 2026-10-02: "no lado direito a linha encosta no card").
+        // Largura corrigida pra ser uma porcentagem só do espaço ENTRE os
+        // dois respiros (100% - 16px), não da caixa inteira.
+        const fillWidth = `calc(${progressoPct}% - ${(progressoPct * 16 / 100).toFixed(2)}px)`;
 
         return `
             <button type="button" class="rastrear-card" onclick="abrirModalDetalheRota('${String(rota.id).replace(/'/g, "\\'")}')">
@@ -6716,7 +6726,7 @@ async function renderListaModalRastrearRotas() {
                 <div class="rastrear-card-meta">${qtd} pacote(s) • ${resumoCidade.principal || '--'} • ${precoParaMoeda(Number(rota?.totalFrete || 0))}</div>
                 <div class="rastrear-track-wrap">
                     <span class="rastrear-track-time">${tempoHint}</span>
-                    <div class="rastrear-track-fill" style="width:${progressoPct}%;"></div>
+                    <div class="rastrear-track-fill" style="width:${fillWidth};"></div>
                     <div class="rastrear-track-line"></div>
                     <div class="rastrear-track-dots">${dotsHtml}</div>
                     <span class="rastrear-track-bike" style="left:${bikeLeft};"><img src="img/timeline-icon.png" alt=""></span>
