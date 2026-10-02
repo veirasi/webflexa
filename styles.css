@@ -255,6 +255,22 @@ body.lojista-desktop-mode:has(#view-rotas.active) .rota-detalhe-footer {
 }
 body.lojista-desktop-mode:has(#view-rotas.active) .rota-detalhe-header { padding-bottom: 14px !important; }
 body.lojista-desktop-mode:has(#view-rotas.active) .rota-detalhe-footer { padding-top: 14px !important; }
+
+/* "Rastrear" (lista de rotas aberta por cima da tela Rotas) é o mesmo
+   .modal-perfil-overlay genérico (right:0, sheet centralizado a 640px) —
+   mas aqui o painel de detalhe fixo (#overlay-rota-detalhe, 424px) já
+   ocupa a direita, então os cards de rastrear ficavam indo por baixo
+   dele. Reserva o mesmo espaço à direita e usa a largura toda que sobra
+   em vez de centralizar a 640px. */
+body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota {
+    right: 424px !important;
+    justify-content: flex-start !important;
+}
+body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .rastrear-sheet {
+    max-width: none !important;
+    width: 100% !important;
+    padding: 24px 24px 40px 32px !important;
+}
 .loja-desktop-header-actions { display: flex; align-items: center; gap: 16px; }
 .loja-desktop-header-logo-img { height: 26px; width: auto; display: block; }
 
@@ -975,7 +991,30 @@ body.lojista-desktop-mode #view-perfil .perfil-header {
     padding: 28px 20px;
     position: sticky;
     top: 24px;
+    /* Alinha o topo do card com o topo do primeiro menu-group da coluna
+       esquerda (não com o título "CONTA" acima dele) — medido ao vivo:
+       42px é a altura de .perfil-section+.section-label antes do
+       menu-group começar. */
+    margin-top: 42px;
 }
+/* Upload de foto (card de perfil do Perfil desktop) — ícone de câmera só
+   aparece no hover, escondido por padrão em qualquer outro contexto
+   (mobile/entregador usam o mesmo .avatar-wrapper sem esse overlay). */
+.perfil-foto-edit-overlay { display: none; }
+body.lojista-desktop-mode #view-perfil .avatar-wrapper { cursor: pointer; }
+body.lojista-desktop-mode #view-perfil .perfil-foto-edit-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.15);
+    color: #fff;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+body.lojista-desktop-mode #view-perfil .avatar-wrapper:hover .perfil-foto-edit-overlay { opacity: 1; }
 body.lojista-desktop-mode #view-perfil .perfil-contato-desktop {
     display: flex;
     flex-direction: column;

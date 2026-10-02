@@ -11423,6 +11423,42 @@ function preencherCamposDadosContaDesktop() {
     document.getElementById('pf-nome').value = user.nome || '';
     document.getElementById('pf-instagram').value = user.instagram || '';
     document.getElementById('pf-whatsapp').value = user.whatsapp || '';
+    document.getElementById('pf-email').value = user.email || firebase.auth().currentUser?.email || '';
+}
+
+// Upload de foto/logotipo (card de perfil do Perfil desktop, pedido do dono
+// 2026-10-02) — mesmo fluxo de preview+base64 do modal mobile
+// (previewImagem/salvarPerfil), mas salva na hora assim que o arquivo é
+// escolhido, já que aqui não existe um passo de "Salvar" separado pro
+// cartão de perfil (só o accordion Dados da conta tem botão de salvar).
+function selecionarFotoPerfilDesktop() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) return;
+    document.getElementById('pf-foto-input')?.click();
+}
+
+function onFotoPerfilDesktopSelecionada(input) {
+    if (!input.files || !input.files[0]) return;
+    const uid = window.usuarioLogado ? window.usuarioLogado.id : (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+    if (!uid) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const fotoBase64 = e.target.result;
+        const preview = document.getElementById('perfil-foto-display');
+        if (preview) preview.src = fotoBase64;
+
+        db.ref('usuarios/' + uid).update({ foto: fotoBase64 })
+            .then(() => {
+                window.usuarioLogado = { ...window.usuarioLogado, foto: fotoBase64 };
+                alert('Foto atualizada com sucesso!');
+            })
+            .catch((error) => {
+                console.error('Erro ao salvar foto:', error);
+                alert('Erro ao salvar foto: ' + error.message);
+            });
+    };
+    reader.readAsDataURL(input.files[0]);
+    input.value = '';
 }
 
 function alternarAccordionDadosConta() {
@@ -15817,6 +15853,7 @@ export {
   obterProximoIndicePacotePendente,
   obterTipoUsuarioAtual,
   obterUltimaMensagemResumo,
+  onFotoPerfilDesktopSelecionada,
   openModal,
   pacoteAbertoParaChat,
   pacoteConcluidoOuCanceladoNoSheet,
@@ -15895,6 +15932,7 @@ export {
   selecionarEmbalagem,
   selecionarFiltroEnvios,
   selecionarFiltroRotas,
+  selecionarFotoPerfilDesktop,
   selecionarImagemChat,
   selecionarServico,
   selecionarTamanho,

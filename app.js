@@ -354,6 +354,7 @@
     obterProximoIndicePacotePendente: () => obterProximoIndicePacotePendente,
     obterTipoUsuarioAtual: () => obterTipoUsuarioAtual,
     obterUltimaMensagemResumo: () => obterUltimaMensagemResumo,
+    onFotoPerfilDesktopSelecionada: () => onFotoPerfilDesktopSelecionada,
     openModal: () => openModal,
     pacoteAbertoParaChat: () => pacoteAbertoParaChat,
     pacoteConcluidoOuCanceladoNoSheet: () => pacoteConcluidoOuCanceladoNoSheet,
@@ -432,6 +433,7 @@
     selecionarEmbalagem: () => selecionarEmbalagem,
     selecionarFiltroEnvios: () => selecionarFiltroEnvios,
     selecionarFiltroRotas: () => selecionarFiltroRotas,
+    selecionarFotoPerfilDesktop: () => selecionarFotoPerfilDesktop,
     selecionarImagemChat: () => selecionarImagemChat,
     selecionarServico: () => selecionarServico,
     selecionarTamanho: () => selecionarTamanho,
@@ -9759,6 +9761,31 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     document.getElementById("pf-nome").value = user.nome || "";
     document.getElementById("pf-instagram").value = user.instagram || "";
     document.getElementById("pf-whatsapp").value = user.whatsapp || "";
+    document.getElementById("pf-email").value = user.email || firebase.auth().currentUser?.email || "";
+  }
+  function selecionarFotoPerfilDesktop() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) return;
+    document.getElementById("pf-foto-input")?.click();
+  }
+  function onFotoPerfilDesktopSelecionada(input) {
+    if (!input.files || !input.files[0]) return;
+    const uid = window.usuarioLogado ? window.usuarioLogado.id : firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+    if (!uid) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const fotoBase64 = e.target.result;
+      const preview = document.getElementById("perfil-foto-display");
+      if (preview) preview.src = fotoBase64;
+      db.ref("usuarios/" + uid).update({ foto: fotoBase64 }).then(() => {
+        window.usuarioLogado = { ...window.usuarioLogado, foto: fotoBase64 };
+        alert("Foto atualizada com sucesso!");
+      }).catch((error) => {
+        console.error("Erro ao salvar foto:", error);
+        alert("Erro ao salvar foto: " + error.message);
+      });
+    };
+    reader.readAsDataURL(input.files[0]);
+    input.value = "";
   }
   function alternarAccordionDadosConta() {
     if (!document.body.classList.contains("lojista-desktop-mode")) {

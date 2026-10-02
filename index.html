@@ -341,8 +341,10 @@
 
 <section id="view-perfil" class="view">
     <div class="perfil-header" style="text-align:center; padding:30px 20px;">
-        <div class="avatar-wrapper" style="width:110px; height:110px; margin:0 auto 15px; position:relative;">
+        <div class="avatar-wrapper" style="width:110px; height:110px; margin:0 auto 15px; position:relative;" onclick="selecionarFotoPerfilDesktop()">
             <img src="img/avatar.png" id="perfil-foto-display" alt="Avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:3px solid #fff;">
+            <div class="perfil-foto-edit-overlay"><i data-lucide="camera" size="18"></i></div>
+            <input type="file" id="pf-foto-input" accept="image/*" style="display:none;" onchange="onFotoPerfilDesktopSelecionada(this)">
         </div>
 
         <span class="perfil-entregador-badge">Lojista</span>
@@ -382,6 +384,10 @@
                         <div class="form-group">
                             <label>WhatsApp</label>
                             <div class="input-wrapper"><i data-lucide="phone" size="18"></i><input type="tel" id="pf-whatsapp" placeholder="(00) 00000-0000"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>E-mail</label>
+                            <div class="input-wrapper"><i data-lucide="mail" size="18" style="color:#ccc;"></i><input type="email" id="pf-email" readonly style="color:#94a3b8;"></div>
                         </div>
                         <button type="button" class="btn-main accordion-save-btn" onclick="salvarDadosContaDesktop()">Salvar Alterações</button>
                     </div>
