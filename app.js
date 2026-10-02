@@ -11234,6 +11234,7 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   function limparBadgeChat() {
     const navChat = document.getElementById("nav-chat");
     if (navChat) navChat.classList.remove("has-unread");
+    document.querySelector('.loja-sidebar-link[data-nav-target="view-chat"]')?.classList.remove("has-unread");
   }
   function atualizarBadgeChatSimples(chatsObj = {}) {
     const navChat = document.getElementById("nav-chat");
@@ -11244,6 +11245,7 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       return Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
     });
     if (navChat) navChat.classList.toggle("has-unread", temNaoLida);
+    document.querySelector('.loja-sidebar-link[data-nav-target="view-chat"]')?.classList.toggle("has-unread", temNaoLida);
     chatSinoTemNaoLido = temNaoLida;
     atualizarSinoNaoLido();
   }

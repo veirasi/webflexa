@@ -420,8 +420,25 @@ body.lojista-desktop-mode.loja-sidebar-compact .loja-sidebar { width: 76px; }
 .loja-sidebar-collapse-btn { position: absolute; top: 24px; right: -12px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #e5e7eb; background: #fff; color: #475569; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; box-shadow: 0 2px 6px rgba(15,23,42,0.12); }
 body.loja-sidebar-compact .loja-sidebar-collapse-btn svg { transform: rotate(180deg); }
 .loja-sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; margin-top: 4px; }
-.loja-sidebar-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #e5e9ef; color: #1e293b; font-weight: 700; font-size: 13px; }
+.loja-sidebar-link { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #e5e9ef; color: #1e293b; font-weight: 700; font-size: 13px; }
 .loja-sidebar-link:hover { background: #dde3ea; }
+/* Bolinha de chat não lido no link "Chat" da sidebar desktop (pedido do
+   dono 2026-10-02: "o icone do botao chat tbm precisa indicar... tanto no
+   desktop e no mobile") — mesmo visual já usado em .nav-item.has-unread
+   (mobile), só centralizado verticalmente em vez de top fixo porque aqui
+   a linha é um retângulo largo (ícone + texto), não um ícone solto. */
+.loja-sidebar-link.has-unread::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #f97316;
+    box-shadow: 0 0 0 3px rgba(249,115,22,0.28);
+}
 .loja-sidebar-link.active { background: linear-gradient(135deg,#f97316,#fb923c); color: #fff; box-shadow: 0 4px 10px rgba(249,115,22,0.3); }
 .loja-sidebar-link svg { flex-shrink: 0; }
 /* Regra global "span, label { color: var(--color-text-sub) }" pega o <span>

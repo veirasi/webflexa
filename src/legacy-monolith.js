@@ -13316,6 +13316,8 @@ function voltarListaChats() {
 function limparBadgeChat() {
     const navChat = document.getElementById('nav-chat');
     if (navChat) navChat.classList.remove('has-unread');
+    document.querySelector('.loja-sidebar-link[data-nav-target="view-chat"]')
+        ?.classList.remove('has-unread');
 }
 
 function atualizarBadgeChatSimples(chatsObj = {}) {
@@ -13341,6 +13343,12 @@ function atualizarBadgeChatSimples(chatsObj = {}) {
         return Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
     });
     if (navChat) navChat.classList.toggle('has-unread', temNaoLida);
+
+    // Link "Chat" da sidebar desktop do lojista — mesmo indicador do
+    // nav-chat mobile, elemento separado (pedido do dono 2026-10-02: "tanto
+    // no desktop e no mobile").
+    document.querySelector('.loja-sidebar-link[data-nav-target="view-chat"]')
+        ?.classList.toggle('has-unread', temNaoLida);
 
     // Sino (.gh-bell) — pedido do dono 2026-10-02: "o sino notificação do
     // entregador também precisa sinalizar mensagem não lida". Mesma fonte
