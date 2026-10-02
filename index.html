@@ -26,18 +26,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <!-- Bloqueio de tela grande (tablet/notebook/PC/TV) — o app é feito só
-         pra celular. Some sozinho em telas de admin e no link público de
-         rastreio (ver classes admin-mode/modo-rastreio-publico no body e a
-         media query em styles.css), porque essas duas telas fazem sentido
-         serem abertas num computador. -->
-    <div id="tela-bloqueio-desktop">
-        <img src="img/logoflexa.png" alt="Flex" class="bloqueio-desktop-logo">
-        <i data-lucide="smartphone" width="46" height="46"></i>
-        <h2>Abra no seu celular</h2>
-        <p>O Flex foi feito pra ser usado no celular. Acesse esse mesmo link pelo navegador do seu smartphone pra continuar.</p>
-    </div>
-
     <!-- Template do cabeçalho global (logo + chip + sino) - não aplicado por padrão -->
     <template id="ui-global-header-template">
         <div class="global-header">
