@@ -168,6 +168,18 @@ span, label { font-size: var(--font-label); color: var(--color-text-sub); }
    >=768px — só apareceu depois que esse aviso foi removido. */
 .container { width: 100%; max-width: 420px !important; min-height: 100vh; min-height: 100dvh; padding: 24px 10px 80px 10px; position: relative; z-index: 1; }
 .container { background: var(--ui-color-bg, transparent); }
+/* Painel Master (#view-admin-dashboard) tem seu próprio layout de grid
+   desktop (.admin-layout{grid-template-columns:260px 1fr}, sidebar +
+   conteúdo) — sem nenhum vínculo com o lojista-desktop-mode. Ele nunca
+   teve uma regra própria pedindo largura total; só "funcionava" porque
+   vivia dentro do vazamento do Tailwind (acima) que esticava o
+   .container pra até 1536px. Fechar o vazamento sem essa regra quebrou
+   o painel master (reportado pelo dono: "mexeu na responsividade do
+   dashboard do usuário Master") — agora é um pedido explícito, não um
+   acidente. */
+.container:has(#view-admin-dashboard.active) {
+    max-width: none !important;
+}
 
 /* ================= DASHBOARD DESKTOP DO LOJISTA ================= */
 /* Pedido do dono 2026-09-30: sidebar fixa + dashboard reorganizado só pra
