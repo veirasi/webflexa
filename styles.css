@@ -628,38 +628,26 @@ body.lojista-desktop-mode .pagamento-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    align-items: stretch;
+    align-items: start;
 }
 body.lojista-desktop-mode .pagamento-coluna-esquerda {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
-/* Extrato (pedido do dono 2026-10-01): em vez de ficar baixinho e
-   desalinhado perto da coluna esquerda (bem mais alta, com 4-5 cards),
-   estica pra acompanhar a mesma altura — o card vira flex column com a
-   própria lista rolando por dentro (sem o max-height:190px herdado do
-   mobile, que fazia sentido lá mas aqui deixava o card curto demais). */
-body.lojista-desktop-mode .pagamento-coluna-direita {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-body.lojista-desktop-mode .pagamento-coluna-direita .pagamento-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    margin-bottom: 0;
-}
-body.lojista-desktop-mode .pagamento-coluna-direita .pagamento-extrato-head {
-    flex-shrink: 0;
-}
+/* Extrato (pedido do dono 2026-10-01, 2ª correção — a 1ª esticava o
+   card pra acompanhar a coluna esquerda, mas sem altura própria isso
+   deixava o card crescer SEM LIMITE junto com o nº de transações, e
+   como "Salvar dados" fica fora da grade (depois das 2 colunas), ele
+   era empurrado pra baixo de TUDO — mesmo não tendo nada a ver com o
+   extrato. Agora cada coluna tem altura independente (align-items:
+   start): a esquerda termina logo depois do card Pix (onde "Salvar
+   dados" deve aparecer), e a lista do extrato tem um teto alto o
+   bastante pra não ficar baixinha com poucas transações, mas rolando
+   por dentro a partir daí em vez de esticar pra sempre. */
 body.lojista-desktop-mode .pagamento-coluna-direita .pagamento-extrato-list {
-    flex: 1;
-    max-height: none;
+    max-height: 640px;
     overflow-y: auto;
-    min-height: 0;
 }
 body.lojista-desktop-mode .pagamento-body .pagamento-section,
 body.lojista-desktop-mode .pagamento-body .pagamento-saldo-card { margin-bottom: 0; }
