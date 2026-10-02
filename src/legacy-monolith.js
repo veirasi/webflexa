@@ -11295,14 +11295,54 @@ function fecharModalPerfil() {
         overlay.style.display = 'none';
     }, 240);
 }
+// Redimensiona/comprime a foto ANTES de virar base64 (pedido do dono
+// 2026-10-02, erro real: "TRIGGER_PAYLOAD_TOO_LARGE" ao salvar foto) —
+// usuarios/{uid} tem uma Cloud Function de gatilho (marketplacePublicoUsuarios,
+// espelha o perfil público) disparada em TODA escrita nesse caminho, e esse
+// gatilho tem limite de tamanho de payload. Uma foto de câmera moderna em
+// base64 cru (sem redimensionar) passa fácil de alguns MB e o Firebase
+// REJEITA A ESCRITA INTEIRA (não só o campo foto) quando isso acontece.
+// Limitar a 480px no lado maior + JPEG ~75% deixa o resultado na casa de
+// poucas dezenas de KB, bem abaixo do limite.
+function redimensionarImagemParaDataUrl(file, maxDim = 480, qualidade = 0.75) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > height && width > maxDim) {
+                    height = Math.round(height * (maxDim / width));
+                    width = maxDim;
+                } else if (height > maxDim) {
+                    width = Math.round(width * (maxDim / height));
+                    height = maxDim;
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', qualidade));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 // Preview da imagem selecionada
 function previewImagem(input) {
     if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('edit-preview-img').src = e.target.result;
-        }
-        reader.readAsDataURL(input.files[0]);
+        redimensionarImagemParaDataUrl(input.files[0])
+            .then((dataUrl) => {
+                document.getElementById('edit-preview-img').src = dataUrl;
+            })
+            .catch((err) => {
+                console.error('Erro ao processar imagem:', err);
+                alert('Não foi possível processar essa imagem. Tente outra.');
+            });
     }
 }
 
@@ -11583,23 +11623,21 @@ function onFotoPerfilDesktopSelecionada(input) {
     const uid = window.usuarioLogado ? window.usuarioLogado.id : (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
     if (!uid) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const fotoBase64 = e.target.result;
-        const preview = document.getElementById('perfil-foto-display');
-        if (preview) preview.src = fotoBase64;
+    redimensionarImagemParaDataUrl(input.files[0])
+        .then((fotoBase64) => {
+            const preview = document.getElementById('perfil-foto-display');
+            if (preview) preview.src = fotoBase64;
 
-        db.ref('usuarios/' + uid).update({ foto: fotoBase64 })
-            .then(() => {
-                window.usuarioLogado = { ...window.usuarioLogado, foto: fotoBase64 };
-                alert('Foto atualizada com sucesso!');
-            })
-            .catch((error) => {
-                console.error('Erro ao salvar foto:', error);
-                alert('Erro ao salvar foto: ' + error.message);
-            });
-    };
-    reader.readAsDataURL(input.files[0]);
+            return db.ref('usuarios/' + uid).update({ foto: fotoBase64 })
+                .then(() => {
+                    window.usuarioLogado = { ...window.usuarioLogado, foto: fotoBase64 };
+                    alert('Foto atualizada com sucesso!');
+                });
+        })
+        .catch((error) => {
+            console.error('Erro ao salvar foto:', error);
+            alert('Erro ao salvar foto: ' + error.message);
+        });
     input.value = '';
 }
 
@@ -13087,9 +13125,10 @@ function renderListaChats() {
         const foto = c.participanteFoto
             ? `<img src="${escapeHtmlChat(c.participanteFoto)}" alt="${escapeHtmlChat(c.participanteNome)}">`
             : `<span>${escapeHtmlChat(gerarIniciais(c.participanteNome))}</span>`;
+        const classeNaoLida = c.naoLida ? ' nao-lida' : '';
 
         return `
-            <button type="button" class="chat-list-item" onclick="abrirThreadChat('${escapeHtmlChat(c.chatId)}')">
+            <button type="button" class="chat-list-item${classeNaoLida}" onclick="abrirThreadChat('${escapeHtmlChat(c.chatId)}')">
                 <div class="chat-list-avatar">${foto}</div>
                 <div class="chat-list-content">
                     <div class="chat-list-top">
@@ -13166,6 +13205,12 @@ async function carregarChatsAtivos() {
                 continue;
             }
 
+            // Mesmo critério de "não lida" do sino/nav (ver
+            // atualizarBadgeChatSimples) — pedido do dono 2026-10-02: "o card
+            // do contato no chat também precisa sinalizar mensagem não lida".
+            const naoLida = !(meta.lidoEm === undefined || meta.lidoEm === null)
+                && Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
+
             conversas.push({
                 chatId,
                 rotaId: String(rota.id || ''),
@@ -13176,7 +13221,8 @@ async function carregarChatsAtivos() {
                 pacotesAbertos: abertos,
                 ultimaMensagemTexto: ultimaMsg.texto,
                 ultimaMensagemEm: Number(meta.ultimaMensagemEm || ultimaMsg.criadoEm || rota.atualizadoEm || rota.criadoEm || 0),
-                atualizadoEm: Number(rota.atualizadoEm || rota.criadoEm || 0)
+                atualizadoEm: Number(rota.atualizadoEm || rota.criadoEm || 0),
+                naoLida
             });
         }
 
@@ -13299,6 +13345,14 @@ async function abrirThreadChat(chatId) {
     iniciarListenerMensagensChat(chatId);
     limparBadgeChat();
 
+    // Tira o indicador do CARD desse contato na hora (otimista — o recarregamento
+    // completo de carregarChatsAtivos confirma depois), igual já fazia pro
+    // nav/sino.
+    if (conversa.naoLida) {
+        conversa.naoLida = false;
+        renderListaChats();
+    }
+
     const uidLeitor = getUsuarioIdAtual();
     if (uidLeitor) {
         db.ref(`usuarios/${uidLeitor}/chats/${chatId}/meta`).update({ lidoEm: Date.now() }).catch(() => {});
@@ -13375,24 +13429,33 @@ function selecionarImagemChat(event) {
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        chatImagemSelecionadaDataUrl = String(reader.result || '');
-        chatImagemSelecionadaNome = file.name || 'imagem';
-        const preview = document.getElementById('chat-image-preview');
-        if (!preview) return;
-        preview.innerHTML = `
-            <div class="chat-preview-card">
-                <img src="${escapeHtmlChat(chatImagemSelecionadaDataUrl)}" alt="Preview">
-                <div class="chat-preview-meta">
-                    <span>${escapeHtmlChat(chatImagemSelecionadaNome)}</span>
-                    <button type="button" onclick="limparPreviewImagemChat()">Remover</button>
+    // Mesmo redimensionamento usado na foto de perfil (ver
+    // redimensionarImagemParaDataUrl) — mensagens de chat gravam em
+    // usuarios/{uid}/chats/..., caminho embaixo do MESMO gatilho de Cloud
+    // Function (marketplacePublicoUsuarios) que rejeitou a foto de perfil
+    // crua com TRIGGER_PAYLOAD_TOO_LARGE. Um arquivo de até 2MB vira ~2.7MB
+    // em base64 cru — perto demais do limite pra arriscar.
+    redimensionarImagemParaDataUrl(file, 960, 0.8)
+        .then((dataUrl) => {
+            chatImagemSelecionadaDataUrl = dataUrl;
+            chatImagemSelecionadaNome = file.name || 'imagem';
+            const preview = document.getElementById('chat-image-preview');
+            if (!preview) return;
+            preview.innerHTML = `
+                <div class="chat-preview-card">
+                    <img src="${escapeHtmlChat(chatImagemSelecionadaDataUrl)}" alt="Preview">
+                    <div class="chat-preview-meta">
+                        <span>${escapeHtmlChat(chatImagemSelecionadaNome)}</span>
+                        <button type="button" onclick="limparPreviewImagemChat()">Remover</button>
+                    </div>
                 </div>
-            </div>
-        `;
-        preview.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
+            `;
+            preview.style.display = 'block';
+        })
+        .catch((err) => {
+            console.error('Erro ao processar imagem do chat:', err);
+            alert('Não foi possível processar essa imagem. Tente outra.');
+        });
 }
 
 async function chatEstaAtivo(conversa) {

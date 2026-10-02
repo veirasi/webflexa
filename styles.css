@@ -5425,6 +5425,35 @@ body.lojista-desktop-mode .accordion-save-btn {
     color: var(--text-sub);
 }
 
+/* Card do contato sinalizando mensagem não lida (pedido do dono
+   2026-10-02: "o card do contato no chat tbm precisa sinalizar mensagem
+   nao lida", mobile e desktop) — mesma linguagem visual já usada em
+   .notificacao-item.nao-lida (borda esquerda laranja) + bolinha antes do
+   horário + prévia da mensagem em negrito/mais escura. */
+.chat-list-item.nao-lida {
+    border-color: #f5a35c;
+    border-left: 3px solid #f58220;
+}
+.chat-list-item.nao-lida .chat-list-last {
+    color: var(--text-main);
+    font-weight: 700;
+}
+.chat-list-item.nao-lida .chat-list-top small {
+    position: relative;
+    padding-left: 12px;
+}
+.chat-list-item.nao-lida .chat-list-top small::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #f97316;
+}
+
 .chat-empty {
     background: #fff;
     border-radius: 18px;

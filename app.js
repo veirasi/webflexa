@@ -9618,13 +9618,41 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       overlay.style.display = "none";
     }, 240);
   }
+  function redimensionarImagemParaDataUrl(file, maxDim = 480, qualidade = 0.75) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Falha ao carregar a imagem."));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxDim) {
+            height = Math.round(height * (maxDim / width));
+            width = maxDim;
+          } else if (height > maxDim) {
+            width = Math.round(width * (maxDim / height));
+            height = maxDim;
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", qualidade));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
   function previewImagem(input) {
     if (input.files && input.files[0]) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        document.getElementById("edit-preview-img").src = e.target.result;
-      };
-      reader.readAsDataURL(input.files[0]);
+      redimensionarImagemParaDataUrl(input.files[0]).then((dataUrl) => {
+        document.getElementById("edit-preview-img").src = dataUrl;
+      }).catch((err) => {
+        console.error("Erro ao processar imagem:", err);
+        alert("N\xE3o foi poss\xEDvel processar essa imagem. Tente outra.");
+      });
     }
   }
   function salvarPerfil() {
@@ -9832,20 +9860,17 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     if (!input.files || !input.files[0]) return;
     const uid = window.usuarioLogado ? window.usuarioLogado.id : firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
     if (!uid) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const fotoBase64 = e.target.result;
+    redimensionarImagemParaDataUrl(input.files[0]).then((fotoBase64) => {
       const preview = document.getElementById("perfil-foto-display");
       if (preview) preview.src = fotoBase64;
-      db.ref("usuarios/" + uid).update({ foto: fotoBase64 }).then(() => {
+      return db.ref("usuarios/" + uid).update({ foto: fotoBase64 }).then(() => {
         window.usuarioLogado = { ...window.usuarioLogado, foto: fotoBase64 };
         alert("Foto atualizada com sucesso!");
-      }).catch((error) => {
-        console.error("Erro ao salvar foto:", error);
-        alert("Erro ao salvar foto: " + error.message);
       });
-    };
-    reader.readAsDataURL(input.files[0]);
+    }).catch((error) => {
+      console.error("Erro ao salvar foto:", error);
+      alert("Erro ao salvar foto: " + error.message);
+    });
     input.value = "";
   }
   function alternarAccordionDadosConta() {
@@ -11038,8 +11063,9 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     }
     listEl.innerHTML = chatConversasCache.map((c) => {
       const foto = c.participanteFoto ? `<img src="${escapeHtmlChat(c.participanteFoto)}" alt="${escapeHtmlChat(c.participanteNome)}">` : `<span>${escapeHtmlChat(gerarIniciais(c.participanteNome))}</span>`;
+      const classeNaoLida = c.naoLida ? " nao-lida" : "";
       return `
-            <button type="button" class="chat-list-item" onclick="abrirThreadChat('${escapeHtmlChat(c.chatId)}')">
+            <button type="button" class="chat-list-item${classeNaoLida}" onclick="abrirThreadChat('${escapeHtmlChat(c.chatId)}')">
                 <div class="chat-list-avatar">${foto}</div>
                 <div class="chat-list-content">
                     <div class="chat-list-top">
@@ -11102,6 +11128,7 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
           }
           continue;
         }
+        const naoLida = !(meta.lidoEm === void 0 || meta.lidoEm === null) && Number(meta.ultimaMensagemEm || 0) > Number(meta.lidoEm || 0);
         conversas.push({
           chatId,
           rotaId: String(rota.id || ""),
@@ -11112,7 +11139,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
           pacotesAbertos: abertos,
           ultimaMensagemTexto: ultimaMsg.texto,
           ultimaMensagemEm: Number(meta.ultimaMensagemEm || ultimaMsg.criadoEm || rota.atualizadoEm || rota.criadoEm || 0),
-          atualizadoEm: Number(rota.atualizadoEm || rota.criadoEm || 0)
+          atualizadoEm: Number(rota.atualizadoEm || rota.criadoEm || 0),
+          naoLida
         });
       }
       conversas.sort((a, b) => Number(b.ultimaMensagemEm || b.atualizadoEm || 0) - Number(a.ultimaMensagemEm || a.atualizadoEm || 0));
@@ -11218,6 +11246,10 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     renderMensagensChat([]);
     iniciarListenerMensagensChat(chatId);
     limparBadgeChat();
+    if (conversa.naoLida) {
+      conversa.naoLida = false;
+      renderListaChats();
+    }
     const uidLeitor = getUsuarioIdAtual();
     if (uidLeitor) {
       db.ref(`usuarios/${uidLeitor}/chats/${chatId}/meta`).update({ lidoEm: Date.now() }).catch(() => {
@@ -11264,24 +11296,25 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       alert("Imagem muito grande. Use ate 2MB.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      chatImagemSelecionadaDataUrl = String(reader.result || "");
+    redimensionarImagemParaDataUrl(file, 960, 0.8).then((dataUrl) => {
+      chatImagemSelecionadaDataUrl = dataUrl;
       chatImagemSelecionadaNome = file.name || "imagem";
       const preview = document.getElementById("chat-image-preview");
       if (!preview) return;
       preview.innerHTML = `
-            <div class="chat-preview-card">
-                <img src="${escapeHtmlChat(chatImagemSelecionadaDataUrl)}" alt="Preview">
-                <div class="chat-preview-meta">
-                    <span>${escapeHtmlChat(chatImagemSelecionadaNome)}</span>
-                    <button type="button" onclick="limparPreviewImagemChat()">Remover</button>
+                <div class="chat-preview-card">
+                    <img src="${escapeHtmlChat(chatImagemSelecionadaDataUrl)}" alt="Preview">
+                    <div class="chat-preview-meta">
+                        <span>${escapeHtmlChat(chatImagemSelecionadaNome)}</span>
+                        <button type="button" onclick="limparPreviewImagemChat()">Remover</button>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
       preview.style.display = "block";
-    };
-    reader.readAsDataURL(file);
+    }).catch((err) => {
+      console.error("Erro ao processar imagem do chat:", err);
+      alert("N\xE3o foi poss\xEDvel processar essa imagem. Tente outra.");
+    });
   }
   async function chatEstaAtivo(conversa) {
     if (!conversa?.rotaId) return false;
