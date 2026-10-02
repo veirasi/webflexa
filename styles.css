@@ -277,11 +277,15 @@ body.lojista-desktop-mode .container {
 body.lojista-desktop-mode .container:has(#view-dash-loja.active),
 body.lojista-desktop-mode .container:has(#view-chat.active) {
     max-width: 1240px;
+    width: min(1240px, calc(100vw - 236px - 48px)) !important;
     margin-left: calc(236px + max(24px, (100vw - 236px - 1240px) / 2));
 }
 body.lojista-desktop-mode.loja-sidebar-compact .container { margin-left: calc(76px + max(32px, (100vw - 76px - 640px) / 2)); }
 body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-dash-loja.active),
-body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-chat.active) { margin-left: calc(76px + max(24px, (100vw - 76px - 1240px) / 2)); }
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-chat.active) {
+    width: min(1240px, calc(100vw - 76px - 48px)) !important;
+    margin-left: calc(76px + max(24px, (100vw - 76px - 1240px) / 2));
+}
 body.lojista-desktop-mode .loja-sidebar { display: flex; }
 body.lojista-desktop-mode.loja-sidebar-compact .loja-sidebar { width: 76px; }
 
