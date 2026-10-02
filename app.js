@@ -61,8 +61,11 @@
     adminSalvarRotas: () => adminSalvarRotas,
     agendarBuscaCepCliente: () => agendarBuscaCepCliente,
     agendarBuscaCepLoja: () => agendarBuscaCepLoja,
+    agendarBuscaCepLojaDesktop: () => agendarBuscaCepLojaDesktop,
     ajustarSaldoUsuario: () => ajustarSaldoUsuario,
     alternarAbaRotasEntregador: () => alternarAbaRotasEntregador,
+    alternarAccordionDadosConta: () => alternarAccordionDadosConta,
+    alternarAccordionEndereco: () => alternarAccordionEndereco,
     alternarAtivoBannerAdmin: () => alternarAtivoBannerAdmin,
     alternarAuth: () => alternarAuth,
     alternarClienteAuthTab: () => alternarClienteAuthTab,
@@ -411,9 +414,11 @@
     rotuloStatusEnvio: () => rotuloStatusEnvio,
     sairClienteRastreio: () => sairClienteRastreio,
     salvarBannerAdmin: () => salvarBannerAdmin,
+    salvarDadosContaDesktop: () => salvarDadosContaDesktop,
     salvarDadosPagamento: () => salvarDadosPagamento,
     salvarEdicaoDestinoEnvio: () => salvarEdicaoDestinoEnvio,
     salvarEndereco: () => salvarEndereco,
+    salvarEnderecoDesktop: () => salvarEnderecoDesktop,
     salvarMetaDiaEntregador: () => salvarMetaDiaEntregador,
     salvarNovoCliente: () => salvarNovoCliente,
     salvarPerfil: () => salvarPerfil,
@@ -923,9 +928,13 @@
     const nomeEl = document.getElementById("perfil-nome-display");
     const instaEl = document.getElementById("perfil-insta-display");
     const fotoEl = document.getElementById("perfil-foto-display");
+    const whatsEl = document.getElementById("perfil-whatsapp-display");
+    const emailEl = document.getElementById("perfil-email-display");
     if (nomeEl) nomeEl.innerText = dados.nome || "Usu\xE1rio";
     aplicarLinkInstagram(instaEl, dados.instagram || "");
     aplicarFotoComPlaceholder(fotoEl, dados.foto || "");
+    if (whatsEl) whatsEl.innerText = dados.whatsapp || "--";
+    if (emailEl) emailEl.innerText = dados.email || firebase.auth().currentUser?.email || "--";
   }
   function preencherPerfilEntregador() {
     const dados = window.usuarioLogado || {};
@@ -9617,23 +9626,26 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       modal.style.display = "none";
     }, 250);
   }
+  var ENDERECO_IDS_MODAL = { cep: "end-cep", rua: "end-rua", num: "end-num", bairro: "end-bairro", cidade: "end-cidade", uf: "end-uf", comp: "end-comp" };
+  var ENDERECO_IDS_DESKTOP = { cep: "pf-end-cep", rua: "pf-end-rua", num: "pf-end-num", bairro: "pf-end-bairro", cidade: "pf-end-cidade", uf: "pf-end-uf", comp: "pf-end-comp" };
   async function buscarCEP(valor, opts = {}) {
     const silencioso = Boolean(opts?.silencioso);
+    const ids = opts?.ids || ENDERECO_IDS_MODAL;
     const cep = valor.replace(/\D/g, "");
     if (cep.length !== 8) return null;
-    if (cep === ultimoCepLojaConsultado && document.getElementById("end-rua")?.value) return null;
+    if (cep === ultimoCepLojaConsultado && document.getElementById(ids.rua)?.value) return null;
     ultimoCepLojaConsultado = cep;
-    const campoRua = document.getElementById("end-rua");
+    const campoRua = document.getElementById(ids.rua);
     campoRua.placeholder = "Buscando endere\xE7o...";
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const dados = await res.json();
       if (!dados.erro) {
-        document.getElementById("end-rua").value = dados.logradouro || "";
-        document.getElementById("end-bairro").value = dados.bairro || "";
-        document.getElementById("end-cidade").value = dados.localidade || "";
-        document.getElementById("end-uf").value = dados.uf || "";
-        document.getElementById("end-num").focus();
+        document.getElementById(ids.rua).value = dados.logradouro || "";
+        document.getElementById(ids.bairro).value = dados.bairro || "";
+        document.getElementById(ids.cidade).value = dados.localidade || "";
+        document.getElementById(ids.uf).value = dados.uf || "";
+        document.getElementById(ids.num).focus();
         return dados;
       }
       if (!silencioso) alert("CEP n\xE3o encontrado.");
@@ -9652,23 +9664,32 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       buscarCEP(cep, { silencioso: true });
     }, 260);
   }
+  function agendarBuscaCepLojaDesktop(valor) {
+    const cep = (valor || "").replace(/\D/g, "");
+    if (cepLojaDebounceTimerDesktop) clearTimeout(cepLojaDebounceTimerDesktop);
+    if (cep.length !== 8) return;
+    cepLojaDebounceTimerDesktop = setTimeout(() => {
+      buscarCEP(cep, { silencioso: true, ids: ENDERECO_IDS_DESKTOP });
+    }, 260);
+  }
+  var cepLojaDebounceTimerDesktop = null;
   document.getElementById("end-cep")?.addEventListener("input", function(e) {
     agendarBuscaCepLoja(e.target.value);
   });
-  async function salvarEndereco() {
+  async function salvarEnderecoComIds(ids, aoSalvar) {
     const uid = window.usuarioLogado?.id || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
     if (!uid) {
       alert("Erro: Usu\xE1rio n\xE3o identificado.");
       return;
     }
     const endereco = {
-      cep: formatarCep(document.getElementById("end-cep").value),
-      rua: (document.getElementById("end-rua").value || "").trim(),
-      num: (document.getElementById("end-num").value || "").trim(),
-      bairro: (document.getElementById("end-bairro").value || "").trim(),
-      cidade: (document.getElementById("end-cidade").value || "").trim(),
-      uf: normalizarUf(document.getElementById("end-uf").value),
-      comp: (document.getElementById("end-comp").value || "").trim()
+      cep: formatarCep(document.getElementById(ids.cep).value),
+      rua: (document.getElementById(ids.rua).value || "").trim(),
+      num: (document.getElementById(ids.num).value || "").trim(),
+      bairro: (document.getElementById(ids.bairro).value || "").trim(),
+      cidade: (document.getElementById(ids.cidade).value || "").trim(),
+      uf: normalizarUf(document.getElementById(ids.uf).value),
+      comp: (document.getElementById(ids.comp).value || "").trim()
     };
     endereco.estado = endereco.uf;
     try {
@@ -9684,10 +9705,91 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       window.usuarioLogado.endereco = endereco;
       atualizarLocalColetaDinamico();
       renderizarDashboard(window.usuarioLogado || {});
-      fecharModalEndereco();
+      aoSalvar();
       alert("Endere\xE7o atualizado com sucesso!");
     }).catch((error) => {
       console.error("Erro ao salvar endere\xE7o:", error);
+      alert("Erro ao salvar: " + error.message);
+    });
+  }
+  function salvarEndereco() {
+    return salvarEnderecoComIds(ENDERECO_IDS_MODAL, fecharModalEndereco);
+  }
+  function salvarEnderecoDesktop() {
+    return salvarEnderecoComIds(ENDERECO_IDS_DESKTOP, () => {
+    });
+  }
+  function preencherCamposEnderecoDesktop() {
+    const end = window.usuarioLogado?.endereco;
+    if (!end) return;
+    document.getElementById("pf-end-cep").value = end.cep || "";
+    document.getElementById("pf-end-rua").value = end.rua || "";
+    document.getElementById("pf-end-num").value = end.num || "";
+    document.getElementById("pf-end-bairro").value = end.bairro || "";
+    document.getElementById("pf-end-cidade").value = end.cidade || "";
+    document.getElementById("pf-end-uf").value = end.uf || "";
+    document.getElementById("pf-end-comp").value = end.comp || "";
+    const cep = formatarCep(end.cep || "");
+    const faltandoCamposBase = !end.rua || !end.bairro || !end.cidade || !end.uf;
+    if (cep && faltandoCamposBase) buscarCEP(cep, { silencioso: true, ids: ENDERECO_IDS_DESKTOP });
+  }
+  function alternarAccordionEndereco() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      abrirModalEndereco();
+      return;
+    }
+    const header = document.getElementById("acc-endereco-header");
+    const body = document.getElementById("acc-endereco-body");
+    if (!header || !body) return;
+    const abrindo = body.classList.contains("hidden");
+    header.classList.toggle("accordion-aberto", abrindo);
+    body.classList.toggle("hidden", !abrindo);
+    if (abrindo) {
+      preencherCamposEnderecoDesktop();
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    }
+  }
+  function preencherCamposDadosContaDesktop() {
+    const user = window.usuarioLogado;
+    if (!user) return;
+    document.getElementById("pf-nome").value = user.nome || "";
+    document.getElementById("pf-instagram").value = user.instagram || "";
+    document.getElementById("pf-whatsapp").value = user.whatsapp || "";
+  }
+  function alternarAccordionDadosConta() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      abrirModalPerfil();
+      return;
+    }
+    const header = document.getElementById("acc-dados-conta-header");
+    const body = document.getElementById("acc-dados-conta-body");
+    if (!header || !body) return;
+    const abrindo = body.classList.contains("hidden");
+    header.classList.toggle("accordion-aberto", abrindo);
+    body.classList.toggle("hidden", !abrindo);
+    if (abrindo) {
+      preencherCamposDadosContaDesktop();
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    }
+  }
+  function salvarDadosContaDesktop() {
+    const uid = window.usuarioLogado ? window.usuarioLogado.id : firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+    if (!uid) {
+      alert("Erro: Usu\xE1rio n\xE3o identificado. Tente fazer login novamente.");
+      return;
+    }
+    const novosDados = {
+      nome: document.getElementById("pf-nome").value,
+      instagram: document.getElementById("pf-instagram").value,
+      whatsapp: document.getElementById("pf-whatsapp").value
+    };
+    db.ref("usuarios/" + uid).update(novosDados).then(() => {
+      window.usuarioLogado = { ...window.usuarioLogado, ...novosDados };
+      preencherPerfilLojista();
+      if (typeof lucide !== "undefined") lucide.createIcons();
+      alert("Perfil atualizado com sucesso!");
+    }).catch((error) => {
+      console.error("Erro ao salvar:", error);
       alert("Erro ao salvar: " + error.message);
     });
   }

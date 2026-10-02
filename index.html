@@ -352,26 +352,72 @@
             <i data-lucide="instagram" size="16"></i>
             <a class="user-instagram user-instagram-link" id="perfil-insta-display" href="#" target="_blank" rel="noopener noreferrer">instagram_user</a>
         </div>
+        <div class="perfil-contato-desktop">
+            <div class="perfil-contato-row"><i data-lucide="phone" size="14"></i><span id="perfil-whatsapp-display">--</span></div>
+            <div class="perfil-contato-row"><i data-lucide="mail" size="14"></i><span id="perfil-email-display">--</span></div>
+        </div>
     </div>
 
     <div class="perfil-content">
         <div class="perfil-section">
             <h3 class="section-label">Conta</h3>
             <div class="menu-group">
-                <div class="menu-item" onclick="abrirModalPerfil()">
+                <div class="menu-item accordion-item" id="acc-dados-conta-header" onclick="alternarAccordionDadosConta()">
     <div class="item-left">
         <i data-lucide="user"></i>
         <span>Dados da conta</span>
     </div>
     <i data-lucide="chevron-right" class="arrow" size="18"></i>
 </div>
-                <div class="menu-item" onclick="abrirModalEndereco()">
+                <div class="accordion-body hidden" id="acc-dados-conta-body">
+                    <div class="accordion-card">
+                        <div class="form-group">
+                            <label>Nome do Usuário</label>
+                            <div class="input-wrapper"><i data-lucide="user" size="18"></i><input type="text" id="pf-nome" placeholder="Seu nome"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Instagram</label>
+                            <div class="input-wrapper"><i data-lucide="at-sign" size="18"></i><input type="text" id="pf-instagram" placeholder="@sualoja"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>WhatsApp</label>
+                            <div class="input-wrapper"><i data-lucide="phone" size="18"></i><input type="tel" id="pf-whatsapp" placeholder="(00) 00000-0000"></div>
+                        </div>
+                        <button type="button" class="btn-main accordion-save-btn" onclick="salvarDadosContaDesktop()">Salvar Alterações</button>
+                    </div>
+                </div>
+                <div class="menu-item accordion-item" id="acc-endereco-header" onclick="alternarAccordionEndereco()">
     <div class="item-left">
         <i data-lucide="map-pin"></i>
         <span>Endereço</span>
     </div>
     <i data-lucide="chevron-right" size="18" class="arrow"></i>
 </div>
+                <div class="accordion-body hidden" id="acc-endereco-body">
+                    <div class="accordion-card">
+                        <div class="form-group">
+                            <label>CEP</label>
+                            <div class="input-wrapper"><i data-lucide="map-pin" size="18" style="color:#ccc;"></i><input type="tel" id="pf-end-cep" placeholder="00000-000" maxlength="9" oninput="this.value = this.value.replace(/\D/g, '').replace(/^(\d{5})(\d)/, '$1-$2'); agendarBuscaCepLojaDesktop(this.value)"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Rua / Logradouro</label>
+                            <div class="input-wrapper"><input type="text" id="pf-end-rua" placeholder="Nome da rua"></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                            <div class="form-group"><label>Número</label><div class="input-wrapper"><input type="text" id="pf-end-num" placeholder="123"></div></div>
+                            <div class="form-group"><label>Bairro</label><div class="input-wrapper"><input type="text" id="pf-end-bairro" placeholder="Seu bairro"></div></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:2fr 1fr; gap:12px;">
+                            <div class="form-group"><label>Cidade</label><div class="input-wrapper"><input type="text" id="pf-end-cidade" readonly style="color:#94a3b8;"></div></div>
+                            <div class="form-group"><label>UF</label><div class="input-wrapper"><input type="text" id="pf-end-uf" readonly style="color:#94a3b8; text-align:center;"></div></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Complemento</label>
+                            <div class="input-wrapper"><input type="text" id="pf-end-comp" placeholder="Apto, Bloco, etc."></div>
+                        </div>
+                        <button type="button" class="btn-main accordion-save-btn" onclick="salvarEnderecoDesktop()">Salvar Alterações</button>
+                    </div>
+                </div>
                 <div class="menu-item" onclick="abrirPagamento()">
                     <div class="item-left"><i data-lucide="credit-card"></i><span>Pagamento</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>

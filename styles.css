@@ -927,6 +927,92 @@ body.lojista-desktop-mode #modal-envio-detalhes .envio-sheet-modal {
 body.lojista-desktop-mode #modal-envio-detalhes .envio-sheet-handle { display: none !important; }
 body.lojista-desktop-mode #modal-envio-detalhes .sheet-header { position: static !important; }
 
+/* ===================== PERFIL DESKTOP (pedido do dono 2026-10-01) =====================
+   2 grupos: esquerda a lista "Conta"/"Suporte" (Dados da conta/Endereço
+   viram accordion — expande/recolhe local, com um card branco de pontas
+   arredondadas por dentro — em vez de abrir modal), direita o cartão de
+   perfil (foto/nome/badge/Instagram/WhatsApp/e-mail), sempre visível.
+   Os campos do accordion são NOVOS elementos (pf-nome, pf-end-cep etc),
+   não os do modal mobile (#overlay-perfil/#modal-endereco, que
+   continuam intactos — são compartilhados com o perfil do entregador,
+   não dá pra mover pra dentro de #view-perfil sem quebrar aquele lado).
+   alternarAccordionDadosConta()/alternarAccordionEndereco() só usam
+   esse accordion em desktop; no mobile continuam abrindo o modal de
+   sempre. */
+.perfil-contato-desktop { display: none; }
+
+body.lojista-desktop-mode .container:has(#view-perfil.active) {
+    max-width: none !important;
+    width: calc(100vw - 236px) !important;
+    margin-left: 236px !important;
+    padding: 24px 32px 60px !important;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#view-perfil.active) {
+    width: calc(100vw - 76px) !important;
+    margin-left: 76px !important;
+}
+body.lojista-desktop-mode #view-perfil {
+    display: grid !important;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    align-items: start;
+    max-width: 1040px;
+}
+body.lojista-desktop-mode #view-perfil .perfil-content {
+    order: 1;
+    margin-top: 0;
+    padding: 0;
+}
+body.lojista-desktop-mode #view-perfil .perfil-header {
+    order: 2;
+    background: #fff !important;
+    border: 1px solid #eef2f6;
+    border-radius: 16px;
+    padding: 28px 20px;
+    position: sticky;
+    top: 24px;
+}
+body.lojista-desktop-mode #view-perfil .perfil-contato-desktop {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #eef2f6;
+    text-align: left;
+}
+body.lojista-desktop-mode #view-perfil .perfil-contato-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #475569;
+    font-weight: 600;
+}
+body.lojista-desktop-mode #view-perfil .perfil-contato-row i { color: #94a3b8; flex-shrink: 0; }
+
+/* ---- Accordion (Dados da conta / Endereço) ---- */
+body.lojista-desktop-mode .accordion-item .arrow { transition: transform 0.18s ease; }
+body.lojista-desktop-mode .accordion-item.accordion-aberto .arrow { transform: rotate(90deg); }
+body.lojista-desktop-mode .accordion-body { background: #fff; padding: 16px 20px 20px; border-bottom: 1px solid #eef2f6; }
+body.lojista-desktop-mode .accordion-body:last-child { border-bottom: none; }
+body.lojista-desktop-mode .accordion-card {
+    background: #fff;
+    border: 1px solid #eef2f6;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 420px;
+}
+body.lojista-desktop-mode .accordion-save-btn {
+    margin-top: 4px;
+    width: auto !important;
+    align-self: flex-start;
+    padding: 12px 24px !important;
+}
+
 .ui-container { padding-left: 10px; padding-right: 10px; }
         .view { display: none !important; width: 100%; animation: slideIn 0.4s ease-out; }
         .view.active { display: block !important; }
