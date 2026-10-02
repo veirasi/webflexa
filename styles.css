@@ -451,6 +451,7 @@ body.lojista-desktop-mode .sheet-overlay {
     left: 236px !important;
     right: 0 !important;
     bottom: 0 !important;
+    height: auto !important;
     align-items: flex-start !important;
     justify-content: center !important;
     padding: 0 !important;
@@ -769,6 +770,7 @@ body.lojista-desktop-mode:has(#view-novo-envio.active):not(:has(#modal-envio-det
     left: auto !important;
     right: 0 !important;
     bottom: 0 !important;
+    height: auto !important;
     width: 400px !important;
     background: #f1f5f9 !important;
     border-left: 1px solid #e2e8f0 !important;
@@ -825,6 +827,7 @@ body.lojista-desktop-mode #modal-seletor-cliente {
     left: 236px !important;
     right: auto !important;
     bottom: 0 !important;
+    height: auto !important;
     width: 420px !important;
     background: #f1f5f9 !important;
     border-right: 1px solid #e2e8f0 !important;
@@ -880,6 +883,7 @@ body.lojista-desktop-mode #modal-envio-detalhes {
     left: 656px !important;
     right: 0 !important;
     bottom: 0 !important;
+    height: auto !important;
     width: auto !important;
     background: #f1f5f9 !important;
     align-items: flex-start !important;
