@@ -13256,6 +13256,39 @@ function abrirPagamento() {
     marcarSidebarLojaAtivoFinanceiro();
 }
 
+// Desktop (pedido do dono 2026-10-01): duas coisas que só dá pra acertar
+// medindo de verdade em JS (CSS puro não resolve, ver comentário em
+// styles.css junto de .pagamento-coluna-direita):
+// 1) o extrato (coluna direita) precisa ter EXATAMENTE a altura da
+//    coluna esquerda, pra rolar por dentro em vez de esticar sem limite
+//    com uma lista longa;
+// 2) "Salvar dados" (irmão de .pagamento-body no HTML — não pode entrar
+//    dentro da coluna, tiraria ele do botão fixo no mobile) precisa
+//    ficar logo depois do card Pix, não embaixo de tudo.
+// Recalculado toda vez que os dados carregam (a seção de dívida pode
+// aparecer/sumir e mudar essa altura) e no resize da janela.
+function posicionarFooterPagamentoDesktop() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) return;
+    const sheet = document.querySelector('.pagamento-sheet');
+    const esquerda = document.querySelector('.pagamento-coluna-esquerda');
+    const direita = document.querySelector('.pagamento-coluna-direita');
+    const footer = document.querySelector('#modal-pagamento .modal-footer-sticky');
+    if (!sheet || !esquerda || !direita || !footer) return;
+
+    if (direita) direita.style.height = '';
+    const esquerdaHeight = esquerda.getBoundingClientRect().height;
+    direita.style.height = Math.round(esquerdaHeight) + 'px';
+
+    const sheetTop = sheet.getBoundingClientRect().top;
+    const esquerdaBottom = esquerda.getBoundingClientRect().bottom;
+    footer.style.top = Math.round(esquerdaBottom - sheetTop + 20) + 'px';
+}
+window.addEventListener('resize', () => {
+    if (document.getElementById('modal-pagamento')?.classList.contains('is-open')) {
+        requestAnimationFrame(posicionarFooterPagamentoDesktop);
+    }
+});
+
 function fecharModalPagamento() {
     fecharModalSheetGenerico('modal-pagamento');
     resincronizarSidebarLojaComViewAtual();
@@ -13266,10 +13299,19 @@ function fecharModalPagamento() {
 // por cima da tela atual — sem isso, ativarMenuInferior (que só conhece
 // views via data-nav-target) nunca marcava esse item como ativo.
 function marcarSidebarLojaAtivoFinanceiro() {
+    marcarSidebarLojaAtivoPorId('loja-sidebar-link-financeiro');
+}
+
+// Suporte (pedido do dono 2026-10-01): mesmo problema do Financeiro, mas
+// abrirFaleConosco() também é chamada a partir do menu "Fale conosco" do
+// Perfil (onde o item ativo certo continua sendo Perfil) — por isso a
+// marcação fica no onclick do próprio link da sidebar, não dentro da
+// função compartilhada.
+function marcarSidebarLojaAtivoPorId(id) {
     const sidebar = document.getElementById('loja-sidebar');
     if (!sidebar) return;
     sidebar.querySelectorAll('.loja-sidebar-link').forEach((item) => item.classList.remove('active'));
-    document.getElementById('loja-sidebar-link-financeiro')?.classList.add('active');
+    document.getElementById(id)?.classList.add('active');
 }
 
 // Ao fechar o Financeiro, volta o destaque pra tela que já estava aberta
@@ -13357,6 +13399,7 @@ function abrirModalInfoPerfil(titulo, html) {
 
 function fecharModalInfoPerfil() {
     fecharModalSheetGenerico('modal-info-perfil');
+    resincronizarSidebarLojaComViewAtual();
 }
 
 function abrirAjuda() {
@@ -14053,6 +14096,7 @@ carregarDadosPagamento = async function carregarDadosPagamentoComExtrato() {
     await _carregarDadosPagamentoOriginal();
     await carregarExtratoPagamento();
     await carregarSaquesUsuario();
+    posicionarFooterPagamentoDesktop();
 };
 
 const _registrarTransacaoFinanceiraOriginal = registrarTransacaoFinanceira;
@@ -15536,6 +15580,7 @@ export {
   marcarNotificacaoLida,
   marcarRotaCanceladaSeVazia,
   marcarSaqueComoPago,
+  marcarSidebarLojaAtivoPorId,
   marcarTodasNotificacoesLidas,
   montarCardBuscaEntregador,
   montarCardHistoricoRotaEntregador,

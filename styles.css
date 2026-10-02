@@ -614,6 +614,7 @@ body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ 
 body.lojista-desktop-mode .pagamento-sheet {
     max-width: 1040px !important;
     padding: 8px 0 120px !important;
+    position: relative;
 }
 body.lojista-desktop-mode .pagamento-sheet-header {
     position: static !important;
@@ -635,27 +636,51 @@ body.lojista-desktop-mode .pagamento-coluna-esquerda {
     flex-direction: column;
     gap: 16px;
 }
-/* Extrato (pedido do dono 2026-10-01, 2ª correção — a 1ª esticava o
-   card pra acompanhar a coluna esquerda, mas sem altura própria isso
-   deixava o card crescer SEM LIMITE junto com o nº de transações, e
-   como "Salvar dados" fica fora da grade (depois das 2 colunas), ele
-   era empurrado pra baixo de TUDO — mesmo não tendo nada a ver com o
-   extrato. Agora cada coluna tem altura independente (align-items:
-   start): a esquerda termina logo depois do card Pix (onde "Salvar
-   dados" deve aparecer), e a lista do extrato tem um teto alto o
-   bastante pra não ficar baixinha com poucas transações, mas rolando
-   por dentro a partir daí em vez de esticar pra sempre. */
+/* Extrato (pedido do dono 2026-10-01, 3ª correção): precisa acompanhar
+   a altura real da coluna esquerda, rolando por dentro pra qualquer nº
+   de transações — mas align-items:stretch não dá: o grid calcula a
+   altura da linha a partir do maior conteúdo ANTES de esticar, então
+   com uma lista longa (sem altura própria) vira uma roda-viva (o grid
+   cresce pra caber a lista inteira, so depois estica — não limita
+   nada). A altura de .pagamento-coluna-direita por isso é escrita
+   direto em JS (ajustarLayoutPagamentoDesktop, chamado toda vez que os
+   dados carregam), copiando a altura medida da coluna esquerda — só
+   assim a lista (flex:1 + overflow-y:auto) tem um teto de verdade pra
+   rolar dentro. O "Salvar dados" (irmão de .pagamento-body no HTML —
+   não pode entrar dentro da coluna, tiraria ele do botão fixo do
+   mobile) usa a mesma medida pra virar position:absolute só embaixo da
+   coluna esquerda, sem virar uma faixa cortando a tela toda. */
+body.lojista-desktop-mode .pagamento-coluna-direita {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+body.lojista-desktop-mode .pagamento-coluna-direita .pagamento-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
+}
+body.lojista-desktop-mode .pagamento-coluna-direita .pagamento-extrato-head {
+    flex-shrink: 0;
+}
 body.lojista-desktop-mode .pagamento-coluna-direita .pagamento-extrato-list {
-    max-height: 640px;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
 }
 body.lojista-desktop-mode .pagamento-body .pagamento-section,
 body.lojista-desktop-mode .pagamento-body .pagamento-saldo-card { margin-bottom: 0; }
 body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky {
-    position: static !important;
-    max-width: 1040px;
+    position: absolute !important;
+    left: 0 !important;
+    width: calc(50% - 10px) !important;
+    max-width: none;
+    justify-content: flex-start !important;
 }
-body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky { justify-content: flex-start !important; }
 body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky .btn-salvar { flex: none !important; width: 360px !important; }
 
 /* ---- Suporte / Privacidade / Sobre (#modal-info-perfil): mesma moldura

@@ -11230,6 +11230,25 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     carregarDadosPagamento();
     marcarSidebarLojaAtivoFinanceiro();
   }
+  function posicionarFooterPagamentoDesktop() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) return;
+    const sheet = document.querySelector(".pagamento-sheet");
+    const esquerda = document.querySelector(".pagamento-coluna-esquerda");
+    const direita = document.querySelector(".pagamento-coluna-direita");
+    const footer = document.querySelector("#modal-pagamento .modal-footer-sticky");
+    if (!sheet || !esquerda || !direita || !footer) return;
+    if (direita) direita.style.height = "";
+    const esquerdaHeight = esquerda.getBoundingClientRect().height;
+    direita.style.height = Math.round(esquerdaHeight) + "px";
+    const sheetTop = sheet.getBoundingClientRect().top;
+    const esquerdaBottom = esquerda.getBoundingClientRect().bottom;
+    footer.style.top = Math.round(esquerdaBottom - sheetTop + 20) + "px";
+  }
+  window.addEventListener("resize", () => {
+    if (document.getElementById("modal-pagamento")?.classList.contains("is-open")) {
+      requestAnimationFrame(posicionarFooterPagamentoDesktop);
+    }
+  });
   function fecharModalPagamento() {
     fecharModalSheetGenerico("modal-pagamento");
     resincronizarSidebarLojaComViewAtual();
@@ -11913,6 +11932,7 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     await _carregarDadosPagamentoOriginal();
     await carregarExtratoPagamento();
     await carregarSaquesUsuario();
+    posicionarFooterPagamentoDesktop();
   };
   var _registrarTransacaoFinanceiraOriginal = registrarTransacaoFinanceira;
   registrarTransacaoFinanceira = async function registrarTransacaoFinanceiraComExtrato(tipo, valor, descricao = "") {
