@@ -257,15 +257,32 @@ body.lojista-desktop-mode:has(#view-rotas.active) .rota-detalhe-header { padding
 body.lojista-desktop-mode:has(#view-rotas.active) .rota-detalhe-footer { padding-top: 14px !important; }
 
 /* "Rastrear" (lista de rotas aberta por cima da tela Rotas) é o mesmo
-   .modal-perfil-overlay genérico (right:0, sheet centralizado a 640px) —
-   mas aqui o painel de detalhe fixo (#overlay-rota-detalhe, 424px) já
-   ocupa a direita, então os cards de rastrear ficavam indo por baixo
-   dele. Reserva o mesmo espaço à direita e usa a largura toda que sobra
-   em vez de centralizar a 640px. */
+   .modal-perfil-overlay genérico — mas aqui o painel de detalhe fixo
+   (#overlay-rota-detalhe, 424px) já ocupa a direita, então os cards de
+   rastrear iam por baixo dele. Reserva o mesmo espaço.
+   2ª correção (pedido do dono 2026-10-02): a 1ª versão só tirou o scroll
+   de dentro da LISTA, mas o OVERLAY continuava position:fixed com seu
+   próprio overflow-y — isso cria uma barra de rolagem própria na borda
+   do painel de detalhe, no MEIO da tela, em vez de usar a barra real do
+   navegador. position:static resolvia o scroll mas destruía o "cobre a
+   tela" (o conteúdo de Rotas por baixo ficava visível, empilhado antes
+   do Rastreamento). position:absolute é o meio-termo: continua fora do
+   fluxo (cobre #view-rotas por baixo, via z-index, igual o fixed fazia)
+   mas — como body é position:relative e NÃO tem bottom/height travando
+   a caixa — cresce com o conteúdo e o scroll que sobra vira scroll real
+   da página (mesma barra do navegador que o resto do app usa). */
 body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota {
-    right: 424px !important;
-    justify-content: flex-start !important;
-    overflow-x: hidden !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #f1f5f9 !important;
+    z-index: 600 !important;
 }
 body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .rastrear-sheet {
     max-width: none !important;
@@ -274,12 +291,21 @@ body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .rastre
     overflow: visible !important;
     padding: 24px 24px 40px 32px !important;
 }
-/* Sem scroll próprio no meio da lista (pedido do dono 2026-10-02) — o
-   overlay (.modal-perfil-overlay, já com overflow-y:auto pela regra
-   genérica) é o único container que rola; a lista cresce com os cards. */
 body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .rastrear-list {
     flex: none !important;
     overflow: visible !important;
+}
+/* Botão "Fechar" ficava com a altura de botão mobile (padding:18px da
+   .btn-main base, ~60px); pixel-lock igual já feito no botão "Salvar
+   dados" do Financeiro (mesmo motivo: altura de toque mobile não cabe
+   num botão de rodapé desktop). */
+body.lojista-desktop-mode:has(#view-rotas.active) #overlay-rastrear-rota .sheet-step-footer .btn-main {
+    height: 52px !important;
+    max-height: 52px !important;
+    min-height: 0 !important;
+    padding: 0 28px !important;
+    line-height: 52px !important;
+    box-sizing: border-box !important;
 }
 .loja-desktop-header-actions { display: flex; align-items: center; gap: 16px; }
 .loja-desktop-header-logo-img { height: 26px; width: auto; display: block; }
