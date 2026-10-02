@@ -473,6 +473,19 @@ function fecharModalEnvioDetalhes() {
 function abrirModalNovoCliente() {
     const modal = document.getElementById('modal-novo-cliente');
     if (!modal) return;
+
+    // Desktop: ocupa a coluna esquerda no lugar do seletor de clientes
+    // (conceito de 2 grupos da tela de Pedidos) — esconde o seletor sem
+    // tocar na coluna direita (form de envio), que continua do jeito que
+    // já estava (ver fecharModalNovoCliente, que desfaz isso).
+    if (document.body.classList.contains('lojista-desktop-mode')) {
+        const seletor = document.getElementById('modal-seletor-cliente');
+        if (seletor) {
+            seletor.classList.remove('is-open');
+            seletor.style.display = 'none';
+        }
+    }
+
     modal.style.display = 'flex';
     requestAnimationFrame(() => modal.classList.add('is-open'));
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -485,6 +498,22 @@ function fecharModalNovoCliente() {
     setTimeout(() => {
         modal.style.display = 'none';
     }, 250);
+
+    // Desktop: volta a mostrar o seletor de clientes na coluna esquerda
+    // (ver abrirModalNovoCliente, que o esconde ao abrir "Novo Cliente"/
+    // "Editar Cliente") — igual acontece ao escolher um cliente existente
+    // (selecionarClienteNoSheet), o seletor nunca fica fechado de verdade
+    // no desktop.
+    if (document.body.classList.contains('lojista-desktop-mode')) {
+        const seletor = document.getElementById('modal-seletor-cliente');
+        if (seletor) {
+            seletor.style.display = 'flex';
+            requestAnimationFrame(() => seletor.classList.add('is-open'));
+            if (typeof renderClientesSelector === 'function') {
+                renderClientesSelector(document.getElementById('buscar-cliente')?.value || '');
+            }
+        }
+    }
 }
 
 function abrirEditarCliente(id) {
@@ -11716,6 +11745,14 @@ function fecharSeletorCliente() {
 }
 
 function abrirNovoClientePeloSeletor() {
+    // Desktop: não fecha a tela toda (fecharSeletorCliente também fecharia
+    // a coluna direita do form de envio) — abrirModalNovoCliente já troca
+    // só a coluna esquerda sozinho, mantendo as 2 colunas da tela de
+    // Pedidos.
+    if (document.body.classList.contains('lojista-desktop-mode')) {
+        abrirNovoCliente();
+        return;
+    }
     fecharSeletorCliente();
     setTimeout(() => abrirNovoCliente(), 180);
 }
@@ -12780,7 +12817,13 @@ confirmarEnvioFinal = function confirmarEnvioFinalNovaHome() {
 
 const _abrirNovoClienteOriginal = abrirNovoCliente;
 abrirNovoCliente = function abrirNovoClienteComSheet() {
-    fecharSeletorCliente();
+    // Desktop: não fecha o sheet (fecharSeletorCliente fecharia também a
+    // coluna direita do form de envio) — abrirModalNovoCliente já troca só
+    // a coluna esquerda sozinho (ver conceito de 2 grupos em
+    // abrirNovoClientePeloSeletor).
+    if (!document.body.classList.contains('lojista-desktop-mode')) {
+        fecharSeletorCliente();
+    }
     _abrirNovoClienteOriginal();
 };
 

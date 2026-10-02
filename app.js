@@ -1094,6 +1094,13 @@
   function abrirModalNovoCliente() {
     const modal = document.getElementById("modal-novo-cliente");
     if (!modal) return;
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      const seletor = document.getElementById("modal-seletor-cliente");
+      if (seletor) {
+        seletor.classList.remove("is-open");
+        seletor.style.display = "none";
+      }
+    }
     modal.style.display = "flex";
     requestAnimationFrame(() => modal.classList.add("is-open"));
     if (typeof lucide !== "undefined") lucide.createIcons();
@@ -1105,6 +1112,16 @@
     setTimeout(() => {
       modal.style.display = "none";
     }, 250);
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      const seletor = document.getElementById("modal-seletor-cliente");
+      if (seletor) {
+        seletor.style.display = "flex";
+        requestAnimationFrame(() => seletor.classList.add("is-open"));
+        if (typeof renderClientesSelector === "function") {
+          renderClientesSelector(document.getElementById("buscar-cliente")?.value || "");
+        }
+      }
+    }
   }
   function abrirEditarCliente(id) {
     const cliente = clientes.find((c) => c.id === id);
@@ -9966,6 +9983,10 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
     }
   }
   function abrirNovoClientePeloSeletor() {
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      abrirNovoCliente();
+      return;
+    }
     fecharSeletorCliente();
     setTimeout(() => abrirNovoCliente(), 180);
   }
@@ -10855,7 +10876,9 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
   };
   var _abrirNovoClienteOriginal = abrirNovoCliente;
   abrirNovoCliente = function abrirNovoClienteComSheet() {
-    fecharSeletorCliente();
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      fecharSeletorCliente();
+    }
     _abrirNovoClienteOriginal();
   };
   renderClientes = function renderClientesRedirect(filtro = "") {

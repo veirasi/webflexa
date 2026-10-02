@@ -971,6 +971,54 @@ body.lojista-desktop-mode #modal-seletor-cliente .selector-sheet-footer {
     padding-top: 4px;
 }
 
+/* "Novo Cliente"/"Editar Cliente" (aberto de dentro do seletor) — pedido
+   do dono 2026-10-02: estava usando o tratamento genérico de
+   .modal-perfil-overlay (card centralizado flutuando no meio da tela,
+   cobrindo as 2 colunas da tela de Pedidos, com scroll próprio em vez do
+   scroll do navegador — "esta abrindo um card no meio da tela e tela
+   congelada nao rola"). Agora ocupa a MESMA coluna esquerda do seletor de
+   clientes — troca de CONTEÚDO (ver abrirModalNovoCliente/
+   fecharModalNovoCliente), não um modal por cima — a coluna direita (form
+   de envio) continua exatamente como estava, completando o conceito de 2
+   grupos também nesse estado. */
+body.lojista-desktop-mode #modal-novo-cliente {
+    position: fixed !important;
+    top: 64px !important;
+    left: 236px !important;
+    right: auto !important;
+    bottom: 0 !important;
+    height: auto !important;
+    width: 420px !important;
+    background: #f1f5f9 !important;
+    border-right: 1px solid #e2e8f0 !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    overflow-y: hidden !important;
+    z-index: 640 !important;
+    backdrop-filter: none !important;
+    transition: left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact #modal-novo-cliente { left: 76px !important; }
+body.lojista-desktop-mode #modal-novo-cliente .modal-perfil-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 1px solid #eef2f6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+    transform: none !important;
+    padding: 20px !important;
+}
+/* Barra de "arrastar" (mobile bottom-sheet) não faz sentido num painel
+   fixo lado a lado — mesmo tratamento já dado à .selector-sheet-handle. */
+body.lojista-desktop-mode #modal-novo-cliente .modal-perfil-sheet > div:first-child > div:first-child {
+    display: none !important;
+}
+
 body.lojista-desktop-mode #modal-envio-detalhes {
     position: fixed !important;
     top: 64px !important;
