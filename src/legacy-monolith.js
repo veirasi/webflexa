@@ -293,10 +293,14 @@ function preencherPerfilLojista() {
     const nomeEl = document.getElementById('perfil-nome-display');
     const instaEl = document.getElementById('perfil-insta-display');
     const fotoEl = document.getElementById('perfil-foto-display');
+    const whatsEl = document.getElementById('perfil-whatsapp-display');
+    const emailEl = document.getElementById('perfil-email-display');
 
     if (nomeEl) nomeEl.innerText = dados.nome || 'Usuário';
     aplicarLinkInstagram(instaEl, dados.instagram || '');
     aplicarFotoComPlaceholder(fotoEl, dados.foto || '');
+    if (whatsEl) whatsEl.innerText = dados.whatsapp || '--';
+    if (emailEl) emailEl.innerText = dados.email || firebase.auth().currentUser?.email || '--';
 }
 
 function preencherPerfilEntregador() {
@@ -11256,27 +11260,34 @@ function fecharModalEndereco() {
     }, 250);
 }
 
+// IDs dos campos do endereço: modal mobile (compartilhado com o perfil do
+// entregador) vs accordion novo do Perfil desktop (pedido do dono
+// 2026-10-01) — mesma lógica de busca/salvamento, só os elementos mudam.
+const ENDERECO_IDS_MODAL = { cep: 'end-cep', rua: 'end-rua', num: 'end-num', bairro: 'end-bairro', cidade: 'end-cidade', uf: 'end-uf', comp: 'end-comp' };
+const ENDERECO_IDS_DESKTOP = { cep: 'pf-end-cep', rua: 'pf-end-rua', num: 'pf-end-num', bairro: 'pf-end-bairro', cidade: 'pf-end-cidade', uf: 'pf-end-uf', comp: 'pf-end-comp' };
+
 // 3. BUSCA CEP (VERSÃO ?sNICA E COMPLETA)
 async function buscarCEP(valor, opts = {}) {
     const silencioso = Boolean(opts?.silencioso);
+    const ids = opts?.ids || ENDERECO_IDS_MODAL;
     const cep = valor.replace(/\D/g, '');
     if (cep.length !== 8) return null;
-    if (cep === ultimoCepLojaConsultado && document.getElementById('end-rua')?.value) return null;
+    if (cep === ultimoCepLojaConsultado && document.getElementById(ids.rua)?.value) return null;
     ultimoCepLojaConsultado = cep;
 
     // Feedback visual nos campos
-    const campoRua = document.getElementById('end-rua');
+    const campoRua = document.getElementById(ids.rua);
     campoRua.placeholder = "Buscando endereço...";
 
     try {
         const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const dados = await res.json();
         if (!dados.erro) {
-            document.getElementById('end-rua').value = dados.logradouro || '';
-            document.getElementById('end-bairro').value = dados.bairro || '';
-            document.getElementById('end-cidade').value = dados.localidade || '';
-            document.getElementById('end-uf').value = dados.uf || '';
-            document.getElementById('end-num').focus();
+            document.getElementById(ids.rua).value = dados.logradouro || '';
+            document.getElementById(ids.bairro).value = dados.bairro || '';
+            document.getElementById(ids.cidade).value = dados.localidade || '';
+            document.getElementById(ids.uf).value = dados.uf || '';
+            document.getElementById(ids.num).focus();
             return dados;
         }
         if (!silencioso) alert("CEP não encontrado.");
@@ -11297,28 +11308,38 @@ function agendarBuscaCepLoja(valor) {
     }, 260);
 }
 
+function agendarBuscaCepLojaDesktop(valor) {
+    const cep = (valor || '').replace(/\D/g, '');
+    if (cepLojaDebounceTimerDesktop) clearTimeout(cepLojaDebounceTimerDesktop);
+    if (cep.length !== 8) return;
+    cepLojaDebounceTimerDesktop = setTimeout(() => {
+        buscarCEP(cep, { silencioso: true, ids: ENDERECO_IDS_DESKTOP });
+    }, 260);
+}
+let cepLojaDebounceTimerDesktop = null;
+
 document.getElementById('end-cep')?.addEventListener('input', function (e) {
     agendarBuscaCepLoja(e.target.value);
 });
 
 // 4. SALVA NO FIREBASE
-async function salvarEndereco() {
+async function salvarEnderecoComIds(ids, aoSalvar) {
     // Identifica o UID de forma segura
     const uid = window.usuarioLogado?.id || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
-    
+
     if (!uid) {
         alert("Erro: Usuário não identificado.");
         return;
     }
 
     const endereco = {
-        cep: formatarCep(document.getElementById('end-cep').value),
-        rua: (document.getElementById('end-rua').value || '').trim(),
-        num: (document.getElementById('end-num').value || '').trim(),
-        bairro: (document.getElementById('end-bairro').value || '').trim(),
-        cidade: (document.getElementById('end-cidade').value || '').trim(),
-        uf: normalizarUf(document.getElementById('end-uf').value),
-        comp: (document.getElementById('end-comp').value || '').trim()
+        cep: formatarCep(document.getElementById(ids.cep).value),
+        rua: (document.getElementById(ids.rua).value || '').trim(),
+        num: (document.getElementById(ids.num).value || '').trim(),
+        bairro: (document.getElementById(ids.bairro).value || '').trim(),
+        cidade: (document.getElementById(ids.cidade).value || '').trim(),
+        uf: normalizarUf(document.getElementById(ids.uf).value),
+        comp: (document.getElementById(ids.comp).value || '').trim()
     };
     endereco.estado = endereco.uf;
 
@@ -11341,11 +11362,108 @@ async function salvarEndereco() {
             atualizarLocalColetaDinamico();
             renderizarDashboard(window.usuarioLogado || {});
 
-            fecharModalEndereco();
+            aoSalvar();
             alert("Endereço atualizado com sucesso!");
         })
         .catch(error => {
             console.error("Erro ao salvar endereço:", error);
+            alert("Erro ao salvar: " + error.message);
+        });
+}
+
+function salvarEndereco() {
+    return salvarEnderecoComIds(ENDERECO_IDS_MODAL, fecharModalEndereco);
+}
+
+// Perfil desktop (pedido do dono 2026-10-01): "Dados da conta" e
+// "Endereço" viram accordion em vez de abrir modal — expande/recolhe
+// local, com os MESMOS campos/lógica de salvar do modal mobile, só em
+// elementos novos (ver ENDERECO_IDS_DESKTOP). No mobile essas funções
+// nem são chamadas: alternarAccordionDadosConta/Endereco() abrem o modal
+// de sempre fora do modo desktop.
+function salvarEnderecoDesktop() {
+    return salvarEnderecoComIds(ENDERECO_IDS_DESKTOP, () => {});
+}
+
+function preencherCamposEnderecoDesktop() {
+    const end = window.usuarioLogado?.endereco;
+    if (!end) return;
+    document.getElementById('pf-end-cep').value = end.cep || '';
+    document.getElementById('pf-end-rua').value = end.rua || '';
+    document.getElementById('pf-end-num').value = end.num || '';
+    document.getElementById('pf-end-bairro').value = end.bairro || '';
+    document.getElementById('pf-end-cidade').value = end.cidade || '';
+    document.getElementById('pf-end-uf').value = end.uf || '';
+    document.getElementById('pf-end-comp').value = end.comp || '';
+    const cep = formatarCep(end.cep || '');
+    const faltandoCamposBase = !end.rua || !end.bairro || !end.cidade || !end.uf;
+    if (cep && faltandoCamposBase) buscarCEP(cep, { silencioso: true, ids: ENDERECO_IDS_DESKTOP });
+}
+
+function alternarAccordionEndereco() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) {
+        abrirModalEndereco();
+        return;
+    }
+    const header = document.getElementById('acc-endereco-header');
+    const body = document.getElementById('acc-endereco-body');
+    if (!header || !body) return;
+    const abrindo = body.classList.contains('hidden');
+    header.classList.toggle('accordion-aberto', abrindo);
+    body.classList.toggle('hidden', !abrindo);
+    if (abrindo) {
+        preencherCamposEnderecoDesktop();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+function preencherCamposDadosContaDesktop() {
+    const user = window.usuarioLogado;
+    if (!user) return;
+    document.getElementById('pf-nome').value = user.nome || '';
+    document.getElementById('pf-instagram').value = user.instagram || '';
+    document.getElementById('pf-whatsapp').value = user.whatsapp || '';
+}
+
+function alternarAccordionDadosConta() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) {
+        abrirModalPerfil();
+        return;
+    }
+    const header = document.getElementById('acc-dados-conta-header');
+    const body = document.getElementById('acc-dados-conta-body');
+    if (!header || !body) return;
+    const abrindo = body.classList.contains('hidden');
+    header.classList.toggle('accordion-aberto', abrindo);
+    body.classList.toggle('hidden', !abrindo);
+    if (abrindo) {
+        preencherCamposDadosContaDesktop();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+function salvarDadosContaDesktop() {
+    const uid = window.usuarioLogado ? window.usuarioLogado.id : (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+    if (!uid) {
+        alert("Erro: Usuário não identificado. Tente fazer login novamente.");
+        return;
+    }
+
+    const novosDados = {
+        nome: document.getElementById('pf-nome').value,
+        instagram: document.getElementById('pf-instagram').value,
+        whatsapp: document.getElementById('pf-whatsapp').value
+    };
+
+    db.ref('usuarios/' + uid).update(novosDados)
+        .then(() => {
+            window.usuarioLogado = { ...window.usuarioLogado, ...novosDados };
+            preencherPerfilLojista();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            alert("Perfil atualizado com sucesso!");
+        })
+        .catch(error => {
+            console.error("Erro ao salvar:", error);
             alert("Erro ao salvar: " + error.message);
         });
 }
@@ -13402,8 +13520,8 @@ function fecharModalInfoPerfil() {
     resincronizarSidebarLojaComViewAtual();
 }
 
-function abrirAjuda() {
-    abrirModalInfoPerfil('Central de ajuda', `
+function htmlCentralAjuda() {
+    return `
         <div class="info-card">
             <h4>Perguntas frequentes</h4>
             <ul>
@@ -13418,7 +13536,38 @@ function abrirAjuda() {
             <p>Horario: segunda a sexta, 08h as 18h.</p>
             <p>Tempo medio de resposta: ate 15 minutos em horario comercial.</p>
         </div>
-    `);
+    `;
+}
+
+function abrirAjuda() {
+    abrirModalInfoPerfil('Central de ajuda', htmlCentralAjuda());
+}
+
+// Perfil desktop (pedido do dono 2026-10-01): mesmo tratamento accordion
+// de Dados da conta/Endereço, agora pra Suporte inteiro — reaproveita o
+// MESMO html gerado pros modais mobile (htmlCentralAjuda/htmlFaleConosco/
+// etc), só injeta num container novo em vez do modal. Como o modal mobile
+// (#info-perfil-body) só é populado quando abrirAjuda()/abrirFaleConosco()
+// etc são chamadas de verdade (o que só acontece fora do modo desktop),
+// não existe risco de 2 elementos com o mesmo id vivos ao mesmo tempo.
+function alternarAccordionGenerico(headerId, bodyId, conteudoId, gerarHtml, aoAbrir) {
+    const header = document.getElementById(headerId);
+    const body = document.getElementById(bodyId);
+    const conteudo = document.getElementById(conteudoId);
+    if (!header || !body || !conteudo) return;
+    const abrindo = body.classList.contains('hidden');
+    header.classList.toggle('accordion-aberto', abrindo);
+    body.classList.toggle('hidden', !abrindo);
+    if (abrindo) {
+        conteudo.innerHTML = gerarHtml();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        if (aoAbrir) aoAbrir();
+    }
+}
+
+function alternarAccordionAjuda() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) { abrirAjuda(); return; }
+    alternarAccordionGenerico('acc-ajuda-header', 'acc-ajuda-body', 'acc-ajuda-conteudo', htmlCentralAjuda);
 }
 
 // ===== [SUPORTE / CHAMADOS] (pedido do dono 2026-09-29) =====
@@ -13429,8 +13578,8 @@ function abrirAjuda() {
 const SUPORTE_WHATSAPP_NUMERO = '5585981632349';
 const SUPORTE_EMAIL = 'suporte@flexapp.com.br';
 
-function abrirFaleConosco() {
-    abrirModalInfoPerfil('Suporte', `
+function htmlFaleConosco() {
+    return `
         <div class="info-card">
             <h4>Abrir chamado</h4>
             <p class="admin-subtle">Escolha o tipo de suporte, descreva o problema e anexe print se puder — ajuda a agilizar.</p>
@@ -13452,8 +13601,17 @@ function abrirFaleConosco() {
             <h4>Meus chamados</h4>
             <div id="meus-chamados-lista"><p class="admin-subtle">Carregando...</p></div>
         </div>
-    `);
+    `;
+}
+
+function abrirFaleConosco() {
+    abrirModalInfoPerfil('Suporte', htmlFaleConosco());
     renderMeusChamadosSuporte();
+}
+
+function alternarAccordionSuporteChamados() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) { abrirFaleConosco(); return; }
+    alternarAccordionGenerico('acc-suporte-header', 'acc-suporte-body', 'acc-suporte-conteudo', htmlFaleConosco, renderMeusChamadosSuporte);
 }
 
 async function enviarChamadoSuporte() {
@@ -13554,8 +13712,8 @@ async function renderMeusChamadosSuporte() {
 }
 
 // ===== [PRIVACIDADE / LGPD] =====
-function abrirPrivacidadeLgpd() {
-    abrirModalInfoPerfil('Privacidade e LGPD', `
+function htmlPrivacidadeLgpd() {
+    return `
         <div class="info-card">
             <h4>Como usamos seus dados</h4>
             <p>Coletamos nome, contato, endereço e dados de uso do app pra operar entregas: montar rotas, calcular fretes, processar pagamentos e viabilizar o rastreio dos pedidos. Não vendemos seus dados a terceiros.</p>
@@ -13571,7 +13729,16 @@ function abrirPrivacidadeLgpd() {
             <p class="admin-subtle">Abre um chamado pedindo a exclusão — nossa equipe confirma e executa manualmente, garantindo que nenhuma rota/pagamento em andamento seja perdido sem querer.</p>
             <button type="button" class="btn-main" style="width:auto;" onclick="solicitarExclusaoDadosLgpd()"><i data-lucide="trash-2" size="16"></i> Solicitar exclusão dos meus dados</button>
         </div>
-    `);
+    `;
+}
+
+function abrirPrivacidadeLgpd() {
+    abrirModalInfoPerfil('Privacidade e LGPD', htmlPrivacidadeLgpd());
+}
+
+function alternarAccordionLgpd() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) { abrirPrivacidadeLgpd(); return; }
+    alternarAccordionGenerico('acc-lgpd-header', 'acc-lgpd-body', 'acc-lgpd-conteudo', htmlPrivacidadeLgpd);
 }
 
 function baixarMeusDadosLgpd() {
@@ -13600,8 +13767,8 @@ async function solicitarExclusaoDadosLgpd() {
     }
 }
 
-function abrirSobre() {
-    abrirModalInfoPerfil('Sobre a Flex Log', `
+function htmlSobre() {
+    return `
         <div class="info-card">
             <h4>Nossa proposta</h4>
             <p>A Flex Log conecta lojistas e entregadores para operacao de envios urbanos com foco em agilidade, transparencia e controle em tempo real.</p>
@@ -13612,7 +13779,16 @@ function abrirSobre() {
             <p>Flex Log • MVP validacao</p>
             <p>Atualizacao: ${new Date().toLocaleDateString('pt-BR')}</p>
         </div>
-    `);
+    `;
+}
+
+function abrirSobre() {
+    abrirModalInfoPerfil('Sobre a Flex Log', htmlSobre());
+}
+
+function alternarAccordionSobre() {
+    if (!document.body.classList.contains('lojista-desktop-mode')) { abrirSobre(); return; }
+    alternarAccordionGenerico('acc-sobre-header', 'acc-sobre-body', 'acc-sobre-conteudo', htmlSobre);
 }
 
 function formatarDataExtrato(ts) {
@@ -15348,8 +15524,15 @@ export {
   adminSalvarRotas,
   agendarBuscaCepCliente,
   agendarBuscaCepLoja,
+  agendarBuscaCepLojaDesktop,
   ajustarSaldoUsuario,
   alternarAbaRotasEntregador,
+  alternarAccordionAjuda,
+  alternarAccordionDadosConta,
+  alternarAccordionEndereco,
+  alternarAccordionLgpd,
+  alternarAccordionSobre,
+  alternarAccordionSuporteChamados,
   alternarAtivoBannerAdmin,
   alternarAuth,
   alternarClienteAuthTab,
@@ -15698,9 +15881,11 @@ export {
   rotuloStatusEnvio,
   sairClienteRastreio,
   salvarBannerAdmin,
+  salvarDadosContaDesktop,
   salvarDadosPagamento,
   salvarEdicaoDestinoEnvio,
   salvarEndereco,
+  salvarEnderecoDesktop,
   salvarMetaDiaEntregador,
   salvarNovoCliente,
   salvarPerfil,

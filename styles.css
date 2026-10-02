@@ -1004,7 +1004,20 @@ body.lojista-desktop-mode .accordion-card {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    max-width: 420px;
+    width: 100%;
+}
+/* Suporte/Ajuda/LGPD/Sobre reaproveitam o mesmo .info-card do modal
+   mobile dentro do accordion — sem achatar, ficaria card dentro de
+   card (borda+sombra duplicada). */
+body.lojista-desktop-mode .accordion-card .info-card {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
+}
+body.lojista-desktop-mode .accordion-card .info-card + .info-card {
+    padding-top: 14px;
+    border-top: 1px solid #eef2f6;
 }
 body.lojista-desktop-mode .accordion-save-btn {
     margin-top: 4px;

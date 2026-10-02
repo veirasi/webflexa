@@ -428,21 +428,33 @@
         <div class="perfil-section">
             <h3 class="section-label">Suporte</h3>
             <div class="menu-group">
-                <div class="menu-item" onclick="abrirAjuda()">
+                <div class="menu-item accordion-item" id="acc-ajuda-header" onclick="alternarAccordionAjuda()">
                     <div class="item-left"><i data-lucide="help-circle"></i><span>Central de ajuda</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
-                <div class="menu-item" onclick="abrirFaleConosco()">
+                <div class="accordion-body hidden" id="acc-ajuda-body">
+                    <div class="accordion-card" id="acc-ajuda-conteudo"></div>
+                </div>
+                <div class="menu-item accordion-item" id="acc-suporte-header" onclick="alternarAccordionSuporteChamados()">
                     <div class="item-left"><i data-lucide="message-square"></i><span>Fale conosco</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
-                <div class="menu-item" onclick="abrirPrivacidadeLgpd()">
+                <div class="accordion-body hidden" id="acc-suporte-body">
+                    <div class="accordion-card" id="acc-suporte-conteudo"></div>
+                </div>
+                <div class="menu-item accordion-item" id="acc-lgpd-header" onclick="alternarAccordionLgpd()">
                     <div class="item-left"><i data-lucide="shield-check"></i><span>Privacidade e LGPD</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
                 </div>
-                <div class="menu-item" onclick="abrirSobre()">
+                <div class="accordion-body hidden" id="acc-lgpd-body">
+                    <div class="accordion-card" id="acc-lgpd-conteudo"></div>
+                </div>
+                <div class="menu-item accordion-item" id="acc-sobre-header" onclick="alternarAccordionSobre()">
                     <div class="item-left"><i data-lucide="info"></i><span>Sobre a Flex Log</span></div>
                     <i data-lucide="chevron-right" size="18" class="arrow"></i>
+                </div>
+                <div class="accordion-body hidden" id="acc-sobre-body">
+                    <div class="accordion-card" id="acc-sobre-conteudo"></div>
                 </div>
             </div>
         </div>

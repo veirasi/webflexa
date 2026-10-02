@@ -64,8 +64,12 @@
     agendarBuscaCepLojaDesktop: () => agendarBuscaCepLojaDesktop,
     ajustarSaldoUsuario: () => ajustarSaldoUsuario,
     alternarAbaRotasEntregador: () => alternarAbaRotasEntregador,
+    alternarAccordionAjuda: () => alternarAccordionAjuda,
     alternarAccordionDadosConta: () => alternarAccordionDadosConta,
     alternarAccordionEndereco: () => alternarAccordionEndereco,
+    alternarAccordionLgpd: () => alternarAccordionLgpd,
+    alternarAccordionSobre: () => alternarAccordionSobre,
+    alternarAccordionSuporteChamados: () => alternarAccordionSuporteChamados,
     alternarAtivoBannerAdmin: () => alternarAtivoBannerAdmin,
     alternarAuth: () => alternarAuth,
     alternarClienteAuthTab: () => alternarClienteAuthTab,
@@ -11438,8 +11442,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     fecharModalSheetGenerico("modal-info-perfil");
     resincronizarSidebarLojaComViewAtual();
   }
-  function abrirAjuda() {
-    abrirModalInfoPerfil("Central de ajuda", `
+  function htmlCentralAjuda() {
+    return `
         <div class="info-card">
             <h4>Perguntas frequentes</h4>
             <ul>
@@ -11454,12 +11458,36 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
             <p>Horario: segunda a sexta, 08h as 18h.</p>
             <p>Tempo medio de resposta: ate 15 minutos em horario comercial.</p>
         </div>
-    `);
+    `;
+  }
+  function abrirAjuda() {
+    abrirModalInfoPerfil("Central de ajuda", htmlCentralAjuda());
+  }
+  function alternarAccordionGenerico(headerId, bodyId, conteudoId, gerarHtml, aoAbrir) {
+    const header = document.getElementById(headerId);
+    const body = document.getElementById(bodyId);
+    const conteudo = document.getElementById(conteudoId);
+    if (!header || !body || !conteudo) return;
+    const abrindo = body.classList.contains("hidden");
+    header.classList.toggle("accordion-aberto", abrindo);
+    body.classList.toggle("hidden", !abrindo);
+    if (abrindo) {
+      conteudo.innerHTML = gerarHtml();
+      if (typeof lucide !== "undefined") lucide.createIcons();
+      if (aoAbrir) aoAbrir();
+    }
+  }
+  function alternarAccordionAjuda() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      abrirAjuda();
+      return;
+    }
+    alternarAccordionGenerico("acc-ajuda-header", "acc-ajuda-body", "acc-ajuda-conteudo", htmlCentralAjuda);
   }
   var SUPORTE_WHATSAPP_NUMERO = "5585981632349";
   var SUPORTE_EMAIL = "suporte@flexapp.com.br";
-  function abrirFaleConosco() {
-    abrirModalInfoPerfil("Suporte", `
+  function htmlFaleConosco() {
+    return `
         <div class="info-card">
             <h4>Abrir chamado</h4>
             <p class="admin-subtle">Escolha o tipo de suporte, descreva o problema e anexe print se puder \u2014 ajuda a agilizar.</p>
@@ -11481,8 +11509,18 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
             <h4>Meus chamados</h4>
             <div id="meus-chamados-lista"><p class="admin-subtle">Carregando...</p></div>
         </div>
-    `);
+    `;
+  }
+  function abrirFaleConosco() {
+    abrirModalInfoPerfil("Suporte", htmlFaleConosco());
     renderMeusChamadosSuporte();
+  }
+  function alternarAccordionSuporteChamados() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      abrirFaleConosco();
+      return;
+    }
+    alternarAccordionGenerico("acc-suporte-header", "acc-suporte-body", "acc-suporte-conteudo", htmlFaleConosco, renderMeusChamadosSuporte);
   }
   async function enviarChamadoSuporte() {
     const categoriaEl = document.getElementById("chamado-categoria");
@@ -11569,8 +11607,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       wrap.innerHTML = '<p class="admin-subtle">N\xE3o foi poss\xEDvel carregar seus chamados agora.</p>';
     }
   }
-  function abrirPrivacidadeLgpd() {
-    abrirModalInfoPerfil("Privacidade e LGPD", `
+  function htmlPrivacidadeLgpd() {
+    return `
         <div class="info-card">
             <h4>Como usamos seus dados</h4>
             <p>Coletamos nome, contato, endere\xE7o e dados de uso do app pra operar entregas: montar rotas, calcular fretes, processar pagamentos e viabilizar o rastreio dos pedidos. N\xE3o vendemos seus dados a terceiros.</p>
@@ -11586,7 +11624,17 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
             <p class="admin-subtle">Abre um chamado pedindo a exclus\xE3o \u2014 nossa equipe confirma e executa manualmente, garantindo que nenhuma rota/pagamento em andamento seja perdido sem querer.</p>
             <button type="button" class="btn-main" style="width:auto;" onclick="solicitarExclusaoDadosLgpd()"><i data-lucide="trash-2" size="16"></i> Solicitar exclus\xE3o dos meus dados</button>
         </div>
-    `);
+    `;
+  }
+  function abrirPrivacidadeLgpd() {
+    abrirModalInfoPerfil("Privacidade e LGPD", htmlPrivacidadeLgpd());
+  }
+  function alternarAccordionLgpd() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      abrirPrivacidadeLgpd();
+      return;
+    }
+    alternarAccordionGenerico("acc-lgpd-header", "acc-lgpd-body", "acc-lgpd-conteudo", htmlPrivacidadeLgpd);
   }
   function baixarMeusDadosLgpd() {
     const dados = window.usuarioLogado || {};
@@ -11612,8 +11660,8 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       alert("N\xE3o foi poss\xEDvel enviar o pedido agora. Tente de novo ou chame no WhatsApp.");
     }
   }
-  function abrirSobre() {
-    abrirModalInfoPerfil("Sobre a Flex Log", `
+  function htmlSobre() {
+    return `
         <div class="info-card">
             <h4>Nossa proposta</h4>
             <p>A Flex Log conecta lojistas e entregadores para operacao de envios urbanos com foco em agilidade, transparencia e controle em tempo real.</p>
@@ -11624,7 +11672,17 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
             <p>Flex Log \u2022 MVP validacao</p>
             <p>Atualizacao: ${(/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR")}</p>
         </div>
-    `);
+    `;
+  }
+  function abrirSobre() {
+    abrirModalInfoPerfil("Sobre a Flex Log", htmlSobre());
+  }
+  function alternarAccordionSobre() {
+    if (!document.body.classList.contains("lojista-desktop-mode")) {
+      abrirSobre();
+      return;
+    }
+    alternarAccordionGenerico("acc-sobre-header", "acc-sobre-body", "acc-sobre-conteudo", htmlSobre);
   }
   function formatarDataExtrato(ts) {
     const data = Number(ts || 0);
