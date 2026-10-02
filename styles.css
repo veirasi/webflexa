@@ -601,14 +601,15 @@ body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ 
     justify-content: center !important;
 }
 
-/* ---- Financeiro (Pagamento): 2 colunas, pedido do dono 2026-10-01 ----
-   Esquerda: saldo + dívida (se houver) + formulários (saque, dados
-   bancários, Pix) empilhados. Direita: extrato de transações, que pode
-   crescer bastante e merece sua própria coluna ao lado dos formulários
-   em vez de empurrar tudo pra baixo numa coluna só. grid-template-areas
-   fixa o layout independente de qual seção está visível (a dívida, por
-   ex., some quando não há débito — a trilha dela só encolhe, não quebra
-   o restante). */
+/* ---- Financeiro (Pagamento): 2 GRUPOS de verdade, pedido do dono
+   2026-10-01 (2ª correção — a versão anterior usava grid-template-areas
+   com "saldo"/"dívida" ocupando as 2 colunas inteiras, o que quebrava a
+   separação visual em 2 grupos independentes: a tag de saldo ficava
+   larga feito a tela toda, sem alinhar com os cards mais estreitos
+   embaixo. Agora são 2 containers de verdade lado a lado — esquerda:
+   título+saldo+dívida(se houver)+saque+bancários+Pix, tudo empilhado
+   dentro do MESMO grupo; direita: só o extrato, grupo totalmente
+   separado — igual Rotas (lista|detalhe) e Pedidos (lista|detalhe). */
 body.lojista-desktop-mode .pagamento-sheet {
     max-width: 1040px !important;
     padding: 8px 0 120px !important;
@@ -625,21 +626,18 @@ body.lojista-desktop-mode .pagamento-body {
     overflow: visible !important;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-        "saldo saldo"
-        "divida divida"
-        "saque extrato"
-        "banco extrato"
-        "pix extrato";
     gap: 20px;
     align-items: start;
 }
-body.lojista-desktop-mode .pagamento-body > div:nth-child(1) { grid-area: saldo; }
-body.lojista-desktop-mode .pagamento-body > div:nth-child(2) { grid-area: divida; }
-body.lojista-desktop-mode .pagamento-body > div:nth-child(3) { grid-area: saque; }
-body.lojista-desktop-mode .pagamento-body > div:nth-child(4) { grid-area: banco; }
-body.lojista-desktop-mode .pagamento-body > div:nth-child(5) { grid-area: pix; }
-body.lojista-desktop-mode .pagamento-body > div:nth-child(6) { grid-area: extrato; }
+body.lojista-desktop-mode .pagamento-coluna-esquerda {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+body.lojista-desktop-mode .pagamento-coluna-direita {
+    display: flex;
+    flex-direction: column;
+}
 body.lojista-desktop-mode .pagamento-body .pagamento-section,
 body.lojista-desktop-mode .pagamento-body .pagamento-saldo-card { margin-bottom: 0; }
 body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky {
@@ -2222,6 +2220,7 @@ body.lojista-desktop-mode #modal-envio-detalhes .sheet-header { position: static
    (display:contents não gera caixa própria). */
 .envio-desktop-header { display: none; }
 #envio-detalhe-conteudo, #envio-detalhes-conteudo { display: contents; }
+.pagamento-coluna-esquerda, .pagamento-coluna-direita { display: contents; }
 
 .envio-cta {
     width: 100%;
