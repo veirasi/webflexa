@@ -11564,6 +11564,18 @@ function salvarDadosContaDesktop() {
 
 /* ===== New Envio Home + Client Sheet ===== */
 async function abrirSeletorCliente() {
+    // Bloqueio (pedido do dono 2026-10-02): sem endereço da loja cadastrado
+    // não tem de onde a coleta parte (geocodificação/cálculo de rota
+    // dependem disso) — barra a criação do pedido aqui, antes de deixar o
+    // lojista preencher cliente/pacote pra só travar depois, e manda ele
+    // completar o cadastro em vez de só mostrar um erro.
+    const enderecoLoja = window.usuarioLogado?.endereco || {};
+    if (!String(enderecoLoja.rua || '').trim() || !String(enderecoLoja.cidade || '').trim()) {
+        alert('Você ainda não tem um endereço cadastrado. Por favor, complete seu cadastro.');
+        irParaPerfil();
+        return;
+    }
+
     // Bloqueio parcial (pedido do dono 2026-09-25): enquanto o lojista deve
     // uma taxa de espera/subida a algum entregador, "Novo Envio" fica
     // travado — o resto do app continua funcionando normal. Desbloqueia

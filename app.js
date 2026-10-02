@@ -9844,6 +9844,12 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     });
   }
   async function abrirSeletorCliente() {
+    const enderecoLoja = window.usuarioLogado?.endereco || {};
+    if (!String(enderecoLoja.rua || "").trim() || !String(enderecoLoja.cidade || "").trim()) {
+      alert("Voc\xEA ainda n\xE3o tem um endere\xE7o cadastrado. Por favor, complete seu cadastro.");
+      irParaPerfil();
+      return;
+    }
     const bloqueio = await obterBloqueioNovoEnvioPorDividaEntregador();
     if (bloqueio) {
       alert(`Voc\xEA tem uma taxa de espera/subida pendente com ${bloqueio.entregadorNome} (${precoParaMoeda(bloqueio.valor)}).
