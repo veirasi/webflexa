@@ -688,10 +688,13 @@ body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky {
 body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky .btn-salvar {
     flex: none !important;
     width: 360px !important;
-    height: auto !important;
+    height: 52px !important;
+    max-height: 52px !important;
     min-height: 0 !important;
-    padding: 14px 0 !important;
-    line-height: 1.2 !important;
+    box-sizing: border-box !important;
+    padding: 0 20px !important;
+    line-height: 52px !important;
+    font-size: 15px !important;
 }
 
 /* ---- Suporte / Privacidade / Sobre (#modal-info-perfil): mesma moldura
