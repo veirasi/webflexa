@@ -679,9 +679,20 @@ body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky {
     left: 0 !important;
     width: calc(50% - 10px) !important;
     max-width: none;
+    background: transparent !important;
+    border-top: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
     justify-content: flex-start !important;
 }
-body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky .btn-salvar { flex: none !important; width: 360px !important; }
+body.lojista-desktop-mode #modal-pagamento .modal-footer-sticky .btn-salvar {
+    flex: none !important;
+    width: 360px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 14px 0 !important;
+    line-height: 1.2 !important;
+}
 
 /* ---- Suporte / Privacidade / Sobre (#modal-info-perfil): mesma moldura
    achatada acima, só um pouco mais largo que um formulário puro (texto +
