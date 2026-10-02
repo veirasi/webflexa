@@ -211,6 +211,51 @@ body.lojista-desktop-mode .loja-desktop-header {
 }
 body.lojista-desktop-mode.loja-sidebar-compact .loja-desktop-header { left: 76px; }
 
+/* Painel de notificações: dropdown flutuante perto do sino (pedido do
+   dono 2026-10-02: "crie um grupo flutuante abrindo um retângulo próximo
+   ao sino de notificações ao invés desse grupo que tá ali em baixo no
+   meio") — antes usava o mesmo bottom-sheet escuro cobrindo o centro da
+   tela que o mobile usa. O overlay continua cobrindo a tela inteira
+   (fica invisível) só pra clique-fora continuar fechando (mesmo
+   onclick="fecharPainelNotificacoes()" de sempre, sem precisar de JS
+   novo) — só o cartão visível (.tracking-shell/.tracking-sheet) é que
+   fica pequeno e ancorado no canto superior direito, mesmo espírito do
+   dropdown de notificações do Painel Master (.admin-notif-panel). 28px é
+   o mesmo padding horizontal de .loja-desktop-header, então o cartão
+   alinha exatamente embaixo do sino. */
+body.lojista-desktop-mode #overlay-notificacoes {
+    position: fixed !important;
+    top: 0 !important;
+    left: 236px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    height: auto !important;
+    width: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    align-items: flex-start !important;
+    justify-content: flex-end !important;
+    padding: 72px 28px 0 0 !important;
+    z-index: 900 !important;
+    transition: left 0.18s ease;
+}
+body.lojista-desktop-mode.loja-sidebar-compact #overlay-notificacoes { left: 76px !important; }
+body.lojista-desktop-mode #overlay-notificacoes .tracking-shell {
+    width: 360px !important;
+    height: auto !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+}
+body.lojista-desktop-mode #overlay-notificacoes .tracking-sheet {
+    max-width: 360px !important;
+    width: 100% !important;
+    border-radius: 16px !important;
+    box-shadow: 0 18px 40px rgba(15,23,42,0.16) !important;
+    max-height: calc(100vh - 96px) !important;
+    overflow-y: auto !important;
+}
+body.lojista-desktop-mode #overlay-notificacoes .tracking-handle { display: none !important; }
+
 /* ---- Tela Rotas: 2 colunas (lista | detalhe fixo) ---- */
 /* Pedido do dono 2026-09-30, mockup detalhado: lista de rotas à esquerda
    (usa a largura disponível, não os 640px de formulário), painel de
@@ -674,6 +719,43 @@ body.lojista-desktop-mode .rota-flow-body:has(#rota-flow-step-3:not(.hidden)) ~ 
    título+saldo+dívida(se houver)+saque+bancários+Pix, tudo empilhado
    dentro do MESMO grupo; direita: só o extrato, grupo totalmente
    separado — igual Rotas (lista|detalhe) e Pedidos (lista|detalhe). */
+/* Financeiro usava o tratamento genérico de .modal-perfil-overlay
+   (position:fixed + overflow-y próprio) — isso cria uma barra de rolagem
+   SÓ do modal, empilhada com o scroll do navegador assim que o conteúdo
+   passa de 100vh (pedido do dono 2026-10-02: "tem um scroll extra na
+   tela"). Mesma correção já aplicada no Rastrear: position:absolute (sem
+   bottom/height travando a caixa) — a página cresce com o conteúdo e quem
+   sobra vira scroll real do navegador, uma barra só. A lista de extrato
+   continua com o próprio scroll interno (bounded pela altura da coluna
+   esquerda via JS, ajustarLayoutPagamentoDesktop) — isso é proposital,
+   não é a barra "extra" que o dono via.
+   Diferença importante pro Rastrear: Financeiro abre de QUALQUER tela
+   (Dashboard, Chat, Rotas, Pedidos, Perfil...), e o .container embaixo
+   tem margem/largura DIFERENTE pra cada uma (Dashboard/Chat centralizam
+   com uma fórmula, Rotas/Pedidos/Perfil usam 236px fixo). Como o modal
+   virou position:absolute (ancorado no PRÓPRIO .container, que é o
+   ancestral posicionado mais próximo), ele herdaria essa margem variável
+   e desalinharia da sidebar dependendo de onde foi aberto. Trava o
+   .container nessa largura/margem flat (igual Rotas/Pedidos) sempre que
+   o Financeiro estiver aberto, não importa a tela de baixo. */
+body.lojista-desktop-mode .container:has(#modal-pagamento.is-open) {
+    max-width: none !important;
+    width: calc(100vw - 236px) !important;
+    margin-left: 236px !important;
+}
+body.lojista-desktop-mode.loja-sidebar-compact .container:has(#modal-pagamento.is-open) {
+    width: calc(100vw - 76px) !important;
+    margin-left: 76px !important;
+}
+body.lojista-desktop-mode #modal-pagamento {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    height: auto !important;
+    overflow-y: visible !important;
+}
 body.lojista-desktop-mode .pagamento-sheet {
     max-width: 1040px !important;
     padding: 8px 0 120px !important;
@@ -6684,8 +6766,16 @@ body.usuario-entregador #entregador-rotas-shell {
     color: #fff !important;
 }
 .entregador-bell { width: 42px; height: 42px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,0.08); position: relative; cursor: pointer; }
-.entregador-bell .dot { width: 8px; height: 8px; background: var(--brand-orange); border-radius: 50%; position: absolute; top: 9px; right: 9px; border: 2px solid #fff; display: none; }
-.entregador-bell.has-unread .dot { display: block; }
+/* Bolinha de "notificação não lida" (pedido do dono 2026-10-02) — a classe
+   .has-unread já era alternada certinho por atualizarBadgeNotificacoes()
+   pra todo elemento .gh-bell, só que não existia NENHUM CSS pra ela
+   aparecer (nem o <span class="dot"> no HTML) — generaliza de
+   .entregador-bell pra .gh-bell pra funcionar em qualquer sino que usa
+   essa classe (mobile/entregador E o nov o sino do header desktop do
+   lojista, que não é um círculo de 42px como esse). */
+.gh-bell { position: relative; }
+.gh-bell .dot { width: 8px; height: 8px; background: var(--brand-orange); border-radius: 50%; position: absolute; top: 4px; right: 4px; border: 2px solid #fff; display: none; }
+.gh-bell.has-unread .dot { display: block; }
 
 .notificacoes-lista { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px 2px 10px; }
 .notificacoes-empty { color: rgba(255,255,255,0.6); text-align: center; padding: 24px 8px; font-size: 13px; }

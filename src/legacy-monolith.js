@@ -632,6 +632,14 @@ function setModalEnvioStep(step) {
         const dotStep = Number(dot.getAttribute('data-step'));
         dot.classList.toggle('active', dotStep === step);
     });
+
+    // Rola de volta pro topo a cada passo (pedido do dono 2026-10-02): sem
+    // isso, o scroll ficava onde o usuário parou de preencher o passo
+    // anterior (geralmente lá embaixo) — o passo novo entrava já mostrando
+    // o FIM da lista em vez do começo (ex: escolher veículo mostrava
+    // primeiro as últimas opções).
+    const conteudo = document.querySelector('#modal-envio-detalhes .envio-sheet-content');
+    if (conteudo) conteudo.scrollTop = 0;
 }
 
 function handleEnvioBack() {
@@ -3565,6 +3573,7 @@ function renderHeaderGlobal(tipoUsuario = '', saldo = 0) {
                     <div class="entregador-bell gh-bell" onclick="abrirPainelNotificacoes()">
                         <i data-lucide="bell" size="18"></i>
                         <span class="dot"></span>
+                        <span class="dot"></span>
                     </div>
                 </div>
             </div>
@@ -4658,8 +4667,32 @@ function enderecoLojaDaRotaAtual() {
     return (rotaObj?.origemEndereco || primeiroPacote?.origemCompleta || primeiroPacote?.origemEndereco || '').toString().trim();
 }
 
-function abrirMapaColetaLoja() {
-    const origem = enderecoLojaDaRotaAtual();
+// FALLBACK (pedido do dono 2026-10-02: "no mobile nao ta reconhecendo o
+// endereco do usuario loja"): origemEndereco/origemCompleta é uma FOTO do
+// endereço da loja tirada no momento em que o PACOTE foi criado
+// (confirmarEnvioFinal) — se o lojista ainda não tinha endereço cadastrado
+// naquele momento, essa foto fica vazia PRA SEMPRE, mesmo que ele cadastre
+// o endereço depois (o guard novo em abrirSeletorCliente só evita isso daqui
+// pra frente, não conserta pedidos antigos). Quando a foto vier vazia,
+// busca o endereço ATUAL do lojista direto no banco como último recurso.
+async function resolverEnderecoLojaDaRotaAtual() {
+    const snapshot = enderecoLojaDaRotaAtual();
+    if (snapshot) return snapshot;
+
+    const lojistaUid = obterLojistaUidDaRota(rotaEntSheetRotaAtual || {}, rotaEntSheetPacotes[0] || {});
+    if (!lojistaUid) return '';
+
+    try {
+        const snap = await db.ref(`usuarios/${lojistaUid}/endereco`).once('value');
+        return formatarEnderecoEstruturado(snap.val()).trim();
+    } catch (err) {
+        console.warn('Falha ao buscar endereço atual da loja:', err);
+        return '';
+    }
+}
+
+async function abrirMapaColetaLoja() {
+    const origem = await resolverEnderecoLojaDaRotaAtual();
     if (!origem) {
         alert('Endereço da loja não informado.');
         return;
@@ -4758,7 +4791,7 @@ function renderSheetColetaPacotes() {
 
         <div class=\"ent-sheet-destino\">
             <strong>Retirar ${totalPacotes} pacote${totalPacotes === 1 ? '' : 's'} na loja</strong>
-            <div class=\"ent-sheet-endereco\">${escaparHtmlMarketplace(enderecoLoja || 'Endereço não informado')}</div>
+            <div class=\"ent-sheet-endereco\" id=\"ent-sheet-endereco-texto\">${escaparHtmlMarketplace(enderecoLoja || 'Endereço não informado')}</div>
         </div>
 
         <div class=\"ent-sheet-code-box\">
@@ -4774,6 +4807,16 @@ function renderSheetColetaPacotes() {
     </div>
     `;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Endereço vazio na "foto" do pacote (ver resolverEnderecoLojaDaRotaAtual)
+    // -- tenta buscar o endereço ATUAL do lojista no banco antes de desistir.
+    if (!enderecoLoja) {
+        resolverEnderecoLojaDaRotaAtual().then((enderecoAoVivo) => {
+            if (!enderecoAoVivo) return;
+            const el = document.getElementById('ent-sheet-endereco-texto');
+            if (el) el.textContent = enderecoAoVivo;
+        });
+    }
 }
 
 // Nova versão do sheet de rota do entregador com paginação por pacote
@@ -11447,6 +11490,17 @@ function salvarEndereco() {
     return salvarEnderecoComIds(ENDERECO_IDS_MODAL, fecharModalEndereco);
 }
 
+// Colapsa um accordion do Perfil desktop depois de salvar (equivalente a
+// "fechar o modal" no mobile) — pedido do dono 2026-10-02: salvar
+// endereço/dados da conta mostrava o alerta de sucesso mas não fazia
+// nada visualmente (accordion continuava aberto, nenhuma tela mudava).
+function fecharAccordionDesktop(headerId, bodyId) {
+    const header = document.getElementById(headerId);
+    const body = document.getElementById(bodyId);
+    if (header) header.classList.remove('accordion-aberto');
+    if (body) body.classList.add('hidden');
+}
+
 // Perfil desktop (pedido do dono 2026-10-01): "Dados da conta" e
 // "Endereço" viram accordion em vez de abrir modal — expande/recolhe
 // local, com os MESMOS campos/lógica de salvar do modal mobile, só em
@@ -11454,7 +11508,7 @@ function salvarEndereco() {
 // nem são chamadas: alternarAccordionDadosConta/Endereco() abrem o modal
 // de sempre fora do modo desktop.
 function salvarEnderecoDesktop() {
-    return salvarEnderecoComIds(ENDERECO_IDS_DESKTOP, () => {});
+    return salvarEnderecoComIds(ENDERECO_IDS_DESKTOP, () => fecharAccordionDesktop('acc-endereco-header', 'acc-endereco-body'));
 }
 
 function preencherCamposEnderecoDesktop() {
@@ -11568,6 +11622,7 @@ function salvarDadosContaDesktop() {
             window.usuarioLogado = { ...window.usuarioLogado, ...novosDados };
             preencherPerfilLojista();
             if (typeof lucide !== 'undefined') lucide.createIcons();
+            fecharAccordionDesktop('acc-dados-conta-header', 'acc-dados-conta-body');
             alert("Perfil atualizado com sucesso!");
         })
         .catch(error => {

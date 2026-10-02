@@ -1223,6 +1223,8 @@
       const dotStep = Number(dot.getAttribute("data-step"));
       dot.classList.toggle("active", dotStep === step);
     });
+    const conteudo = document.querySelector("#modal-envio-detalhes .envio-sheet-content");
+    if (conteudo) conteudo.scrollTop = 0;
   }
   function handleEnvioBack() {
     if (envioStepAtual > 1) {
@@ -3604,6 +3606,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                     <div class="entregador-bell gh-bell" onclick="abrirPainelNotificacoes()">
                         <i data-lucide="bell" size="18"></i>
                         <span class="dot"></span>
+                        <span class="dot"></span>
                     </div>
                 </div>
             </div>
@@ -4464,8 +4467,21 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const primeiroPacote = rotaEntSheetPacotes[0] || {};
     return (rotaObj?.origemEndereco || primeiroPacote?.origemCompleta || primeiroPacote?.origemEndereco || "").toString().trim();
   }
-  function abrirMapaColetaLoja() {
-    const origem = enderecoLojaDaRotaAtual();
+  async function resolverEnderecoLojaDaRotaAtual() {
+    const snapshot = enderecoLojaDaRotaAtual();
+    if (snapshot) return snapshot;
+    const lojistaUid = obterLojistaUidDaRota(rotaEntSheetRotaAtual || {}, rotaEntSheetPacotes[0] || {});
+    if (!lojistaUid) return "";
+    try {
+      const snap = await db.ref(`usuarios/${lojistaUid}/endereco`).once("value");
+      return formatarEnderecoEstruturado(snap.val()).trim();
+    } catch (err) {
+      console.warn("Falha ao buscar endere\xE7o atual da loja:", err);
+      return "";
+    }
+  }
+  async function abrirMapaColetaLoja() {
+    const origem = await resolverEnderecoLojaDaRotaAtual();
     if (!origem) {
       alert("Endere\xE7o da loja n\xE3o informado.");
       return;
@@ -4551,7 +4567,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
 
         <div class="ent-sheet-destino">
             <strong>Retirar ${totalPacotes} pacote${totalPacotes === 1 ? "" : "s"} na loja</strong>
-            <div class="ent-sheet-endereco">${escaparHtmlMarketplace(enderecoLoja || "Endere\xE7o n\xE3o informado")}</div>
+            <div class="ent-sheet-endereco" id="ent-sheet-endereco-texto">${escaparHtmlMarketplace(enderecoLoja || "Endere\xE7o n\xE3o informado")}</div>
         </div>
 
         <div class="ent-sheet-code-box">
@@ -4567,6 +4583,13 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     </div>
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
+    if (!enderecoLoja) {
+      resolverEnderecoLojaDaRotaAtual().then((enderecoAoVivo) => {
+        if (!enderecoAoVivo) return;
+        const el = document.getElementById("ent-sheet-endereco-texto");
+        if (el) el.textContent = enderecoAoVivo;
+      });
+    }
   }
   function renderSheetRotaEntregadorConteudo() {
     const content = document.getElementById("rotas-entregador-sheet-content");
@@ -9747,9 +9770,14 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
   function salvarEndereco() {
     return salvarEnderecoComIds(ENDERECO_IDS_MODAL, fecharModalEndereco);
   }
+  function fecharAccordionDesktop(headerId, bodyId) {
+    const header = document.getElementById(headerId);
+    const body = document.getElementById(bodyId);
+    if (header) header.classList.remove("accordion-aberto");
+    if (body) body.classList.add("hidden");
+  }
   function salvarEnderecoDesktop() {
-    return salvarEnderecoComIds(ENDERECO_IDS_DESKTOP, () => {
-    });
+    return salvarEnderecoComIds(ENDERECO_IDS_DESKTOP, () => fecharAccordionDesktop("acc-endereco-header", "acc-endereco-body"));
   }
   function preencherCamposEnderecoDesktop() {
     const end = window.usuarioLogado?.endereco;
@@ -9844,6 +9872,7 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       window.usuarioLogado = { ...window.usuarioLogado, ...novosDados };
       preencherPerfilLojista();
       if (typeof lucide !== "undefined") lucide.createIcons();
+      fecharAccordionDesktop("acc-dados-conta-header", "acc-dados-conta-body");
       alert("Perfil atualizado com sucesso!");
     }).catch((error) => {
       console.error("Erro ao salvar:", error);
