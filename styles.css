@@ -6995,6 +6995,18 @@ body.usuario-entregador #entregador-rotas-shell {
 .admin-header-actions { display: flex; gap: 8px; }
 .admin-chip { padding: 8px 12px; border-radius: 999px; border: 1px solid #e5e7eb; background: #fff; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
 .admin-chip.danger { border-color: #fecdd3; color: #dc2626; }
+/* .admin-chip.active nunca teve estilo próprio (pedido do dono 2026-10-02:
+   "precisa indicar qual chip ta ativo") — a classe já era trocada certinho
+   pelo JS (filtrarBannersAdminPorPublico/filtrarChamadosAdminPorStatus),
+   só não tinha nenhuma regra CSS pra ela aparecer diferente. Reaproveita o
+   mesmo visual de .chip.active já usado nos filtros do app mobile/lojista
+   (pill escuro, texto branco), em vez de inventar um padrão novo. */
+.admin-chip.active {
+    background: linear-gradient(145deg, #131c2c 0%, #0f172a 50%, #1f2937 100%);
+    color: #fff;
+    border-color: rgba(255,255,255,0.14);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+}
 .admin-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 0 16px; }
 .admin-card { background: #fff; border: 1px solid #eef2f6; border-radius: 14px; padding: 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 4px; }
 .admin-card strong { font-size: 24px; }
