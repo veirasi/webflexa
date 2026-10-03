@@ -151,6 +151,10 @@ ativarModoAdminSeNecessario();
 // navegador onde um lojista/entregador já está logado.
 let modoRastreioPublico = false;
 let tokenRastreioAtual = '';
+// Endereço estruturado do pacote rastreado nesta tela (ver
+// renderConteudoRastreioPublico/abrirClienteAuthCompletarCadastro) — usado
+// só pra pré-preencher o passo de completar cadastro, nunca persistido aqui.
+let enderecoDestinoRastreioAtual = null;
 // Uso único de propósito (ver consumirLoginCliente no backend) — essa flag
 // só evita tentar de novo à toa a cada hashchange dentro da mesma aba (ex:
 // navegação interna que não muda o token); a segunda tentativa de qualquer
@@ -1080,24 +1084,32 @@ async function salvarNovoCliente() {
         // Perfil completo (endereço/geo) reutilizável por OUTRA loja via
         // busca exata — ver buscarClienteGlobalEExibir/database.rules.json.
         // Nunca listável, só alcançável digitando o WhatsApp exato.
-        const clienteSalvo = clientes.find((c) => c.id === clienteSelecionadoId);
-        const perfilGlobal = {
-            nome: nome.trim(),
-            whatsapp: whatsappGlobalNorm,
-            cep: cepLimpo,
-            rua: (rua || '').trim(),
-            num: (num || '').trim(),
-            bairro: (bairro || '').trim(),
-            cidade: (cidade || '').trim(),
-            uf: ufNormalizada,
-            comp: (comp || '').trim(),
-            atualizadoEm: Date.now()
-        };
-        if (clienteSalvo?.geo) {
-            perfilGlobal.geo = clienteSalvo.geo;
-            perfilGlobal.geoSig = clienteSalvo.geoSig || null;
-        }
-        db.ref('clientesGlobaisPerfil/' + whatsappGlobalNorm).update(perfilGlobal).catch(() => {});
+        // Pedido do dono 2026-10-03: depois que o PRÓPRIO cliente confirma o
+        // endereço pela conta dele (ver completarCadastroClienteRastreio,
+        // confirmadoPeloCliente:true), ele vira o dono desse dado — lojista
+        // continua podendo editar o registro LOCAL dele (snapshot do envio),
+        // mas para de sobrescrever o universal sem querer.
+        db.ref('clientesGlobaisPerfil/' + whatsappGlobalNorm).once('value').then((snap) => {
+            if (snap.val()?.confirmadoPeloCliente === true) return;
+            const clienteSalvo = clientes.find((c) => c.id === clienteSelecionadoId);
+            const perfilGlobal = {
+                nome: nome.trim(),
+                whatsapp: whatsappGlobalNorm,
+                cep: cepLimpo,
+                rua: (rua || '').trim(),
+                num: (num || '').trim(),
+                bairro: (bairro || '').trim(),
+                cidade: (cidade || '').trim(),
+                uf: ufNormalizada,
+                comp: (comp || '').trim(),
+                atualizadoEm: Date.now()
+            };
+            if (clienteSalvo?.geo) {
+                perfilGlobal.geo = clienteSalvo.geo;
+                perfilGlobal.geoSig = clienteSalvo.geoSig || null;
+            }
+            return db.ref('clientesGlobaisPerfil/' + whatsappGlobalNorm).update(perfilGlobal);
+        }).catch(() => {});
     }
 
     renderClientes(document.getElementById('buscar-cliente')?.value || '');
@@ -8684,7 +8696,7 @@ function renderRotaDetalhePagina() {
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.whatsapp || ''))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
                 ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
             </div>
         </div>
@@ -8720,8 +8732,24 @@ function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
 }
 
-function copiarLinkRastreioPacote(token, codigoConfirmacao) {
-    const url = montarUrlRastreioPublico(token);
+async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp) {
+    // Login automático embutido no link — mesmo mecanismo do "Enviar no
+    // WhatsApp" (ver compartilharLinkRastreioWhatsapp). BUG CORRIGIDO
+    // 2026-10-03 (pedido do dono): antes só o botão de WhatsApp gerava esse
+    // token — "Copiar link" saía sem ele, então colar o link copiado direto
+    // no navegador nunca logava o cliente nem abria completar cadastro
+    // automaticamente. Se a chamada falhar, cai pro link normal sem login
+    // automático — o rastreio em si nunca depende disso.
+    let loginTokenParam = '';
+    if (whatsapp) {
+        try {
+            const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp });
+            if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
+        } catch (err) {
+            console.warn('Falha ao gerar login automático do cliente:', err);
+        }
+    }
+    const url = montarUrlRastreioPublico(token) + loginTokenParam;
     // O código vai junto porque é o cliente quem confirma a entrega direto
     // com o entregador na porta — sem o código na mensagem, o lojista tinha
     // que procurar e repassar isso à parte (pedido do dono, 2026-09-25).
@@ -10068,11 +10096,34 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             let codigoConfirmacao = '';
             let codigoRetirada = '';
             let pontoGeo = null;
+            let enderecoDestino = null;
             try {
                 const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
                 const pac = snap.val() || {};
                 destinatario = (pac.destinatario || destinatario).toString();
                 whatsappCliente = normalizarWhatsapp(pac.whatsapp || '');
+                // Endereço estruturado (rua/uf não existem soltos no pacote, só
+                // dentro de destinoEndereco já formatado) — busca no cadastro do
+                // cliente pra levar pra tela pública de "complete seu cadastro"
+                // (pedido do dono 2026-10-03: cliente confirma o endereço que o
+                // lojista já digitou, em vez de digitar tudo de novo). Só pro
+                // fluxo normal (coleta reversa não faz sentido aqui — o destino
+                // é a própria loja).
+                if (pac.clienteId && pac.tipoFluxo !== 'coleta_reversa') {
+                    try {
+                        const cliSnap = await db.ref(`usuarios/${uidLojista}/clientes/${pac.clienteId}`).once('value');
+                        const cli = cliSnap.val() || {};
+                        enderecoDestino = {
+                            cep: cli.cep || pac.cepDestino || '',
+                            rua: cli.rua || '',
+                            num: cli.num || pac.numero || '',
+                            bairro: cli.bairro || pac.bairroDestino || '',
+                            cidade: cli.cidade || pac.cidadeDestino || '',
+                            uf: cli.uf || '',
+                            comp: cli.comp || pac.complemento || ''
+                        };
+                    } catch (e) { /* segue sem endereço estruturado */ }
+                }
                 // Ponto de chegada desse pacote (pra tela pública estimar
                 // "+- quanto tempo falta" a partir da posição AO VIVO do
                 // entregador, em vez de só repartir a duração total da rota
@@ -10114,7 +10165,7 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             if (whatsappCliente) {
                 updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
             }
-            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo };
+            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino };
         }
 
         updates[`rastreioPublico/${rota.id}`] = {
@@ -10227,6 +10278,24 @@ function abrirClienteAuthCompletarCadastro(nomeAtual) {
     fCompletar.classList.remove('hidden');
     const nomeInput = document.getElementById('cliente-auth-completar-nome');
     if (nomeInput) nomeInput.value = nomeAtual || '';
+
+    // Pré-preenche com o endereço que o lojista já digitou nesse envio (ver
+    // enderecoDestinoRastreioAtual, gravado por renderConteudoRastreioPublico)
+    // — o cliente só confere/corrige, não digita do zero.
+    const end = enderecoDestinoRastreioAtual;
+    const campos = {
+        'cliente-auth-completar-cep': end?.cep,
+        'cliente-auth-completar-rua': end?.rua,
+        'cliente-auth-completar-num': end?.num,
+        'cliente-auth-completar-bairro': end?.bairro,
+        'cliente-auth-completar-cidade': end?.cidade,
+        'cliente-auth-completar-estado': end?.uf,
+        'cliente-auth-completar-comp': end?.comp
+    };
+    Object.keys(campos).forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = campos[id] || '';
+    });
 }
 
 async function cadastrarClienteRastreio() {
@@ -10314,6 +10383,13 @@ async function completarCadastroClienteRastreio() {
     const nome = (document.getElementById('cliente-auth-completar-nome')?.value || '').trim();
     const email = (document.getElementById('cliente-auth-completar-email')?.value || '').trim();
     const novaSenha = (document.getElementById('cliente-auth-completar-senha')?.value || '').trim();
+    const cep = (document.getElementById('cliente-auth-completar-cep')?.value || '').trim();
+    const rua = (document.getElementById('cliente-auth-completar-rua')?.value || '').trim();
+    const num = (document.getElementById('cliente-auth-completar-num')?.value || '').trim();
+    const bairro = (document.getElementById('cliente-auth-completar-bairro')?.value || '').trim();
+    const cidade = (document.getElementById('cliente-auth-completar-cidade')?.value || '').trim();
+    const uf = (document.getElementById('cliente-auth-completar-estado')?.value || '').trim();
+    const comp = (document.getElementById('cliente-auth-completar-comp')?.value || '').trim();
 
     if (!nome || !novaSenha) return alert('Preencha nome e a nova senha.');
     if (novaSenha.length < 6) return alert('A nova senha precisa ter pelo menos 6 caracteres.');
@@ -10339,6 +10415,23 @@ async function completarCadastroClienteRastreio() {
         // diferenciar "já tem conta ativa" de "convite antigo nunca concluído".
         // .update() (não .set()) pra nunca apagar um perfil/endereço já salvo.
         if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).update({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
+
+        // Endereço confirmado pelo PRÓPRIO cliente — pedido do dono 2026-10-03:
+        // a partir daqui a conta do cliente é dona desse endereço (qualquer
+        // lojista que reusar esse contato por WhatsApp já recebe o endereço
+        // certo, sem o cliente confirmar de novo loja por loja). Só grava se
+        // a pessoa preencheu rua (endereço pode não ter vindo pré-preenchido
+        // em acessos sem um envio específico por trás, ex: link genérico
+        // #/cliente — nesse caso não bloqueia o resto do cadastro).
+        if (whatsapp && rua) {
+            await db2.ref('clientesGlobaisPerfil/' + whatsapp).update({
+                nome, whatsapp, cep, rua, num, bairro, cidade, uf, comp,
+                // Trava pra salvarNovoCliente (lado do lojista) não sobrescrever
+                // mais um endereço que o próprio dono já confirmou — ver comentário lá.
+                confirmadoPeloCliente: true,
+                atualizadoEm: Date.now()
+            });
+        }
 
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
@@ -10499,6 +10592,10 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const pacoteInfo = pacotesMapa[pacoteId] || {};
     const destinatario = pacoteInfo.destinatario || 'Cliente';
     const statusNorm = normalizarStatusRotaFiltro(dados.statusRota || 'BUSCANDO');
+    // Guardado pra pré-preencher o endereço na tela de completar cadastro
+    // (ver abrirClienteAuthCompletarCadastro) — o cliente confirma o que o
+    // lojista já digitou nesse envio, em vez de digitar tudo de novo.
+    if (pacoteInfo.enderecoDestino) enderecoDestinoRastreioAtual = pacoteInfo.enderecoDestino;
 
     // Paradas ordenadas pela sequência da rota, depois agrupadas por endereço
     // — 2+ pacotes pro MESMO destino (ex: dois pedidos pro mesmo prédio)

@@ -832,6 +832,7 @@
   ativarModoAdminSeNecessario();
   var modoRastreioPublico = false;
   var tokenRastreioAtual = "";
+  var enderecoDestinoRastreioAtual = null;
   var loginTokenJaTentado = false;
   function ativarModoRastreioSeNecessario() {
     const hash = window.location.hash || "";
@@ -1577,24 +1578,27 @@
         whatsapp: whatsappGlobalNorm
       }).catch(() => {
       });
-      const clienteSalvo = clientes.find((c) => c.id === clienteSelecionadoId);
-      const perfilGlobal = {
-        nome: nome.trim(),
-        whatsapp: whatsappGlobalNorm,
-        cep: cepLimpo,
-        rua: (rua || "").trim(),
-        num: (num || "").trim(),
-        bairro: (bairro || "").trim(),
-        cidade: (cidade || "").trim(),
-        uf: ufNormalizada,
-        comp: (comp || "").trim(),
-        atualizadoEm: Date.now()
-      };
-      if (clienteSalvo?.geo) {
-        perfilGlobal.geo = clienteSalvo.geo;
-        perfilGlobal.geoSig = clienteSalvo.geoSig || null;
-      }
-      db.ref("clientesGlobaisPerfil/" + whatsappGlobalNorm).update(perfilGlobal).catch(() => {
+      db.ref("clientesGlobaisPerfil/" + whatsappGlobalNorm).once("value").then((snap) => {
+        if (snap.val()?.confirmadoPeloCliente === true) return;
+        const clienteSalvo = clientes.find((c) => c.id === clienteSelecionadoId);
+        const perfilGlobal = {
+          nome: nome.trim(),
+          whatsapp: whatsappGlobalNorm,
+          cep: cepLimpo,
+          rua: (rua || "").trim(),
+          num: (num || "").trim(),
+          bairro: (bairro || "").trim(),
+          cidade: (cidade || "").trim(),
+          uf: ufNormalizada,
+          comp: (comp || "").trim(),
+          atualizadoEm: Date.now()
+        };
+        if (clienteSalvo?.geo) {
+          perfilGlobal.geo = clienteSalvo.geo;
+          perfilGlobal.geoSig = clienteSalvo.geoSig || null;
+        }
+        return db.ref("clientesGlobaisPerfil/" + whatsappGlobalNorm).update(perfilGlobal);
+      }).catch(() => {
       });
     }
     renderClientes(document.getElementById("buscar-cliente")?.value || "");
@@ -7634,7 +7638,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}', '${escaparHtmlMarketplace(String(p.whatsapp || ""))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
                 ${p.whatsapp && p.whatsapp !== "--" ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ""}
             </div>
         </div>
@@ -7666,8 +7670,17 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
   function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
   }
-  function copiarLinkRastreioPacote(token, codigoConfirmacao) {
-    const url = montarUrlRastreioPublico(token);
+  async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp) {
+    let loginTokenParam = "";
+    if (whatsapp) {
+      try {
+        const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp });
+        if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
+      } catch (err) {
+        console.warn("Falha ao gerar login autom\xE1tico do cliente:", err);
+      }
+    }
+    const url = montarUrlRastreioPublico(token) + loginTokenParam;
     const texto = codigoConfirmacao ? `${url}
 
 C\xF3digo pra confirmar com o entregador na entrega: ${codigoConfirmacao}` : url;
@@ -8689,11 +8702,28 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         let codigoConfirmacao = "";
         let codigoRetirada = "";
         let pontoGeo = null;
+        let enderecoDestino = null;
         try {
           const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
           const pac = snap.val() || {};
           destinatario = (pac.destinatario || destinatario).toString();
           whatsappCliente = normalizarWhatsapp(pac.whatsapp || "");
+          if (pac.clienteId && pac.tipoFluxo !== "coleta_reversa") {
+            try {
+              const cliSnap = await db.ref(`usuarios/${uidLojista}/clientes/${pac.clienteId}`).once("value");
+              const cli = cliSnap.val() || {};
+              enderecoDestino = {
+                cep: cli.cep || pac.cepDestino || "",
+                rua: cli.rua || "",
+                num: cli.num || pac.numero || "",
+                bairro: cli.bairro || pac.bairroDestino || "",
+                cidade: cli.cidade || pac.cidadeDestino || "",
+                uf: cli.uf || "",
+                comp: cli.comp || pac.complemento || ""
+              };
+            } catch (e) {
+            }
+          }
           pontoGeo = pac.tipoFluxo === "coleta_reversa" ? pac.origemGeo || null : pac.destinoGeo || null;
           codigoConfirmacao = (pac.codigoConfirmacaoEntrega || "").toString();
           codigoRetirada = (pac.codigoConfirmacaoRetirada || "").toString();
@@ -8710,7 +8740,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         if (whatsappCliente) {
           updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
         }
-        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo };
+        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino };
       }
       updates[`rastreioPublico/${rota.id}`] = {
         lojaNome,
@@ -8793,6 +8823,20 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     fCompletar.classList.remove("hidden");
     const nomeInput = document.getElementById("cliente-auth-completar-nome");
     if (nomeInput) nomeInput.value = nomeAtual || "";
+    const end = enderecoDestinoRastreioAtual;
+    const campos = {
+      "cliente-auth-completar-cep": end?.cep,
+      "cliente-auth-completar-rua": end?.rua,
+      "cliente-auth-completar-num": end?.num,
+      "cliente-auth-completar-bairro": end?.bairro,
+      "cliente-auth-completar-cidade": end?.cidade,
+      "cliente-auth-completar-estado": end?.uf,
+      "cliente-auth-completar-comp": end?.comp
+    };
+    Object.keys(campos).forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = campos[id] || "";
+    });
   }
   async function cadastrarClienteRastreio() {
     const nome = (document.getElementById("cliente-auth-nome")?.value || "").trim();
@@ -8862,6 +8906,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const nome = (document.getElementById("cliente-auth-completar-nome")?.value || "").trim();
     const email = (document.getElementById("cliente-auth-completar-email")?.value || "").trim();
     const novaSenha = (document.getElementById("cliente-auth-completar-senha")?.value || "").trim();
+    const cep = (document.getElementById("cliente-auth-completar-cep")?.value || "").trim();
+    const rua = (document.getElementById("cliente-auth-completar-rua")?.value || "").trim();
+    const num = (document.getElementById("cliente-auth-completar-num")?.value || "").trim();
+    const bairro = (document.getElementById("cliente-auth-completar-bairro")?.value || "").trim();
+    const cidade = (document.getElementById("cliente-auth-completar-cidade")?.value || "").trim();
+    const uf = (document.getElementById("cliente-auth-completar-estado")?.value || "").trim();
+    const comp = (document.getElementById("cliente-auth-completar-comp")?.value || "").trim();
     if (!nome || !novaSenha) return alert("Preencha nome e a nova senha.");
     if (novaSenha.length < 6) return alert("A nova senha precisa ter pelo menos 6 caracteres.");
     try {
@@ -8872,6 +8923,23 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       if (email) updates.emailContato = email;
       await db2.ref("usuarios/" + user.uid).update(updates);
       if (whatsapp) await db2.ref("clientesGlobais/" + whatsapp).update({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
+      if (whatsapp && rua) {
+        await db2.ref("clientesGlobaisPerfil/" + whatsapp).update({
+          nome,
+          whatsapp,
+          cep,
+          rua,
+          num,
+          bairro,
+          cidade,
+          uf,
+          comp,
+          // Trava pra salvarNovoCliente (lado do lojista) não sobrescrever
+          // mais um endereço que o próprio dono já confirmou — ver comentário lá.
+          confirmadoPeloCliente: true,
+          atualizadoEm: Date.now()
+        });
+      }
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
       alert("Cadastro completo! Sua conta Flex j\xE1 est\xE1 ativa em todas as lojas parceiras.");
@@ -8986,6 +9054,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const pacoteInfo = pacotesMapa[pacoteId] || {};
     const destinatario = pacoteInfo.destinatario || "Cliente";
     const statusNorm = normalizarStatusRotaFiltro(dados.statusRota || "BUSCANDO");
+    if (pacoteInfo.enderecoDestino) enderecoDestinoRastreioAtual = pacoteInfo.enderecoDestino;
     const paradasBrutas = Object.entries(pacotesMapa).map(([id, p]) => ({ pacoteId: id, ...p })).sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
     const paradas = agruparParadasPorEndereco(paradasBrutas);
     const totalParadas = paradas.length;

@@ -235,6 +235,18 @@
                 <p class="rastreio-auth-dropdown-title">Complete seu cadastro</p>
                 <p class="rastreio-auth-completar-hint">Confirme seus dados e crie uma senha só sua pra acessar sua conta da próxima vez.</p>
                 <div class="form-group"><label>Nome</label><div class="input-wrapper"><i data-lucide="user" size="18"></i><input type="text" id="cliente-auth-completar-nome" placeholder="Seu nome completo"></div></div>
+                <!-- Endereço já vem preenchido com o que o lojista digitou nesse
+                     envio (ver abrirClienteAuthCompletarCadastro) — o cliente só
+                     confere/corrige. Pedido do dono 2026-10-03: a conta do
+                     cliente passa a ser dona desse endereço daqui pra frente. -->
+                <p class="rastreio-auth-completar-hint">Confirme se o endereço está certo:</p>
+                <div class="form-group"><label>CEP</label><div class="input-wrapper"><i data-lucide="map" size="18"></i><input type="text" id="cliente-auth-completar-cep" placeholder="00000-000" maxlength="9"></div></div>
+                <div class="form-group"><label>Rua / Logradouro</label><div class="input-wrapper"><input type="text" id="cliente-auth-completar-rua" placeholder="Ex: Av. Paulista"></div></div>
+                <div class="form-group"><label>Número</label><div class="input-wrapper"><input type="text" id="cliente-auth-completar-num" placeholder="Ex: 123 ou S/N"></div></div>
+                <div class="form-group"><label>Bairro</label><div class="input-wrapper"><input type="text" id="cliente-auth-completar-bairro" placeholder="Bairro"></div></div>
+                <div class="form-group"><label>Cidade</label><div class="input-wrapper"><input type="text" id="cliente-auth-completar-cidade" placeholder="Cidade"></div></div>
+                <div class="form-group"><label>Estado (UF)</label><div class="input-wrapper"><input type="text" id="cliente-auth-completar-estado" placeholder="UF" maxlength="2"></div></div>
+                <div class="form-group"><label>Complemento (opcional)</label><div class="input-wrapper"><input type="text" id="cliente-auth-completar-comp" placeholder="Apto, Bloco, Sala..."></div></div>
                 <div class="form-group"><label>E-mail (opcional)</label><div class="input-wrapper"><i data-lucide="mail" size="18"></i><input type="email" id="cliente-auth-completar-email" placeholder="seuemail@exemplo.com"></div></div>
                 <div class="form-group"><label>Nova senha</label><div class="input-wrapper"><i data-lucide="lock" size="18"></i><input type="password" id="cliente-auth-completar-senha" placeholder="Mínimo 6 caracteres"><i data-lucide="eye" size="18" style="cursor:pointer; color:var(--text-sub);" onclick="togglePass('cliente-auth-completar-senha')"></i></div></div>
                 <button type="button" class="btn-main" onclick="completarCadastroClienteRastreio()">Confirmar e ativar conta</button>

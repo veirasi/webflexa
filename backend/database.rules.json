@@ -339,7 +339,16 @@
     "clientesGlobaisPerfil": {
       "$telefone": {
         ".read": "auth != null",
-        ".write": "auth != null"
+        ".write": "auth != null",
+        // confirmadoPeloCliente (2026-10-03): uma vez true, salvarNovoCliente
+        // (lado do lojista) para de sobrescrever o endereço — então só a
+        // própria conta-cliente dona desse telefone (vínculo real em
+        // clientesGlobais/$telefone/uid) pode LIGAR essa trava, senão
+        // qualquer lojista autenticado poderia "travar" o endereço de
+        // qualquer telefone, falso, pra sempre.
+        "confirmadoPeloCliente": {
+          ".validate": "newData.val() !== true || root.child('clientesGlobais').child($telefone).child('uid').val() === auth.uid"
+        }
       }
     },
 
