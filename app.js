@@ -33,6 +33,7 @@
     abrirNotificacao: () => abrirNotificacao,
     abrirNovaRotaPeloChip: () => abrirNovaRotaPeloChip,
     abrirNovoCliente: () => abrirNovoCliente,
+    abrirNovoClienteComTelefone: () => abrirNovoClienteComTelefone,
     abrirNovoClientePeloSeletor: () => abrirNovoClientePeloSeletor,
     abrirPagamento: () => abrirPagamento,
     abrirPainelListaChat: () => abrirPainelListaChat,
@@ -374,7 +375,6 @@
     persistirEntregaPacoteAtual: () => persistirEntregaPacoteAtual,
     persistirFinanceiroUsuario: () => persistirFinanceiroUsuario,
     podeSelecionarPacoteRota: () => podeSelecionarPacoteRota,
-    preencherClienteEncontradoGlobal: () => preencherClienteEncontradoGlobal,
     preencherPerfilEntregador: () => preencherPerfilEntregador,
     preencherPerfilLojista: () => preencherPerfilLojista,
     preencherTextoDetalheEnvio: () => preencherTextoDetalheEnvio,
@@ -465,6 +465,7 @@
     toggleLojaSidebarCompact: () => toggleLojaSidebarCompact,
     togglePacoteRota: () => togglePacoteRota,
     togglePass: () => togglePass,
+    usarClienteGlobalEncontrado: () => usarClienteGlobalEncontrado,
     usuarioEhEntregador: () => usuarioEhEntregador,
     usuarioEhMaster: () => usuarioEhMaster,
     verHistoricoCliente: () => verHistoricoCliente,
@@ -1571,10 +1572,29 @@
     }
     const whatsappGlobalNorm = normalizarWhatsapp(tel);
     if (whatsappGlobalNorm) {
-      db.ref("clientesGlobais/" + whatsappGlobalNorm).set({
+      db.ref("clientesGlobais/" + whatsappGlobalNorm).update({
         nome: nome.trim(),
         whatsapp: whatsappGlobalNorm
       }).catch(() => {
+      });
+      const clienteSalvo = clientes.find((c) => c.id === clienteSelecionadoId);
+      const perfilGlobal = {
+        nome: nome.trim(),
+        whatsapp: whatsappGlobalNorm,
+        cep: cepLimpo,
+        rua: (rua || "").trim(),
+        num: (num || "").trim(),
+        bairro: (bairro || "").trim(),
+        cidade: (cidade || "").trim(),
+        uf: ufNormalizada,
+        comp: (comp || "").trim(),
+        atualizadoEm: Date.now()
+      };
+      if (clienteSalvo?.geo) {
+        perfilGlobal.geo = clienteSalvo.geo;
+        perfilGlobal.geoSig = clienteSalvo.geoSig || null;
+      }
+      db.ref("clientesGlobaisPerfil/" + whatsappGlobalNorm).update(perfilGlobal).catch(() => {
       });
     }
     renderClientes(document.getElementById("buscar-cliente")?.value || "");
@@ -6483,6 +6503,12 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
           updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/atualizadoEm`] = agora;
         });
       });
+      pacotesIds.forEach((pid) => {
+        updates[`usuarios/${lojistaUid}/pacotes/${pid}/status`] = "BUSCANDO";
+        updates[`usuarios/${lojistaUid}/pacotes/${pid}/statusRaw`] = "BUSCANDO";
+        updates[`usuarios/${lojistaUid}/pacotes/${pid}/rotaId`] = null;
+        updates[`usuarios/${lojistaUid}/pacotes/${pid}/atualizadoEm`] = agora;
+      });
     }
     updates[`usuarios/${uidEnt}/rotas/${rota.id}`] = null;
     try {
@@ -8595,6 +8621,26 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       cliente.historico = historico;
     });
     await saveClientes();
+    const uid = getUsuarioIdAtual();
+    if (uid) {
+      const updatesPacotes = {};
+      const agora = Date.now();
+      envioIds.forEach((id) => {
+        updatesPacotes[`usuarios/${uid}/pacotes/${id}/status`] = "BUSCANDO";
+        updatesPacotes[`usuarios/${uid}/pacotes/${id}/statusRaw`] = "BUSCANDO";
+        updatesPacotes[`usuarios/${uid}/pacotes/${id}/rotaId`] = rotaId;
+        updatesPacotes[`usuarios/${uid}/pacotes/${id}/atualizadoEm`] = agora;
+      });
+      db.ref().update(updatesPacotes).catch(() => {
+      });
+      if (window.pacotesRaizCache?.[uid]) {
+        envioIds.forEach((id) => {
+          if (window.pacotesRaizCache[uid][id]) {
+            window.pacotesRaizCache[uid][id] = { ...window.pacotesRaizCache[uid][id], status: "BUSCANDO", statusRaw: "BUSCANDO", rotaId, atualizadoEm: agora };
+          }
+        });
+      }
+    }
   }
   async function salvarRotaNoBanco(rota) {
     const uid = getUsuarioIdAtual();
@@ -8771,7 +8817,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         cadastroCompleto: true
       });
       await db2.ref("telefoneParaEmail/" + whatsapp).set(email);
-      await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp, uid: cred.user.uid, cadastroCompleto: true });
+      await db2.ref("clientesGlobais/" + whatsapp).update({ nome, whatsapp, uid: cred.user.uid, cadastroCompleto: true });
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
     } catch (error) {
@@ -8824,7 +8870,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       const updates = { nome, cadastroCompleto: true };
       if (email) updates.emailContato = email;
       await db2.ref("usuarios/" + user.uid).update(updates);
-      if (whatsapp) await db2.ref("clientesGlobais/" + whatsapp).set({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
+      if (whatsapp) await db2.ref("clientesGlobais/" + whatsapp).update({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
       alert("Cadastro completo! Sua conta Flex j\xE1 est\xE1 ativa em todas as lojas parceiras.");
@@ -10203,7 +10249,7 @@ Pague usando a chave Pix dele (veja no in\xEDcio da tela) e aguarde ele confirma
         cadastroCompleto: false
       });
       await db2.ref("telefoneParaEmail/" + whatsapp).set(emailConvite);
-      await db2.ref("clientesGlobais/" + whatsapp).set({ nome: cliente.nome || "", whatsapp, uid: cred.user.uid, cadastroCompleto: false });
+      await db2.ref("clientesGlobais/" + whatsapp).update({ nome: cliente.nome || "", whatsapp, uid: cred.user.uid, cadastroCompleto: false });
       await auth2.signOut();
       clientes[idx] = { ...clientes[idx], contaClienteUid: cred.user.uid, contaClienteConvidadaEm: Date.now() };
       await saveClientes();
@@ -10288,25 +10334,46 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     atualizarListasClientesUI();
     clientePendenteExclusao = null;
   }
+  var clienteGlobalEncontradoCache = null;
   async function buscarClienteGlobalEExibir(whatsapp, container) {
     try {
-      const snap = await db.ref("clientesGlobais/" + whatsapp).once("value");
-      const dados = snap.val();
+      const [snapBasico, snapPerfil] = await Promise.all([
+        db.ref("clientesGlobais/" + whatsapp).once("value"),
+        db.ref("clientesGlobaisPerfil/" + whatsapp).once("value")
+      ]);
+      const dados = snapBasico.val();
+      const perfil = snapPerfil.val();
       const filtroAtual = (document.getElementById("buscar-cliente")?.value || "").replace(/\D/g, "");
       if (filtroAtual !== whatsapp) return;
       if (!dados?.nome) {
-        container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+        container.innerHTML = `
+                <p class="selector-global-hint">Esse contato n\xE3o est\xE1 cadastrado em nenhuma loja.</p>
+                <button type="button" class="selector-global-cta-cadastrar" onclick="abrirNovoClienteComTelefone('${whatsapp}')">Deseja cadastrar?</button>
+            `;
         return;
       }
+      clienteGlobalEncontradoCache = {
+        nome: dados.nome,
+        whatsapp,
+        cep: perfil?.cep || "",
+        rua: perfil?.rua || "",
+        num: perfil?.num || "",
+        bairro: perfil?.bairro || "",
+        cidade: perfil?.cidade || "",
+        uf: perfil?.uf || "",
+        comp: perfil?.comp || ""
+      };
       const nomeEsc = escaparHtmlMarketplace(dados.nome);
+      const enderecoResumo = perfil?.rua ? escaparHtmlMarketplace(`${perfil.rua}, ${perfil.num || "s/n"}${perfil.bairro ? " - " + perfil.bairro : ""}`) : "";
       const iniciais = (dados.nome || "C").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
       container.innerHTML = `
             <p class="selector-global-hint">N\xE3o \xE9 cliente dessa loja ainda, mas encontramos esse contato:</p>
-            <div class="selector-global-card" onclick="preencherClienteEncontradoGlobal('${dados.nome.replace(/'/g, "\\'")}', '${whatsapp}')">
+            <div class="selector-global-card" onclick="usarClienteGlobalEncontrado()">
                 <span class="selector-avatar-iniciais">${iniciais}</span>
                 <div class="selector-global-card-info">
                     <strong>${nomeEsc}</strong>
                     <span>${escaparHtmlMarketplace(whatsapp)}</span>
+                    ${enderecoResumo ? `<span>${enderecoResumo}</span>` : ""}
                 </div>
                 <span class="selector-global-card-cta">Usar</span>
             </div>
@@ -10316,14 +10383,40 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
       container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
     }
   }
-  function preencherClienteEncontradoGlobal(nome, whatsapp) {
+  function usarClienteGlobalEncontrado() {
+    const dados = clienteGlobalEncontradoCache;
+    if (!dados) return;
     fecharSeletorCliente();
     setTimeout(() => {
       abrirNovoCliente();
-      const nomeInput = document.getElementById("new-cli-nome");
+      const campos = {
+        "new-cli-nome": dados.nome,
+        "new-cli-tel": dados.whatsapp,
+        "new-cli-cep": dados.cep,
+        "new-cli-rua": dados.rua,
+        "new-cli-num": dados.num,
+        "new-cli-bairro": dados.bairro,
+        "new-cli-cidade": dados.cidade,
+        "new-cli-estado": dados.uf,
+        "new-cli-comp": dados.comp
+      };
+      Object.keys(campos).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || !campos[id]) return;
+        el.value = campos[id];
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }, 180);
+  }
+  function abrirNovoClienteComTelefone(whatsapp) {
+    fecharSeletorCliente();
+    setTimeout(() => {
+      abrirNovoCliente();
       const telInput2 = document.getElementById("new-cli-tel");
-      if (nomeInput) nomeInput.value = nome;
-      if (telInput2) telInput2.value = whatsapp;
+      if (telInput2) {
+        telInput2.value = whatsapp;
+        telInput2.dispatchEvent(new Event("input", { bubbles: true }));
+      }
     }, 180);
   }
   function renderClientesSelector(filtro = "") {
@@ -13077,8 +13170,22 @@ Acompanhe em tempo real: ${link}`;
       [`usuarios/${uid}/rotas/${rotaId}/entregadorGeo`]: null,
       [`usuarios/${uid}/rotas/${rotaId}/atualizadoEm`]: agora
     };
+    const pacoteIdsRota = Array.isArray(rota?.pacoteIds) ? rota.pacoteIds : Array.isArray(rota?.pacotes) ? rota.pacotes : [];
+    pacoteIdsRota.forEach((pid) => {
+      updates[`usuarios/${uid}/pacotes/${pid}/status`] = "BUSCANDO";
+      updates[`usuarios/${uid}/pacotes/${pid}/statusRaw`] = "BUSCANDO";
+      updates[`usuarios/${uid}/pacotes/${pid}/rotaId`] = null;
+      updates[`usuarios/${uid}/pacotes/${pid}/atualizadoEm`] = agora;
+    });
     try {
       await db.ref().update(updates);
+      if (window.pacotesRaizCache?.[uid]) {
+        pacoteIdsRota.forEach((pid) => {
+          if (window.pacotesRaizCache[uid][pid]) {
+            window.pacotesRaizCache[uid][pid] = { ...window.pacotesRaizCache[uid][pid], status: "BUSCANDO", statusRaw: "BUSCANDO", rotaId: null, atualizadoEm: agora };
+          }
+        });
+      }
       if (entregadorId) {
         await db.ref(`usuarios/${entregadorId}/rotas/${rotaId}`).remove();
         criarNotificacao(entregadorId, {

@@ -287,10 +287,9 @@
     // Índice compartilhado nome+whatsapp -> qualquer lojista logado consegue
     // achar um cliente que já foi cadastrado por OUTRA loja (em vez de cada
     // loja ter sua própria lista isolada e nunca se encontrarem). Só guarda
-    // o mínimo (nome, whatsapp) — nunca endereço, e-mail ou histórico de
-    // pedidos, que continuam isolados em usuarios/{lojistaUid}/clientes. É a
-    // base pra, no futuro, virar login de cliente único multi-loja sem
-    // precisar remodelar tudo de novo.
+    // o mínimo (nome, whatsapp, uid, status de cadastro) — endereço mora à
+    // parte em clientesGlobaisPerfil (ver abaixo), com leitura restrita a
+    // autenticados, já que é dado bem mais sensível.
     // LEITURA pública (2026-09-26, bug corrigido): convidarClienteParaApp/
     // cadastrarClienteRastreio precisam checar isso ANTES de logar em
     // qualquer conta na instância secundária (ver obterClienteAuth) — nesse
@@ -298,9 +297,37 @@
     // silenciosamente e travava o reenvio de convite. Não é dado sensível
     // (só nome+whatsapp+uid+status), mesmo nível de exposição que
     // telefoneParaEmail/rastreioToken logo abaixo.
+    // uid/cadastroCompleto (2026-10-02): só a própria conta-cliente dona do
+    // uid pode gravar esses dois campos — mesma ideia do write-once de
+    // usuarios/$uid/tipo (usa `data`/`newData`, nunca `root`, pra não cair
+    // na armadilha de regra auto-referente). Antes, `.write: auth != null`
+    // sem essa trava deixava qualquer autenticado sequestrar o vínculo de
+    // conta de um telefone que não é o dele.
     "clientesGlobais": {
       "$telefone": {
         ".read": true,
+        ".write": "auth != null",
+        "uid": {
+          ".write": "!data.exists() || newData.val() === auth.uid || data.val() === auth.uid"
+        },
+        "cadastroCompleto": {
+          ".write": "!data.parent().child('uid').exists() || data.parent().child('uid').val() === auth.uid"
+        }
+      }
+    },
+
+    // ===== [PERFIL REUTILIZÁVEL DO CLIENTE FINAL] (2026-10-02) =====
+    // Cartão de contato completo (endereço/geo) pra um lojista reaproveitar
+    // um cliente já cadastrado por OUTRA loja, buscando pelo WhatsApp EXATO
+    // (ver buscarClienteGlobalEExibir) — nunca uma lista navegável, só uma
+    // leitura de chave exata. Pedido do dono 2026-10-02: evitar que isso vire
+    // um banco de contatos pra marketing entre lojistas. Diferente do nó
+    // acima, este carrega endereço, por isso exige login pra ler (o nó
+    // acima precisa ficar público pro autocadastro do cliente, que roda
+    // deslogado; este nunca é lido nesse fluxo).
+    "clientesGlobaisPerfil": {
+      "$telefone": {
+        ".read": "auth != null",
         ".write": "auth != null"
       }
     },

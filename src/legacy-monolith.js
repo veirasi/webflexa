@@ -1069,10 +1069,35 @@ async function salvarNovoCliente() {
     // pra Express Imports buscar).
     const whatsappGlobalNorm = normalizarWhatsapp(tel);
     if (whatsappGlobalNorm) {
-        db.ref('clientesGlobais/' + whatsappGlobalNorm).set({
+        // BUG CORRIGIDO 2026-10-02: era .set(), que apagava uid/cadastroCompleto
+        // de quem já tivesse conta ativa nesse telefone a cada salvar/editar
+        // cliente (em QUALQUER loja).
+        db.ref('clientesGlobais/' + whatsappGlobalNorm).update({
             nome: nome.trim(),
             whatsapp: whatsappGlobalNorm
         }).catch(() => {});
+
+        // Perfil completo (endereço/geo) reutilizável por OUTRA loja via
+        // busca exata — ver buscarClienteGlobalEExibir/database.rules.json.
+        // Nunca listável, só alcançável digitando o WhatsApp exato.
+        const clienteSalvo = clientes.find((c) => c.id === clienteSelecionadoId);
+        const perfilGlobal = {
+            nome: nome.trim(),
+            whatsapp: whatsappGlobalNorm,
+            cep: cepLimpo,
+            rua: (rua || '').trim(),
+            num: (num || '').trim(),
+            bairro: (bairro || '').trim(),
+            cidade: (cidade || '').trim(),
+            uf: ufNormalizada,
+            comp: (comp || '').trim(),
+            atualizadoEm: Date.now()
+        };
+        if (clienteSalvo?.geo) {
+            perfilGlobal.geo = clienteSalvo.geo;
+            perfilGlobal.geoSig = clienteSalvo.geoSig || null;
+        }
+        db.ref('clientesGlobaisPerfil/' + whatsappGlobalNorm).update(perfilGlobal).catch(() => {});
     }
 
     renderClientes(document.getElementById('buscar-cliente')?.value || '');
@@ -7292,6 +7317,15 @@ async function desistirRotaEntregador(rota) {
                 updates[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/atualizadoEm`] = agora;
             });
         });
+        // BUG CORRIGIDO 2026-10-02: só atualizava o modelo antigo (historico)
+        // — mesma causa raiz do status ficar preso em "Em rota" depois de
+        // aceitar (ver /aceitar-rota-marketplace em backend/functions).
+        pacotesIds.forEach((pid) => {
+            updates[`usuarios/${lojistaUid}/pacotes/${pid}/status`] = 'BUSCANDO';
+            updates[`usuarios/${lojistaUid}/pacotes/${pid}/statusRaw`] = 'BUSCANDO';
+            updates[`usuarios/${lojistaUid}/pacotes/${pid}/rotaId`] = null;
+            updates[`usuarios/${lojistaUid}/pacotes/${pid}/atualizadoEm`] = agora;
+        });
     }
 
     updates[`usuarios/${uidEnt}/rotas/${rota.id}`] = null;
@@ -9933,6 +9967,33 @@ async function marcarEnviosEmRota(envioIds, rotaId) {
     });
 
     await saveClientes();
+
+    // BUG CORRIGIDO 2026-10-02: só atualizava o modelo antigo (historico) —
+    // usuarios/{uid}/pacotes/{id}/status ficava parado em PACOTE_NOVO entre
+    // criar a rota e o entregador aceitar, mesma causa raiz do status do
+    // pedido não acompanhar o da rota.
+    const uid = getUsuarioIdAtual();
+    if (uid) {
+        const updatesPacotes = {};
+        const agora = Date.now();
+        envioIds.forEach((id) => {
+            updatesPacotes[`usuarios/${uid}/pacotes/${id}/status`] = 'BUSCANDO';
+            updatesPacotes[`usuarios/${uid}/pacotes/${id}/statusRaw`] = 'BUSCANDO';
+            updatesPacotes[`usuarios/${uid}/pacotes/${id}/rotaId`] = rotaId;
+            updatesPacotes[`usuarios/${uid}/pacotes/${id}/atualizadoEm`] = agora;
+        });
+        db.ref().update(updatesPacotes).catch(() => {});
+        // Mantém window.pacotesRaizCache (lido por coletarEnviosDaBase) em dia
+        // na MESMA sessão, sem esperar um reload — pacotesRaizCache[uid] só é
+        // buscado uma vez no login (ver carregarPacotesRaizDoUid).
+        if (window.pacotesRaizCache?.[uid]) {
+            envioIds.forEach((id) => {
+                if (window.pacotesRaizCache[uid][id]) {
+                    window.pacotesRaizCache[uid][id] = { ...window.pacotesRaizCache[uid][id], status: 'BUSCANDO', statusRaw: 'BUSCANDO', rotaId, atualizadoEm: agora };
+                }
+            });
+        }
+    }
 }
 
 async function salvarRotaNoBanco(rota) {
@@ -10189,8 +10250,9 @@ async function cadastrarClienteRastreio() {
         // Mesmo índice usado pela busca de cliente do lojista (ver
         // salvarNovoCliente) — assim uma loja que já tinha esse número
         // cadastrado manualmente passa a enxergar o mesmo nome que o
-        // cliente confirmou na própria conta.
-        await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp, uid: cred.user.uid, cadastroCompleto: true });
+        // cliente confirmou na própria conta. .update() (não .set()) pra
+        // nunca apagar um perfil/endereço que já exista nesse telefone.
+        await db2.ref('clientesGlobais/' + whatsapp).update({ nome, whatsapp, uid: cred.user.uid, cadastroCompleto: true });
 
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
@@ -10267,7 +10329,8 @@ async function completarCadastroClienteRastreio() {
         await db2.ref('usuarios/' + user.uid).update(updates);
         // uid + cadastroCompleto:true aqui é o que permite convidarClienteParaApp
         // diferenciar "já tem conta ativa" de "convite antigo nunca concluído".
-        if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).set({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
+        // .update() (não .set()) pra nunca apagar um perfil/endereço já salvo.
+        if (whatsapp) await db2.ref('clientesGlobais/' + whatsapp).update({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
 
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
@@ -12109,7 +12172,8 @@ async function convidarClienteParaApp(clienteId) {
             cadastroCompleto: false
         });
         await db2.ref('telefoneParaEmail/' + whatsapp).set(emailConvite);
-        await db2.ref('clientesGlobais/' + whatsapp).set({ nome: cliente.nome || '', whatsapp, uid: cred.user.uid, cadastroCompleto: false });
+        // .update() (não .set()) pra nunca apagar um perfil/endereço já salvo.
+        await db2.ref('clientesGlobais/' + whatsapp).update({ nome: cliente.nome || '', whatsapp, uid: cred.user.uid, cadastroCompleto: false });
         await auth2.signOut();
 
         clientes[idx] = { ...clientes[idx], contaClienteUid: cred.user.uid, contaClienteConvidadaEm: Date.now() };
@@ -12199,33 +12263,66 @@ function desfazerExclusaoCliente() {
     clientePendenteExclusao = null;
 }
 
-// Busca clientesGlobais (índice compartilhado entre lojas, ver
-// database.rules.json) quando essa loja não tem esse WhatsApp cadastrado
-// ainda. Se achar, mostra um card "encontramos esse contato" em vez de
-// obrigar o lojista a digitar o nome de novo do zero.
+// Busca clientesGlobais + clientesGlobaisPerfil (índices compartilhados
+// entre lojas, ver database.rules.json) quando essa loja não tem esse
+// WhatsApp cadastrado ainda. Busca sempre por valor EXATO (nunca lista
+// clientes de outras lojas) — pedido do dono 2026-10-02, pra não virar um
+// banco de contatos pra marketing entre lojistas. Se achar, mostra o
+// cartão de contato completo (nome, telefone, endereço) pra reaproveitar;
+// se não achar, convida a cadastrar.
+let clienteGlobalEncontradoCache = null;
 async function buscarClienteGlobalEExibir(whatsapp, container) {
     try {
-        const snap = await db.ref('clientesGlobais/' + whatsapp).once('value');
-        const dados = snap.val();
+        const [snapBasico, snapPerfil] = await Promise.all([
+            db.ref('clientesGlobais/' + whatsapp).once('value'),
+            db.ref('clientesGlobaisPerfil/' + whatsapp).once('value')
+        ]);
+        const dados = snapBasico.val();
+        const perfil = snapPerfil.val();
         // Evita sobrescrever um resultado mais novo se a pessoa já digitou
         // outra coisa enquanto a busca estava no ar.
         const filtroAtual = (document.getElementById('buscar-cliente')?.value || '').replace(/\D/g, '');
         if (filtroAtual !== whatsapp) return;
 
         if (!dados?.nome) {
-            container.innerHTML = '<div class="selector-empty">Nenhum cliente encontrado.</div>';
+            container.innerHTML = `
+                <p class="selector-global-hint">Esse contato não está cadastrado em nenhuma loja.</p>
+                <button type="button" class="selector-global-cta-cadastrar" onclick="abrirNovoClienteComTelefone('${whatsapp}')">Deseja cadastrar?</button>
+            `;
             return;
         }
 
+        // Guarda os dados encontrados numa variável, nunca num atributo HTML
+        // (BUG CORRIGIDO 2026-10-02: o onclick antigo interpolava o nome
+        // direto num atributo delimitado por aspas duplas, escapando só
+        // aspas simples — como esse nó é gravável por qualquer autenticado,
+        // um nome com `"` quebrava pra fora do atributo e injetava HTML/JS
+        // arbitrário na tela de quem buscasse esse telefone depois).
+        clienteGlobalEncontradoCache = {
+            nome: dados.nome,
+            whatsapp,
+            cep: perfil?.cep || '',
+            rua: perfil?.rua || '',
+            num: perfil?.num || '',
+            bairro: perfil?.bairro || '',
+            cidade: perfil?.cidade || '',
+            uf: perfil?.uf || '',
+            comp: perfil?.comp || ''
+        };
+
         const nomeEsc = escaparHtmlMarketplace(dados.nome);
+        const enderecoResumo = perfil?.rua
+            ? escaparHtmlMarketplace(`${perfil.rua}, ${perfil.num || 's/n'}${perfil.bairro ? ' - ' + perfil.bairro : ''}`)
+            : '';
         const iniciais = (dados.nome || 'C').split(' ').filter(Boolean).map((n) => n[0]).join('').slice(0, 2).toUpperCase();
         container.innerHTML = `
             <p class="selector-global-hint">Não é cliente dessa loja ainda, mas encontramos esse contato:</p>
-            <div class="selector-global-card" onclick="preencherClienteEncontradoGlobal('${dados.nome.replace(/'/g, "\\'")}', '${whatsapp}')">
+            <div class="selector-global-card" onclick="usarClienteGlobalEncontrado()">
                 <span class="selector-avatar-iniciais">${iniciais}</span>
                 <div class="selector-global-card-info">
                     <strong>${nomeEsc}</strong>
                     <span>${escaparHtmlMarketplace(whatsapp)}</span>
+                    ${enderecoResumo ? `<span>${enderecoResumo}</span>` : ''}
                 </div>
                 <span class="selector-global-card-cta">Usar</span>
             </div>
@@ -12236,16 +12333,46 @@ async function buscarClienteGlobalEExibir(whatsapp, container) {
     }
 }
 
-// Leva pro formulário de Novo Cliente já com nome/whatsapp preenchidos, pra
-// só faltar o endereço (que é por loja, então nunca vem do índice global).
-function preencherClienteEncontradoGlobal(nome, whatsapp) {
+// Leva pro formulário de Novo Cliente já com nome/whatsapp/endereço
+// preenchidos (lido da cache acima, nunca de HTML) — o lojista só confere
+// e salva; salvarNovoCliente mantém o perfil global atualizado.
+function usarClienteGlobalEncontrado() {
+    const dados = clienteGlobalEncontradoCache;
+    if (!dados) return;
     fecharSeletorCliente();
     setTimeout(() => {
         abrirNovoCliente();
-        const nomeInput = document.getElementById('new-cli-nome');
+        const campos = {
+            'new-cli-nome': dados.nome,
+            'new-cli-tel': dados.whatsapp,
+            'new-cli-cep': dados.cep,
+            'new-cli-rua': dados.rua,
+            'new-cli-num': dados.num,
+            'new-cli-bairro': dados.bairro,
+            'new-cli-cidade': dados.cidade,
+            'new-cli-estado': dados.uf,
+            'new-cli-comp': dados.comp
+        };
+        Object.keys(campos).forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el || !campos[id]) return;
+            el.value = campos[id];
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }, 180);
+}
+
+// Pré-preenche só o telefone já digitado, a partir do aviso "não está
+// cadastrado. Deseja cadastrar?".
+function abrirNovoClienteComTelefone(whatsapp) {
+    fecharSeletorCliente();
+    setTimeout(() => {
+        abrirNovoCliente();
         const telInput = document.getElementById('new-cli-tel');
-        if (nomeInput) nomeInput.value = nome;
-        if (telInput) telInput.value = whatsapp;
+        if (telInput) {
+            telInput.value = whatsapp;
+            telInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
     }, 180);
 }
 
@@ -15675,9 +15802,26 @@ async function liberarRotaParadaLojista() {
         [`usuarios/${uid}/rotas/${rotaId}/entregadorGeo`]: null,
         [`usuarios/${uid}/rotas/${rotaId}/atualizadoEm`]: agora
     };
+    // BUG CORRIGIDO 2026-10-02: só devolvia a ROTA pra BUSCANDO — os pacotes
+    // dela ficavam presos em EM_ROTA no modelo novo (usuarios/{uid}/pacotes),
+    // mesma causa raiz do status do pedido não acompanhar o da rota.
+    const pacoteIdsRota = Array.isArray(rota?.pacoteIds) ? rota.pacoteIds : (Array.isArray(rota?.pacotes) ? rota.pacotes : []);
+    pacoteIdsRota.forEach((pid) => {
+        updates[`usuarios/${uid}/pacotes/${pid}/status`] = 'BUSCANDO';
+        updates[`usuarios/${uid}/pacotes/${pid}/statusRaw`] = 'BUSCANDO';
+        updates[`usuarios/${uid}/pacotes/${pid}/rotaId`] = null;
+        updates[`usuarios/${uid}/pacotes/${pid}/atualizadoEm`] = agora;
+    });
 
     try {
         await db.ref().update(updates);
+        if (window.pacotesRaizCache?.[uid]) {
+            pacoteIdsRota.forEach((pid) => {
+                if (window.pacotesRaizCache[uid][pid]) {
+                    window.pacotesRaizCache[uid][pid] = { ...window.pacotesRaizCache[uid][pid], status: 'BUSCANDO', statusRaw: 'BUSCANDO', rotaId: null, atualizadoEm: agora };
+                }
+            });
+        }
         if (entregadorId) {
             await db.ref(`usuarios/${entregadorId}/rotas/${rotaId}`).remove();
             criarNotificacao(entregadorId, {
@@ -15814,6 +15958,7 @@ export {
   abrirNotificacao,
   abrirNovaRotaPeloChip,
   abrirNovoCliente,
+  abrirNovoClienteComTelefone,
   abrirNovoClientePeloSeletor,
   abrirPagamento,
   abrirPainelListaChat,
@@ -16155,7 +16300,6 @@ export {
   persistirEntregaPacoteAtual,
   persistirFinanceiroUsuario,
   podeSelecionarPacoteRota,
-  preencherClienteEncontradoGlobal,
   preencherPerfilEntregador,
   preencherPerfilLojista,
   preencherTextoDetalheEnvio,
@@ -16246,6 +16390,7 @@ export {
   toggleLojaSidebarCompact,
   togglePacoteRota,
   togglePass,
+  usarClienteGlobalEncontrado,
   usuarioEhEntregador,
   usuarioEhMaster,
   verHistoricoCliente,

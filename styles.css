@@ -2966,6 +2966,10 @@ body.lojista-desktop-mode .accordion-save-btn {
 .selector-global-card-info span { font-size: 12px; color: var(--text-sub); font-weight: 600; }
 .selector-global-card-cta { font-size: 12px; font-weight: 800; color: var(--brand-orange); flex-shrink: 0; }
 .selector-global-note { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px; }
+.selector-global-cta-cadastrar {
+    width: 100%; border: none; border-radius: 16px; padding: 12px; margin-top: 4px;
+    background: var(--brand-orange); color: #fff; font-size: 13px; font-weight: 800; cursor: pointer;
+}
 
 .selector-cliente-card {
     width: 100%;
