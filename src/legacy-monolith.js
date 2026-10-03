@@ -5906,6 +5906,20 @@ function cancelarCorridaPacoteAtual() {
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     if (!rotaId || !pac) return;
     setEstadoPacoteRota(rotaId, pac, { status: 'pendente', codigoConfirmacao: '' }, rotaEntSheetIndex);
+
+    // BUG CORRIGIDO 2026-10-03: só desfazia o estado LOCAL (em memória) —
+    // rotaSheetBloqueada() passou a confiar também em pac.corridaIniciadaEm
+    // (persistido no banco por iniciarCorridaPacoteAtual, pra sobreviver a
+    // reload) pra decidir se mostra o código ou o botão "Iniciar Corrida".
+    // Sem limpar esse campo aqui também, "Cancelar" reabria a MESMA tela de
+    // confirmação de novo — parecia que o botão não fazia nada.
+    pac.corridaIniciadaEm = null;
+    const lojistaUidCancelar = obterLojistaUidDaRota(rotaEntSheetRotaAtual, pac);
+    const pacoteIdCancelar = obterIdPacoteConfirmacao(pac);
+    if (lojistaUidCancelar && pacoteIdCancelar) {
+        db.ref(`usuarios/${lojistaUidCancelar}/pacotes/${pacoteIdCancelar}/corridaIniciadaEm`).set(null).catch(() => {});
+    }
+
     renderSheetRotaEntregadorConteudo();
 }
 

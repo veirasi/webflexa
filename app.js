@@ -5380,6 +5380,13 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     if (!rotaId || !pac) return;
     setEstadoPacoteRota(rotaId, pac, { status: "pendente", codigoConfirmacao: "" }, rotaEntSheetIndex);
+    pac.corridaIniciadaEm = null;
+    const lojistaUidCancelar = obterLojistaUidDaRota(rotaEntSheetRotaAtual, pac);
+    const pacoteIdCancelar = obterIdPacoteConfirmacao(pac);
+    if (lojistaUidCancelar && pacoteIdCancelar) {
+      db.ref(`usuarios/${lojistaUidCancelar}/pacotes/${pacoteIdCancelar}/corridaIniciadaEm`).set(null).catch(() => {
+      });
+    }
     renderSheetRotaEntregadorConteudo();
   }
   function atualizarCodigoConfirmacaoAtual(valor) {
