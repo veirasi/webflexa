@@ -73,6 +73,14 @@ let rotaEntregadorProgresso = {};
 let rotaSwipeStartX = 0;
 let rotaSwipeCardAtivo = null;
 let filtroEnviosAtivo = 'TODOS';
+// Valor LITERAL do chip clicado (não passa por normalizarFiltroChipEnvio) —
+// usado só pra decidir qual botão acende. BUG CORRIGIDO 2026-10-02:
+// normalizarFiltroChipEnvio junta "Pacote Novo" e "Pagamento Pendente" na
+// mesma categoria de filtro (de propósito, pra filtrar o mesmo conjunto),
+// mas isso fazia os DOIS chips acenderem juntos sempre que qualquer um dos
+// dois era clicado — usar o valor cru aqui mantém o destaque exclusivo sem
+// mexer na lógica de filtragem em si.
+let filtroEnviosChipAtivo = 'TODOS';
 let filtroRotasAtivo = 'BUSCANDO';
 let dashboardRotasSincronizadas = false;
 let adminUsersCache = null;
@@ -3290,7 +3298,15 @@ function extrairCidadeEnderecoSimples(destino = '') {
 async function carregarPacotesRaizDoUid(uid) {
     if (!uid) return;
     try {
-        const snap = await db.ref(`pacotes/${uid}`).once('value');
+        // BUG CORRIGIDO 2026-10-02: lia 'pacotes/{uid}' (raiz), um caminho que
+        // NINGUÉM grava — confirmarEnvioFinal/persistirEntregaPacoteAtual (e
+        // todo o resto do app) sempre gravaram em 'usuarios/{uid}/pacotes'.
+        // Resultado prático: window.pacotesRaizCache[uid] ficava sempre {}
+        // depois de qualquer reload, fazendo o merge historico+pacotes em
+        // coletarEnviosDaBase/montarMapaEnviosPorId rodar só com o lado
+        // antigo (historico) pra sempre — o lado "modelo novo" nunca
+        // existia de verdade na tela.
+        const snap = await db.ref(`usuarios/${uid}/pacotes`).once('value');
         if (!window.pacotesRaizCache) window.pacotesRaizCache = {};
         window.pacotesRaizCache[uid] = snap.exists() ? (snap.val() || {}) : {};
     } catch (err) {
@@ -6684,14 +6700,14 @@ function verTodasAsRotas(event) {
 
 function selecionarFiltroEnvios(filtro = 'TODOS', btn = null) {
     filtroEnviosAtivo = normalizarFiltroChipEnvio(filtro || 'TODOS');
+    filtroEnviosChipAtivo = normalizarTexto((filtro || 'TODOS').toString()).toUpperCase().replace(/\s+/g, '_');
     const row = document.getElementById('envio-filter-row');
     if (row) {
         row.querySelectorAll('[data-envio-filter]').forEach((chip) => {
-            const alvo = normalizarFiltroChipEnvio(chip.dataset.envioFilter || '');
-            chip.classList.toggle('active', alvo === filtroEnviosAtivo);
+            const alvo = normalizarTexto((chip.dataset.envioFilter || '').toString()).toUpperCase().replace(/\s+/g, '_');
+            chip.classList.toggle('active', alvo === filtroEnviosChipAtivo);
         });
     }
-    if (btn && btn.classList) btn.classList.add('active');
     renderEnviosHome();
 }
 
@@ -7135,10 +7151,13 @@ function setStatusPacotes(ids = [], status = 'PACOTE_NOVO', salvar = false) {
 
     if (salvar) saveClientes();
 
-    // atualiza também no modelo novo /pacotes
+    // atualiza também no modelo novo /pacotes (BUG CORRIGIDO 2026-10-02:
+    // gravava em 'pacotes/{uid}/{id}', um caminho que nada mais no app lê —
+    // o real é 'usuarios/{uid}/pacotes/{id}', mesmo usado por
+    // confirmarEnvioFinal/persistirEntregaPacoteAtual).
     if (salvar && uid) {
         alvos.forEach((id) => {
-            db.ref(`pacotes/${uid}/${id}/status`).set(status).catch(() => {});
+            db.ref(`usuarios/${uid}/pacotes/${id}/status`).set(status).catch(() => {});
         });
     }
 
@@ -12460,8 +12479,8 @@ function renderEnviosHome() {
     const row = document.getElementById('envio-filter-row');
     if (row) {
         row.querySelectorAll('[data-envio-filter]').forEach((chip) => {
-            const alvo = normalizarFiltroChipEnvio(chip.dataset.envioFilter || '');
-            chip.classList.toggle('active', alvo === filtroEnviosAtivo);
+            const alvo = normalizarTexto((chip.dataset.envioFilter || '').toString()).toUpperCase().replace(/\s+/g, '_');
+            chip.classList.toggle('active', alvo === filtroEnviosChipAtivo);
         });
     }
 

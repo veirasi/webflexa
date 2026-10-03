@@ -772,6 +772,7 @@
   var rotaSwipeStartX = 0;
   var rotaSwipeCardAtivo = null;
   var filtroEnviosAtivo = "TODOS";
+  var filtroEnviosChipAtivo = "TODOS";
   var filtroRotasAtivo = "BUSCANDO";
   var dashboardRotasSincronizadas = false;
   var adminUsersCache = null;
@@ -3399,7 +3400,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   async function carregarPacotesRaizDoUid(uid) {
     if (!uid) return;
     try {
-      const snap = await db.ref(`pacotes/${uid}`).once("value");
+      const snap = await db.ref(`usuarios/${uid}/pacotes`).once("value");
       if (!window.pacotesRaizCache) window.pacotesRaizCache = {};
       window.pacotesRaizCache[uid] = snap.exists() ? snap.val() || {} : {};
     } catch (err) {
@@ -6058,14 +6059,14 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
   }
   function selecionarFiltroEnvios(filtro = "TODOS", btn = null) {
     filtroEnviosAtivo = normalizarFiltroChipEnvio(filtro || "TODOS");
+    filtroEnviosChipAtivo = normalizarTexto((filtro || "TODOS").toString()).toUpperCase().replace(/\s+/g, "_");
     const row = document.getElementById("envio-filter-row");
     if (row) {
       row.querySelectorAll("[data-envio-filter]").forEach((chip) => {
-        const alvo = normalizarFiltroChipEnvio(chip.dataset.envioFilter || "");
-        chip.classList.toggle("active", alvo === filtroEnviosAtivo);
+        const alvo = normalizarTexto((chip.dataset.envioFilter || "").toString()).toUpperCase().replace(/\s+/g, "_");
+        chip.classList.toggle("active", alvo === filtroEnviosChipAtivo);
       });
     }
-    if (btn && btn.classList) btn.classList.add("active");
     renderEnviosHome();
   }
   function selecionarFiltroRotas(filtro = "BUSCANDO", btn = null) {
@@ -6377,7 +6378,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     if (salvar) saveClientes();
     if (salvar && uid) {
       alvos.forEach((id) => {
-        db.ref(`pacotes/${uid}/${id}/status`).set(status).catch(() => {
+        db.ref(`usuarios/${uid}/pacotes/${id}/status`).set(status).catch(() => {
         });
       });
     }
@@ -10539,8 +10540,8 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     const row = document.getElementById("envio-filter-row");
     if (row) {
       row.querySelectorAll("[data-envio-filter]").forEach((chip) => {
-        const alvo = normalizarFiltroChipEnvio(chip.dataset.envioFilter || "");
-        chip.classList.toggle("active", alvo === filtroEnviosAtivo);
+        const alvo = normalizarTexto((chip.dataset.envioFilter || "").toString()).toUpperCase().replace(/\s+/g, "_");
+        chip.classList.toggle("active", alvo === filtroEnviosChipAtivo);
       });
     }
     const envios = coletarEnviosDaBase();
