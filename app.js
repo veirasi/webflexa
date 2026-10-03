@@ -872,6 +872,16 @@
       await auth2.signInWithCustomToken(data.customToken);
       if (data.cadastroCompleto === false) {
         abrirModalClienteAuth("entrar");
+        if (!enderecoDestinoRastreioAtual && tokenRastreioAtual) {
+          try {
+            const tokenInfo = (await db.ref(`rastreioToken/${tokenRastreioAtual}`).once("value")).val();
+            if (tokenInfo?.rotaId && tokenInfo?.pacoteId) {
+              const pacoteInfo = (await db.ref(`rastreioPublico/${tokenInfo.rotaId}/pacotes/${tokenInfo.pacoteId}`).once("value")).val();
+              if (pacoteInfo?.enderecoDestino) enderecoDestinoRastreioAtual = pacoteInfo.enderecoDestino;
+            }
+          } catch (e) {
+          }
+        }
         abrirClienteAuthCompletarCadastro(data.nome || "");
       }
     } catch (err) {

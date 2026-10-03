@@ -237,6 +237,30 @@ async function tentarAutoLoginClienteViaLink(loginToken) {
 
         if (data.cadastroCompleto === false) {
             abrirModalClienteAuth('entrar');
+            // BUG CORRIGIDO 2026-10-03 (achado pelo dono, confirmado: condição
+            // de corrida real, não dado faltando): enderecoDestinoRastreioAtual
+            // era preenchido por uma cadeia assíncrona TOTALMENTE SEPARADA
+            // (exibirTelaRastreioPublico → rastreioToken → listener em
+            // rastreioPublico), disparada em paralelo a esta (ver
+            // ativarModoRastreioSeNecessario, que chama as duas sem esperar
+            // uma pela outra de propósito, pro rastreio nunca travar esperando
+            // login). Quando essa chamada aqui (1 requisição HTTP) terminava
+            // ANTES da outra cadeia (2 leituras sequenciais no banco), a tela
+            // de completar cadastro abria com enderecoDestinoRastreioAtual
+            // ainda no valor inicial (null) — nome vinha certo (já tinha
+            // chegado na resposta desta função), endereço vinha vazio. Agora
+            // busca o endereço de forma determinística, na própria cadeia
+            // desta função, antes de abrir a tela — sem depender de quem
+            // termina primeiro.
+            if (!enderecoDestinoRastreioAtual && tokenRastreioAtual) {
+                try {
+                    const tokenInfo = (await db.ref(`rastreioToken/${tokenRastreioAtual}`).once('value')).val();
+                    if (tokenInfo?.rotaId && tokenInfo?.pacoteId) {
+                        const pacoteInfo = (await db.ref(`rastreioPublico/${tokenInfo.rotaId}/pacotes/${tokenInfo.pacoteId}`).once('value')).val();
+                        if (pacoteInfo?.enderecoDestino) enderecoDestinoRastreioAtual = pacoteInfo.enderecoDestino;
+                    }
+                } catch (e) { /* segue sem endereço pré-preenchido, não bloqueia o cadastro */ }
+            }
             abrirClienteAuthCompletarCadastro(data.nome || '');
         }
     } catch (err) {
