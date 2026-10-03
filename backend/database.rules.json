@@ -307,11 +307,22 @@
       "$telefone": {
         ".read": true,
         ".write": "auth != null",
+        // BUG CORRIGIDO 2026-10-02 (achado em teste ao vivo, antes de
+        // publicar, 2 tentativas): regra em `.write` aqui é inútil — o
+        // `.write: "auth != null"` do nó pai ($telefone, acima) já cascade
+        // libera a escrita do campo inteiro, e uma regra MAIS PERMISSIVA
+        // num ancestral sempre vence uma mais restritiva no filho (Firebase
+        // nunca "revoga" o que o pai já concedeu). Só `.validate` restringe
+        // de verdade nesse caso, porque `.validate` NUNCA é sobrescrito por
+        // permissão de ancestral — roda sempre, além do `.write` (mesmo
+        // mecanismo do write-once de usuarios/$uid/tipo). 1ª tentativa
+        // (`.write` com `!data.exists() || data.val() === auth.uid`) parecia
+        // certa na leitura mas não bloqueou nada ao testar ao vivo.
         "uid": {
-          ".write": "!data.exists() || newData.val() === auth.uid || data.val() === auth.uid"
+          ".validate": "!data.exists() || data.val() === auth.uid"
         },
         "cadastroCompleto": {
-          ".write": "!data.parent().child('uid').exists() || data.parent().child('uid').val() === auth.uid"
+          ".validate": "!data.parent().child('uid').exists() || data.parent().child('uid').val() === auth.uid"
         }
       }
     },
