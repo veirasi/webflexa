@@ -10456,8 +10456,7 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
   function usarClienteGlobalEncontrado() {
     const dados = clienteGlobalEncontradoCache;
     if (!dados) return;
-    fecharSeletorCliente();
-    setTimeout(() => {
+    const preencherCampos = () => {
       abrirNovoCliente();
       const campos = {
         "new-cli-nome": dados.nome,
@@ -10476,18 +10475,29 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
         el.value = campos[id];
         el.dispatchEvent(new Event("input", { bubbles: true }));
       });
-    }, 180);
+    };
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      preencherCampos();
+      return;
+    }
+    fecharSeletorCliente();
+    setTimeout(preencherCampos, 180);
   }
   function abrirNovoClienteComTelefone(whatsapp) {
-    fecharSeletorCliente();
-    setTimeout(() => {
+    const preencherTelefone = () => {
       abrirNovoCliente();
       const telInput2 = document.getElementById("new-cli-tel");
       if (telInput2) {
         telInput2.value = whatsapp;
         telInput2.dispatchEvent(new Event("input", { bubbles: true }));
       }
-    }, 180);
+    };
+    if (document.body.classList.contains("lojista-desktop-mode")) {
+      preencherTelefone();
+      return;
+    }
+    fecharSeletorCliente();
+    setTimeout(preencherTelefone, 180);
   }
   function renderClientesSelector(filtro = "") {
     const container = document.getElementById("clientes-sheet-list");

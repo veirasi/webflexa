@@ -12450,8 +12450,8 @@ async function buscarClienteGlobalEExibir(whatsapp, container) {
 function usarClienteGlobalEncontrado() {
     const dados = clienteGlobalEncontradoCache;
     if (!dados) return;
-    fecharSeletorCliente();
-    setTimeout(() => {
+
+    const preencherCampos = () => {
         abrirNovoCliente();
         const campos = {
             'new-cli-nome': dados.nome,
@@ -12470,21 +12470,39 @@ function usarClienteGlobalEncontrado() {
             el.value = campos[id];
             el.dispatchEvent(new Event('input', { bubbles: true }));
         });
-    }, 180);
+    };
+
+    // BUG CORRIGIDO 2026-10-03: no desktop, fecharSeletorCliente() também
+    // fecha a coluna direita (form de envio) — mesma armadilha já evitada
+    // em abrirNovoClientePeloSeletor. abrirModalNovoCliente já troca só a
+    // coluna esquerda sozinho, então no desktop nem precisa fechar nada.
+    if (document.body.classList.contains('lojista-desktop-mode')) {
+        preencherCampos();
+        return;
+    }
+    fecharSeletorCliente();
+    setTimeout(preencherCampos, 180);
 }
 
 // Pré-preenche só o telefone já digitado, a partir do aviso "não está
 // cadastrado. Deseja cadastrar?".
 function abrirNovoClienteComTelefone(whatsapp) {
-    fecharSeletorCliente();
-    setTimeout(() => {
+    const preencherTelefone = () => {
         abrirNovoCliente();
         const telInput = document.getElementById('new-cli-tel');
         if (telInput) {
             telInput.value = whatsapp;
             telInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-    }, 180);
+    };
+    // Mesma correção de usarClienteGlobalEncontrado: no desktop não fecha o
+    // seletor (fecharia também a coluna direita do form de envio).
+    if (document.body.classList.contains('lojista-desktop-mode')) {
+        preencherTelefone();
+        return;
+    }
+    fecharSeletorCliente();
+    setTimeout(preencherTelefone, 180);
 }
 
 function renderClientesSelector(filtro = '') {
