@@ -8719,8 +8719,8 @@ function renderRotaDetalhePagina() {
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.whatsapp || ''))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
-                ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.whatsapp || ''))}', '${escaparHtmlMarketplace(String(p.destinatario || '').replace(/'/g, "\\'"))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.destinatario || '').replace(/'/g, "\\'"))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
             </div>
         </div>
     ` : '';
@@ -8755,7 +8755,7 @@ function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
 }
 
-async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp) {
+async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp, nome) {
     // Login automático embutido no link — mesmo mecanismo do "Enviar no
     // WhatsApp" (ver compartilharLinkRastreioWhatsapp). BUG CORRIGIDO
     // 2026-10-03 (pedido do dono): antes só o botão de WhatsApp gerava esse
@@ -8766,7 +8766,7 @@ async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp) {
     let loginTokenParam = '';
     if (whatsapp) {
         try {
-            const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp });
+            const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp, nome });
             if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
         } catch (err) {
             console.warn('Falha ao gerar login automático do cliente:', err);
@@ -8799,7 +8799,7 @@ function paraWhatsappInternacional(whatsapp) {
     return digits.length <= 11 ? '55' + digits : digits;
 }
 
-async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
+async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao, nome) {
     // Abre a aba JÁ (síncrono, dentro do próprio clique) e só troca a URL
     // dela depois — navegadores bloqueiam window.open chamado depois de um
     // await, mesmo que o clique tenha disparado tudo isso.
@@ -8814,7 +8814,7 @@ async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmac
     // automático — o rastreio em si nunca depende disso.
     let loginTokenParam = '';
     try {
-        const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp });
+        const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp, nome });
         if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
     } catch (err) {
         console.warn('Falha ao gerar login automático do cliente:', err);
@@ -15547,7 +15547,7 @@ async function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
     const aba = window.open('', '_blank');
     let loginTokenParam = '';
     try {
-        const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp });
+        const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp, nome });
         if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
     } catch (err) {
         console.warn('Falha ao gerar login automático do cliente:', err);

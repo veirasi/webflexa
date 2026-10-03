@@ -416,6 +416,11 @@ async function gerarLoginCliente(req, res, requester) {
   if (!whatsapp) {
     return res.status(400).json({ error: 'Missing required fields', required: ['whatsapp'] });
   }
+  // BUG CORRIGIDO 2026-10-03 (pedido do dono): o lojista já sabe o nome do
+  // destinatário (digitou ao criar o envio) — sem repassar aqui, a conta
+  // nascia sempre com nome vazio, e a tela de completar cadastro do cliente
+  // abria sem nenhum nome pré-preenchido.
+  const nomeDestinatario = String((req.body || {}).nome || '').trim().slice(0, 120);
 
   let uid;
   const emailSnap = await db.ref(`telefoneParaEmail/${whatsapp}`).once('value');
@@ -432,7 +437,7 @@ async function gerarLoginCliente(req, res, requester) {
     const userRecord = await admin.auth().createUser({ email: emailConvite, password: senhaInterna });
     uid = userRecord.uid;
     await db.ref(`usuarios/${uid}`).set({
-      nome: '',
+      nome: nomeDestinatario,
       email: emailConvite,
       whatsapp,
       tipo: 'cliente',
@@ -441,7 +446,7 @@ async function gerarLoginCliente(req, res, requester) {
       cadastroCompleto: false
     });
     await db.ref(`telefoneParaEmail/${whatsapp}`).set(emailConvite);
-    await db.ref(`clientesGlobais/${whatsapp}`).set({ nome: '', whatsapp, uid, cadastroCompleto: false });
+    await db.ref(`clientesGlobais/${whatsapp}`).set({ nome: nomeDestinatario, whatsapp, uid, cadastroCompleto: false });
   }
 
   const loginToken = crypto.randomBytes(24).toString('hex');

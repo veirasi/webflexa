@@ -7648,8 +7648,8 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}', '${escaparHtmlMarketplace(String(p.whatsapp || ""))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
-                ${p.whatsapp && p.whatsapp !== "--" ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ""}
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}', '${escaparHtmlMarketplace(String(p.whatsapp || ""))}', '${escaparHtmlMarketplace(String(p.destinatario || "").replace(/'/g, "\\'"))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                ${p.whatsapp && p.whatsapp !== "--" ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ""))}', '${escaparHtmlMarketplace(String(p.destinatario || "").replace(/'/g, "\\'"))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ""}
             </div>
         </div>
     ` : "";
@@ -7680,11 +7680,11 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
   function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
   }
-  async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp) {
+  async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp, nome) {
     let loginTokenParam = "";
     if (whatsapp) {
       try {
-        const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp });
+        const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp, nome });
         if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
       } catch (err) {
         console.warn("Falha ao gerar login autom\xE1tico do cliente:", err);
@@ -7706,11 +7706,11 @@ ${texto}`);
     const digits = normalizarWhatsapp(whatsapp);
     return digits.length <= 11 ? "55" + digits : digits;
   }
-  async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao) {
+  async function compartilharLinkRastreioWhatsapp(token, whatsapp, codigoConfirmacao, nome) {
     const aba = window.open("", "_blank");
     let loginTokenParam = "";
     try {
-      const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp });
+      const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp, nome });
       if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
     } catch (err) {
       console.warn("Falha ao gerar login autom\xE1tico do cliente:", err);
@@ -12929,7 +12929,7 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     const aba = window.open("", "_blank");
     let loginTokenParam = "";
     try {
-      const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp });
+      const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp, nome });
       if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
     } catch (err) {
       console.warn("Falha ao gerar login autom\xE1tico do cliente:", err);

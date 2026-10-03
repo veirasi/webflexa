@@ -4429,6 +4429,13 @@ body.lojista-desktop-mode .accordion-save-btn {
     box-shadow: 0 20px 45px rgba(15,23,42,0.18);
     opacity: 0; transform: translateY(-10px);
     transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+    /* BUG CORRIGIDO 2026-10-03: esse dropdown nunca teve rolagem própria —
+       era pequeno o bastante (nome+senha) pra nunca precisar. O formulário
+       de completar cadastro ganhou campos de endereço (pedido do dono
+       2026-10-03) e passou a vazar pra fora da tela em telas mais baixas,
+       deixando o botão de confirmar inalcançável. */
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
 }
 .rastreio-pub-auth-dropdown.is-open { opacity: 1; transform: translateY(0); }
 .rastreio-pub-auth-dropdown .form-group { margin-bottom: 12px; }
