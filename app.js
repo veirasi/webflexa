@@ -3287,7 +3287,15 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           devolucaoStatus: h?.devolucaoStatus || null,
           motivoDevolucao: h?.motivoDevolucao || null,
           motivoDevolucaoDetalhe: h?.motivoDevolucaoDetalhe || null,
-          codigoConfirmacaoDevolucao: h?.codigoConfirmacaoDevolucao || null
+          codigoConfirmacaoDevolucao: h?.codigoConfirmacaoDevolucao || null,
+          // FALTAVA (pedido do dono 2026-10-02: "o link copiado manda
+          // um código e o lojista recebe outro totalmente diferente")
+          // — sem isso, renderRotaDetalhePagina sempre lia
+          // p.codigoConfirmacaoEntrega como undefined, e o botão
+          // "Copiar link"/"Enviar no WhatsApp" nunca incluía nenhum
+          // código na mensagem pro cliente.
+          codigoConfirmacaoEntrega: h?.codigoConfirmacaoEntrega || null,
+          codigoConfirmacaoRetirada: h?.codigoConfirmacaoRetirada || null
         });
       });
     });
@@ -3329,7 +3337,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             devolucaoStatus: p.devolucaoStatus || null,
             motivoDevolucao: p.motivoDevolucao || null,
             motivoDevolucaoDetalhe: p.motivoDevolucaoDetalhe || null,
-            codigoConfirmacaoDevolucao: p.codigoConfirmacaoDevolucao || null
+            codigoConfirmacaoDevolucao: p.codigoConfirmacaoDevolucao || null,
+            codigoConfirmacaoEntrega: p.codigoConfirmacaoEntrega || null,
+            codigoConfirmacaoRetirada: p.codigoConfirmacaoRetirada || null
           });
         });
       });
