@@ -845,7 +845,8 @@
       if (!loginTokenJaTentado) {
         const qIdx = hash.indexOf("?");
         if (qIdx >= 0) {
-          const loginToken = new URLSearchParams(hash.slice(qIdx + 1)).get("lt");
+          const loginTokenBruto = new URLSearchParams(hash.slice(qIdx + 1)).get("lt") || "";
+          const loginToken = (loginTokenBruto.match(/^[0-9a-f]+/i) || [""])[0];
           if (loginToken) {
             loginTokenJaTentado = true;
             tentarAutoLoginClienteViaLink(loginToken);

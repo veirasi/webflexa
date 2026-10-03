@@ -427,6 +427,19 @@ async function gerarLoginCliente(req, res, requester) {
   if (emailSnap.exists()) {
     const userRecord = await admin.auth().getUserByEmail(emailSnap.val());
     uid = userRecord.uid;
+    // BUG CORRIGIDO 2026-10-03: conta já existia (convite anterior nunca
+    // concluído) — sem isto, o nome ficava travado no que quer que tenha
+    // sido passado (ou vazio) da PRIMEIRA vez, mesmo em envios seguintes
+    // com o nome certo disponível. Só atualiza enquanto o cliente ainda não
+    // confirmou a própria conta (cadastroCompleto:false) — depois disso o
+    // nome passa a ser dele pra editar, nunca mais sobrescrito por aqui.
+    if (nomeDestinatario) {
+      const usuarioAtualSnap = await db.ref(`usuarios/${uid}/cadastroCompleto`).once('value');
+      if (usuarioAtualSnap.val() !== true) {
+        await db.ref(`usuarios/${uid}/nome`).set(nomeDestinatario);
+        await db.ref(`clientesGlobais/${whatsapp}/nome`).set(nomeDestinatario);
+      }
+    }
   } else {
     // Senha aleatória só pra satisfazer o Firebase Auth por baixo — nunca é
     // exposta em lugar nenhum (o cliente entra sempre via loginToken/custom

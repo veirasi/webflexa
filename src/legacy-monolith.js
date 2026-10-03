@@ -182,7 +182,19 @@ function ativarModoRastreioSeNecessario() {
         if (!loginTokenJaTentado) {
             const qIdx = hash.indexOf('?');
             if (qIdx >= 0) {
-                const loginToken = new URLSearchParams(hash.slice(qIdx + 1)).get('lt');
+                const loginTokenBruto = new URLSearchParams(hash.slice(qIdx + 1)).get('lt') || '';
+                // BUG CORRIGIDO 2026-10-03 (achado pelo dono): "Copiar link"
+                // copia URL + mensagem explicando o código numa coisa só,
+                // separados por quebra de linha real — pensado pra colar num
+                // chat (WhatsApp/SMS), onde isso é só texto normal. Mas se
+                // alguém cola esse bloco inteiro direto numa barra de
+                // endereço (ou qualquer lugar que achata quebra de linha em
+                // espaço), o resto da mensagem vira parte do valor de "lt",
+                // e o token nunca mais bate com nenhum real — login
+                // automático falha sempre, silenciosamente. O token real é
+                // sempre hexadecimal puro, então corta no primeiro caractere
+                // que não é — sem efeito nenhum quando o link é usado certo.
+                const loginToken = (loginTokenBruto.match(/^[0-9a-f]+/i) || [''])[0];
                 if (loginToken) {
                     loginTokenJaTentado = true;
                     tentarAutoLoginClienteViaLink(loginToken);
