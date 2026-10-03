@@ -4076,14 +4076,24 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const lojistaUid = obterLojistaUidDaRota(rotaObj);
     if (!lojistaUid || !pacotes.length) return;
     const updates = {};
-    pacotes.forEach((pac) => {
-      if (obterCodigoConfirmacaoEsperado(pac)) return;
+    for (const pac of pacotes) {
+      if (obterCodigoConfirmacaoEsperado(pac)) continue;
       const pacoteId = obterIdPacoteConfirmacao(pac);
-      if (!pacoteId) return;
+      if (!pacoteId) continue;
+      let codigoReal = "";
+      try {
+        const snap = await db.ref(`usuarios/${lojistaUid}/pacotes/${pacoteId}/codigoConfirmacaoEntrega`).once("value");
+        codigoReal = (snap.val() || "").toString().trim();
+      } catch (err) {
+      }
+      if (codigoReal) {
+        pac.codigoConfirmacaoEntrega = codigoReal;
+        continue;
+      }
       const novoCodigo = gerarCodigoConfirmacaoEntrega();
       pac.codigoConfirmacaoEntrega = novoCodigo;
       updates[`usuarios/${lojistaUid}/pacotes/${pacoteId}/codigoConfirmacaoEntrega`] = novoCodigo;
-    });
+    }
     if (Object.keys(updates).length) {
       try {
         await db.ref().update(updates);

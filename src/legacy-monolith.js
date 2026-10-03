@@ -4180,14 +4180,37 @@ async function garantirCodigosConfirmacaoEntrega(rotaObj, pacotes = []) {
     if (!lojistaUid || !pacotes.length) return;
 
     const updates = {};
-    pacotes.forEach((pac) => {
-        if (obterCodigoConfirmacaoEsperado(pac)) return;
+    // BUG CORRIGIDO 2026-10-03 (achado pelo dono: código que o entregador via
+    // divergia do código já mandado pro cliente, e piorava com rotas
+    // sucessivas). Esta função confiava só no objeto `pac` em MEMÓRIA pra
+    // decidir "esse pacote não tem código, preciso gerar um novo" — se por
+    // qualquer motivo (cache de window.pacotesRaizCache desatualizado,
+    // corrida entre aceitar a rota e abrir o sheet, fetch incompleto) o
+    // `pac` local vinha sem o campo mesmo o pacote JÁ tendo um código real
+    // no banco (já mandado pro cliente via link), sobrescrevia
+    // silenciosamente com um código novo e ALEATÓRIO. O cliente continuava
+    // vendo o código antigo (rastreioPublico é gravado uma vez na criação da
+    // rota e nunca mais atualizado), e o entregador passava a exigir um
+    // código diferente — nenhum dos dois lados avisa que algo mudou. Agora
+    // confere direto no banco (fonte real) antes de gerar — nunca mais gera
+    // por cima de um código que já existe de verdade.
+    for (const pac of pacotes) {
+        if (obterCodigoConfirmacaoEsperado(pac)) continue;
         const pacoteId = obterIdPacoteConfirmacao(pac);
-        if (!pacoteId) return;
+        if (!pacoteId) continue;
+        let codigoReal = '';
+        try {
+            const snap = await db.ref(`usuarios/${lojistaUid}/pacotes/${pacoteId}/codigoConfirmacaoEntrega`).once('value');
+            codigoReal = (snap.val() || '').toString().trim();
+        } catch (err) { /* segue pro fallback de gerar um novo abaixo */ }
+        if (codigoReal) {
+            pac.codigoConfirmacaoEntrega = codigoReal;
+            continue;
+        }
         const novoCodigo = gerarCodigoConfirmacaoEntrega();
         pac.codigoConfirmacaoEntrega = novoCodigo;
         updates[`usuarios/${lojistaUid}/pacotes/${pacoteId}/codigoConfirmacaoEntrega`] = novoCodigo;
-    });
+    }
 
     if (Object.keys(updates).length) {
         try {
