@@ -7388,6 +7388,14 @@ async function renderDashboardMaster() {
         } else if (tipo === 'entregador' || tipo === 'entrega') {
             entregadores += 1;
             if (estaAtivo) ativosE += 1;
+        } else if (tipo === 'cliente') {
+            // BUG CORRIGIDO 2026-10-02: esse else-catch-all contava conta de
+            // CLIENTE final (tipo:'cliente', criada por autocadastro/convite
+            // na tela de rastreio) como lojista — o card "Lojistas" da Visão
+            // Geral divergia do filtro "Lojistas" da aba Usuários, que já
+            // tinha sido corrigido pra separar cliente (ver badgeClass logo
+            // abaixo, comentário de 2026-09-27). Conta de cliente não entra
+            // em nenhum dos 3 cards de topo hoje.
         } else {
             lojas += 1;
             if (estaAtivo) ativosL += 1;
@@ -12284,7 +12292,13 @@ async function buscarClienteGlobalEExibir(whatsapp, container) {
         const filtroAtual = (document.getElementById('buscar-cliente')?.value || '').replace(/\D/g, '');
         if (filtroAtual !== whatsapp) return;
 
-        if (!dados?.nome) {
+        // BUG CORRIGIDO 2026-10-02: checava `!dados?.nome` — um registro que
+        // EXISTE mas tem nome vazio (ex: convite de app ainda não concluído
+        // pelo cliente, cadastroCompleto:false, nome:'') caía aqui como se
+        // não existisse, mostrando "deseja cadastrar?" pra um contato que já
+        // é cliente de outra loja. A existência do registro é o que importa
+        // (checa `dados` em si, não um campo específico dele).
+        if (!dados) {
             container.innerHTML = `
                 <p class="selector-global-hint">Esse contato não está cadastrado em nenhuma loja.</p>
                 <button type="button" class="selector-global-cta-cadastrar" onclick="abrirNovoClienteComTelefone('${whatsapp}')">Deseja cadastrar?</button>
@@ -12310,7 +12324,7 @@ async function buscarClienteGlobalEExibir(whatsapp, container) {
             comp: perfil?.comp || ''
         };
 
-        const nomeEsc = escaparHtmlMarketplace(dados.nome);
+        const nomeEsc = escaparHtmlMarketplace(dados.nome || 'Contato sem nome salvo');
         const enderecoResumo = perfil?.rua
             ? escaparHtmlMarketplace(`${perfil.rua}, ${perfil.num || 's/n'}${perfil.bairro ? ' - ' + perfil.bairro : ''}`)
             : '';

@@ -6559,6 +6559,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       } else if (tipo === "entregador" || tipo === "entrega") {
         entregadores += 1;
         if (estaAtivo) ativosE += 1;
+      } else if (tipo === "cliente") {
       } else {
         lojas += 1;
         if (estaAtivo) ativosL += 1;
@@ -10345,7 +10346,7 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
       const perfil = snapPerfil.val();
       const filtroAtual = (document.getElementById("buscar-cliente")?.value || "").replace(/\D/g, "");
       if (filtroAtual !== whatsapp) return;
-      if (!dados?.nome) {
+      if (!dados) {
         container.innerHTML = `
                 <p class="selector-global-hint">Esse contato n\xE3o est\xE1 cadastrado em nenhuma loja.</p>
                 <button type="button" class="selector-global-cta-cadastrar" onclick="abrirNovoClienteComTelefone('${whatsapp}')">Deseja cadastrar?</button>
@@ -10363,7 +10364,7 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
         uf: perfil?.uf || "",
         comp: perfil?.comp || ""
       };
-      const nomeEsc = escaparHtmlMarketplace(dados.nome);
+      const nomeEsc = escaparHtmlMarketplace(dados.nome || "Contato sem nome salvo");
       const enderecoResumo = perfil?.rua ? escaparHtmlMarketplace(`${perfil.rua}, ${perfil.num || "s/n"}${perfil.bairro ? " - " + perfil.bairro : ""}`) : "";
       const iniciais = (dados.nome || "C").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
       container.innerHTML = `
