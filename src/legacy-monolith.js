@@ -548,6 +548,7 @@ function abrirEditarCliente(id) {
 
     document.getElementById('novo-cliente-title').innerText = 'Editar Cliente';
     document.getElementById('btn-salvar-cliente').innerText = 'Salvar Alterações';
+    if (typeof liberarCidadeEstadoManual === 'function') liberarCidadeEstadoManual(false);
     abrirModalNovoCliente();
 }
 
@@ -558,6 +559,7 @@ function resetClienteForm() {
     clienteEmEdicaoId = null;
     document.getElementById('novo-cliente-title').innerText = 'Novo Cliente';
     document.getElementById('btn-salvar-cliente').innerText = 'Salvar e Continuar';
+    if (typeof liberarCidadeEstadoManual === 'function') liberarCidadeEstadoManual(false);
 }
 
 function verHistoricoCliente(id) {
@@ -898,6 +900,25 @@ function abrirNovoCliente() {
     abrirModalNovoCliente();
 }
 
+// BUG CORRIGIDO 2026-10-03 (achado pelo dono: CEP copiado direto do Google
+// Maps, de endereço real, voltou "não encontrado" no ViaCEP — a base do
+// ViaCEP tem buracos reais, não é só erro de digitação). Cidade/UF ficavam
+// readonly PRA SEMPRE nesse caso, travando o cadastro: sem a API achar o
+// CEP, não tinha jeito nenhum de completar o endereço manualmente.
+function liberarCidadeEstadoManual(liberar) {
+    const cidadeInput = document.getElementById('new-cli-cidade');
+    const estadoInput = document.getElementById('new-cli-estado');
+    [cidadeInput, estadoInput].forEach((el) => {
+        if (!el) return;
+        el.readOnly = !liberar;
+        el.style.background = liberar ? '#fff' : '#f8fafc';
+    });
+    if (liberar) {
+        if (cidadeInput) cidadeInput.placeholder = 'Digite a cidade';
+        if (estadoInput) estadoInput.placeholder = 'Ex: CE';
+    }
+}
+
 async function buscarEndereco(opts = {}) {
     const silencioso = Boolean(opts?.silencioso);
     const cepInput = document.getElementById('new-cli-cep');
@@ -917,10 +938,12 @@ async function buscarEndereco(opts = {}) {
         const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const dados = await res.json();
         if (dados?.erro) {
-            if (!silencioso) alert('CEP não encontrado.');
+            liberarCidadeEstadoManual(true);
+            if (!silencioso) alert('CEP não encontrado. Preencha cidade e estado manualmente.');
             return null;
         }
 
+        liberarCidadeEstadoManual(false);
         document.getElementById('new-cli-rua').value = dados.logradouro || '';
         document.getElementById('new-cli-bairro').value = dados.bairro || '';
         document.getElementById('new-cli-cidade').value = dados.localidade || '';
@@ -928,7 +951,8 @@ async function buscarEndereco(opts = {}) {
         document.getElementById('new-cli-num')?.focus();
         return dados;
     } catch (err) {
-        if (!silencioso) alert('Erro ao buscar CEP. Verifique sua conexão.');
+        liberarCidadeEstadoManual(true);
+        if (!silencioso) alert('Erro ao buscar CEP. Preencha cidade e estado manualmente.');
         return null;
     } finally {
         ruaInput.placeholder = placeholderOriginal || 'Ex: Av. Paulista';

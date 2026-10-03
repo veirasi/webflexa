@@ -1143,6 +1143,7 @@
     document.getElementById("new-cli-obs").value = cliente.obs || "";
     document.getElementById("novo-cliente-title").innerText = "Editar Cliente";
     document.getElementById("btn-salvar-cliente").innerText = "Salvar Altera\xE7\xF5es";
+    if (typeof liberarCidadeEstadoManual === "function") liberarCidadeEstadoManual(false);
     abrirModalNovoCliente();
   }
   function resetClienteForm() {
@@ -1152,6 +1153,7 @@
     clienteEmEdicaoId = null;
     document.getElementById("novo-cliente-title").innerText = "Novo Cliente";
     document.getElementById("btn-salvar-cliente").innerText = "Salvar e Continuar";
+    if (typeof liberarCidadeEstadoManual === "function") liberarCidadeEstadoManual(false);
   }
   function verHistoricoCliente(id) {
     const cliente = clientes.find((c) => c.id === id);
@@ -1427,6 +1429,19 @@
     resetClienteForm();
     abrirModalNovoCliente();
   }
+  function liberarCidadeEstadoManual(liberar) {
+    const cidadeInput = document.getElementById("new-cli-cidade");
+    const estadoInput = document.getElementById("new-cli-estado");
+    [cidadeInput, estadoInput].forEach((el) => {
+      if (!el) return;
+      el.readOnly = !liberar;
+      el.style.background = liberar ? "#fff" : "#f8fafc";
+    });
+    if (liberar) {
+      if (cidadeInput) cidadeInput.placeholder = "Digite a cidade";
+      if (estadoInput) estadoInput.placeholder = "Ex: CE";
+    }
+  }
   async function buscarEndereco(opts = {}) {
     const silencioso = Boolean(opts?.silencioso);
     const cepInput = document.getElementById("new-cli-cep");
@@ -1443,9 +1458,11 @@
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const dados = await res.json();
       if (dados?.erro) {
-        if (!silencioso) alert("CEP n\xE3o encontrado.");
+        liberarCidadeEstadoManual(true);
+        if (!silencioso) alert("CEP n\xE3o encontrado. Preencha cidade e estado manualmente.");
         return null;
       }
+      liberarCidadeEstadoManual(false);
       document.getElementById("new-cli-rua").value = dados.logradouro || "";
       document.getElementById("new-cli-bairro").value = dados.bairro || "";
       document.getElementById("new-cli-cidade").value = dados.localidade || "";
@@ -1453,7 +1470,8 @@
       document.getElementById("new-cli-num")?.focus();
       return dados;
     } catch (err) {
-      if (!silencioso) alert("Erro ao buscar CEP. Verifique sua conex\xE3o.");
+      liberarCidadeEstadoManual(true);
+      if (!silencioso) alert("Erro ao buscar CEP. Preencha cidade e estado manualmente.");
       return null;
     } finally {
       ruaInput.placeholder = placeholderOriginal || "Ex: Av. Paulista";
