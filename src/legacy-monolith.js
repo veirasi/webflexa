@@ -7319,20 +7319,22 @@ async function desistirRotaEntregador(rota) {
 async function renderDashboardMaster() {
     if (!usuarioEhMaster()) return;
 
-    // carrega pacotes raiz (modelo novo) uma vez por sessão admin
     if (!window.pacotesRaizCache) {
         window.pacotesRaizCache = {};
-    }
-    try {
-        const snapPacRoot = await db.ref('pacotes').once('value');
-        window.pacotesRaizCache = snapPacRoot?.val ? (snapPacRoot.val() || {}) : window.pacotesRaizCache;
-    } catch (err) {
-        console.warn('Falha ao carregar pacotes raiz (admin):', err);
     }
 
     const usersSnap = await db.ref('usuarios').once('value');
     const usersNo = usersSnap.val() || {};
     adminUsersCache = usersNo;
+
+    // BUG CORRIGIDO 2026-10-02: antes buscava 'pacotes' (raiz) separado — um
+    // caminho que nada grava (o pacote real vive em usuarios/{uid}/pacotes,
+    // já incluído na leitura de usersNo acima, já que master lê a árvore
+    // 'usuarios' inteira). Isso deixava window.pacotesRaizCache sempre vazio
+    // e o merge historico+pacotes do admin nunca via o "modelo novo".
+    Object.keys(usersNo).forEach((uid) => {
+        window.pacotesRaizCache[uid] = usersNo[uid]?.pacotes || {};
+    });
     const presenceSnap = await db.ref('presence').once('value').catch(() => ({ val: () => ({}) }));
     const presenceNo = presenceSnap?.val ? (presenceSnap.val() || {}) : {};
 
@@ -8287,15 +8289,11 @@ async function adminCarregarPacotes() {
             });
         });
 
-        // leitura de /pacotes (novo modelo)
-        let pacotesRaiz = {};
-        try {
-            const snapPac = await db.ref('pacotes').once('value');
-            if (snapPac && snapPac.exists()) pacotesRaiz = snapPac.val() || {};
-        } catch (_) {}
-
-        Object.keys(pacotesRaiz).forEach((uid) => {
-            const pacs = pacotesRaiz[uid] || {};
+        // leitura de /pacotes (novo modelo) — BUG CORRIGIDO 2026-10-02: lia
+        // 'pacotes' (raiz), caminho que nada grava. O pacote real vive em
+        // usuarios/{uid}/pacotes, já presente em dataUsers[uid].pacotes.
+        Object.keys(dataUsers).forEach((uid) => {
+            const pacs = dataUsers[uid]?.pacotes || {};
             Object.keys(pacs).forEach((pid) => {
                 const p = pacs[pid] || {};
                 linhas.push({
@@ -8309,6 +8307,15 @@ async function adminCarregarPacotes() {
                 });
             });
         });
+
+        // de-dup por id: um envio pode existir nos dois modelos (historico +
+        // pacotes) — mantém a última versão (pacotes, mais confiável porque
+        // não depende de casar id com o histórico do cliente).
+        {
+            const mapaLinhas = new Map();
+            linhas.forEach((l) => mapaLinhas.set(String(l.id || ''), l));
+            linhas = Array.from(mapaLinhas.values());
+        }
 
         // fallback local se nada retornou (ex.: regras de leitura)
         if (!linhas.length && Array.isArray(clientes)) {

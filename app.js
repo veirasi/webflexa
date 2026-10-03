@@ -6508,15 +6508,12 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
     if (!window.pacotesRaizCache) {
       window.pacotesRaizCache = {};
     }
-    try {
-      const snapPacRoot = await db.ref("pacotes").once("value");
-      window.pacotesRaizCache = snapPacRoot?.val ? snapPacRoot.val() || {} : window.pacotesRaizCache;
-    } catch (err) {
-      console.warn("Falha ao carregar pacotes raiz (admin):", err);
-    }
     const usersSnap = await db.ref("usuarios").once("value");
     const usersNo = usersSnap.val() || {};
     adminUsersCache = usersNo;
+    Object.keys(usersNo).forEach((uid) => {
+      window.pacotesRaizCache[uid] = usersNo[uid]?.pacotes || {};
+    });
     const presenceSnap = await db.ref("presence").once("value").catch(() => ({ val: () => ({}) }));
     const presenceNo = presenceSnap?.val ? presenceSnap.val() || {} : {};
     let lojas = 0;
@@ -7336,14 +7333,8 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
           });
         });
       });
-      let pacotesRaiz = {};
-      try {
-        const snapPac = await db.ref("pacotes").once("value");
-        if (snapPac && snapPac.exists()) pacotesRaiz = snapPac.val() || {};
-      } catch (_) {
-      }
-      Object.keys(pacotesRaiz).forEach((uid) => {
-        const pacs = pacotesRaiz[uid] || {};
+      Object.keys(dataUsers).forEach((uid) => {
+        const pacs = dataUsers[uid]?.pacotes || {};
         Object.keys(pacs).forEach((pid) => {
           const p = pacs[pid] || {};
           linhas.push({
@@ -7357,6 +7348,11 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
           });
         });
       });
+      {
+        const mapaLinhas = /* @__PURE__ */ new Map();
+        linhas.forEach((l) => mapaLinhas.set(String(l.id || ""), l));
+        linhas = Array.from(mapaLinhas.values());
+      }
       if (!linhas.length && Array.isArray(clientes)) {
         const meuUid = getUsuarioIdAtual() || "";
         clientes.forEach((cliente) => {
