@@ -1841,6 +1841,18 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
             updatesHistorico[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/atualizadoEm`] = agora;
           });
         });
+        // BUG CORRIGIDO 2026-10-02: só atualizava o modelo antigo (historico) —
+        // usuarios/{uid}/pacotes/{id}/status nunca virava EM_ROTA aqui, então
+        // a tela de Pedidos (que faz merge historico+pacotes, com pacotes
+        // tendo prioridade) continuava mostrando o status de ANTES de aceitar
+        // a rota até a entrega ser confirmada (quando persistirEntregaPacoteAtual
+        // finalmente sincronizava os dois modelos de novo).
+        pacoteIds.forEach((pid) => {
+          updatesHistorico[`usuarios/${lojistaUid}/pacotes/${pid}/status`] = 'EM_ROTA';
+          updatesHistorico[`usuarios/${lojistaUid}/pacotes/${pid}/statusRaw`] = 'EM_ROTA';
+          updatesHistorico[`usuarios/${lojistaUid}/pacotes/${pid}/rotaId`] = String(rotaId);
+          updatesHistorico[`usuarios/${lojistaUid}/pacotes/${pid}/atualizadoEm`] = agora;
+        });
         if (Object.keys(updatesHistorico).length) {
           await db.ref().update(updatesHistorico);
         }
