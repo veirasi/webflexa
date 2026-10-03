@@ -15538,10 +15538,25 @@ function mostrarInfoParadaTrackingLoja(rangeStart, rangeEnd) {
 // atual do pedido + o link de rastreio dele — não é envio automático de
 // verdade (isso exigiria a API oficial do WhatsApp Business, paga e sujeita
 // a aprovação), é reduzir "escrever a mensagem do zero" pra "1 clique".
-function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
-    const link = `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
+async function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
+    // BUG CORRIGIDO 2026-10-03 (achado pelo dono): essa era a 3ª função
+    // diferente montando link de rastreio, e a única que nunca gerou o
+    // token de login automático (ver compartilharLinkRastreioWhatsapp) —
+    // quem recebia o link por aqui (botão "Avisar cliente" do tracking da
+    // Home) nunca caía no auto-login nem na tela de completar cadastro.
+    const aba = window.open('', '_blank');
+    let loginTokenParam = '';
+    try {
+        const resp = await chamarPaymentsProxy('/gerar-login-cliente', { whatsapp });
+        if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
+    } catch (err) {
+        console.warn('Falha ao gerar login automático do cliente:', err);
+    }
+    const link = `${window.location.origin}${window.location.pathname}#/rastreio/${token}${loginTokenParam}`;
     const msg = `Olá${nome ? ', ' + nome.split(' ')[0] : ''}! Seu pedido está: ${statusLabel}.\n\nAcompanhe em tempo real: ${link}`;
-    window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, '_blank');
+    const urlWhatsapp = `https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`;
+    if (aba) aba.location.href = urlWhatsapp;
+    else window.open(urlWhatsapp, '_blank');
 }
 
 async function abrirModalTrackingLoja(rotaId) {

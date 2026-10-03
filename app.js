@@ -12925,12 +12925,22 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     }).join("");
     el.classList.remove("hidden");
   }
-  function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
-    const link = `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
+  async function avisarClienteStatusWhatsapp(whatsapp, nome, statusLabel, token) {
+    const aba = window.open("", "_blank");
+    let loginTokenParam = "";
+    try {
+      const resp = await chamarPaymentsProxy("/gerar-login-cliente", { whatsapp });
+      if (resp?.loginToken) loginTokenParam = `?lt=${encodeURIComponent(resp.loginToken)}`;
+    } catch (err) {
+      console.warn("Falha ao gerar login autom\xE1tico do cliente:", err);
+    }
+    const link = `${window.location.origin}${window.location.pathname}#/rastreio/${token}${loginTokenParam}`;
     const msg = `Ol\xE1${nome ? ", " + nome.split(" ")[0] : ""}! Seu pedido est\xE1: ${statusLabel}.
 
 Acompanhe em tempo real: ${link}`;
-    window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, "_blank");
+    const urlWhatsapp = `https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`;
+    if (aba) aba.location.href = urlWhatsapp;
+    else window.open(urlWhatsapp, "_blank");
   }
   async function abrirModalTrackingLoja(rotaId) {
     if (!rotaId) return;
