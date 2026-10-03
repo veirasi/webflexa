@@ -4167,8 +4167,19 @@ async function garantirPacotesDaRota(rotaObj) {
         const lojistaUid = rotaObj?.origemLojistaUid || rotaObj?.lojistaUid || rotaObj?.lojistaId || rotaObj?.uidLojista;
         if (!ids.length || !lojistaUid) return getPacotesDaRota(rotaObj);
 
-        // carrega /usuarios/{lojistaUid}/pacotes se necessário
-        if (!window.pacotesRaizCache || !window.pacotesRaizCache[lojistaUid]) {
+        // BUG CORRIGIDO 2026-10-03 (achado pelo dono: destinatário sumindo,
+        // mostrando o texto genérico "Destinatário"): só buscava
+        // /usuarios/{lojistaUid}/pacotes quando NENHUM cache existia ainda
+        // pra esse lojista — mas esse cache é por sessão do ENTREGADOR, não
+        // por rota. Depois da primeira rota aceita de um lojista, qualquer
+        // rota NOVA do mesmo lojista (pacote criado DEPOIS daquele fetch)
+        // ficava de fora do cache já existente e nunca era buscado nem
+        // individualmente a tempo — o sheet caía no reconstrutor sintético
+        // (prepararPacotesRotaEntregador), que só tem campos da ROTA, nunca
+        // o nome real do destinatário. Busca sempre fresco — é só 1 leitura
+        // extra, só quando o entregador abre o sheet de uma rota (raro o
+        // bastante pra não valer o risco de dado desatualizado).
+        {
             const snap = await db.ref(`usuarios/${lojistaUid}/pacotes`).once('value');
             window.pacotesRaizCache = window.pacotesRaizCache || {};
             window.pacotesRaizCache[lojistaUid] = snap.exists() ? (snap.val() || {}) : {};
@@ -4779,7 +4790,21 @@ function rotaSheetBloqueada() {
     const estado = obterEstadoPacoteRota(rotaEntSheetRotaAtual.id, pac, rotaEntSheetIndex);
     const statusPac = normalizarStatusEnvioFiltro(pac?.statusRaw || pac?.status || '');
     if (statusPac === 'ENTREGUE' || statusPac === 'CANCELADO' || estado.status === 'concluido') return false;
-    return estado.status === 'em_corrida' || statusPac === 'EM_ROTA';
+    // BUG CORRIGIDO 2026-10-03: usava statusPac === 'EM_ROTA' como sinal de
+    // "corrida já iniciada, sobrevivendo a um reload" — mas isso é o status
+    // da ROTA INTEIRA (vira EM_ROTA assim que o entregador ACEITA, antes de
+    // confirmar a coleta e antes de clicar "Iniciar Corrida" pra ESTA parada
+    // específica). Desde que /aceitar-rota-marketplace passou a sincronizar
+    // usuarios/{uid}/pacotes/{id}/status = 'EM_ROTA' no aceite (pra corrigir
+    // o status do pedido ficar atrasado em relação à rota), esse sinal
+    // passou a disparar cedo demais — o botão "Iniciar Corrida" sumia,
+    // pulando direto pro código de confirmação sem o entregador ter de fato
+    // começado a ir até o destinatário. O sinal certo de "esta parada
+    // específica já começou" é corridaIniciadaEm, gravado só por
+    // iniciarCorridaPacoteAtual (e já usado com esse exato propósito em
+    // verificarRotaParada) — sobrevive a reload sem se confundir com o
+    // status geral da rota.
+    return estado.status === 'em_corrida' || Boolean(pac?.corridaIniciadaEm);
 }
 
 // ===================== [COLETA DE PACOTES NA LOJA] =====================

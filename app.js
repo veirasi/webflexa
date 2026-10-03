@@ -4056,7 +4056,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       const ids = Array.isArray(rotaObj?.pacoteIds) ? rotaObj.pacoteIds : Array.isArray(rotaObj?.pacotes) ? rotaObj.pacotes : [];
       const lojistaUid = rotaObj?.origemLojistaUid || rotaObj?.lojistaUid || rotaObj?.lojistaId || rotaObj?.uidLojista;
       if (!ids.length || !lojistaUid) return getPacotesDaRota(rotaObj);
-      if (!window.pacotesRaizCache || !window.pacotesRaizCache[lojistaUid]) {
+      {
         const snap = await db.ref(`usuarios/${lojistaUid}/pacotes`).once("value");
         window.pacotesRaizCache = window.pacotesRaizCache || {};
         window.pacotesRaizCache[lojistaUid] = snap.exists() ? snap.val() || {} : {};
@@ -4524,7 +4524,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const estado = obterEstadoPacoteRota(rotaEntSheetRotaAtual.id, pac, rotaEntSheetIndex);
     const statusPac = normalizarStatusEnvioFiltro(pac?.statusRaw || pac?.status || "");
     if (statusPac === "ENTREGUE" || statusPac === "CANCELADO" || estado.status === "concluido") return false;
-    return estado.status === "em_corrida" || statusPac === "EM_ROTA";
+    return estado.status === "em_corrida" || Boolean(pac?.corridaIniciadaEm);
   }
   function rotaPrecisaConfirmarColeta(rotaObj) {
     if (!rotaObj) return false;
