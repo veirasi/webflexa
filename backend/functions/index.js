@@ -511,6 +511,163 @@ async function consumirLoginCliente(req, res) {
   });
 }
 
+// ===================== [PIX DA TAXA DE ENTREGA NA PORTA] =====================
+// Pedido do dono (2026-10-03): a cobrança em dinheiro/dívida da subida dependia
+// do cliente "confessar" ter recebido o valor (ou virava dívida do lojista pro
+// entregador) — o cliente podia simplesmente se negar a pagar e o prejuízo
+// ficava com o entregador, e em dinheiro não tinha nem como comprovar. Agora,
+// depois que o ENTREGADOR aceita subir (já autenticado, ver
+// responderSolicitacaoSubida/subirStatus:'aceito' em /resolver-taxa-espera
+// acima), o CLIENTE gera um Pix e paga direto pra plataforma, que credita o
+// entregador assim que aprovado — o cliente nesta tela não está logado em
+// nada (mesma situação de /consumir-login-cliente), então a identidade aqui
+// é provada pelo mesmo rastreioToken que já governa o link de rastreio
+// (ver criarLinksRastreioParaRota no frontend: rastreioToken/{token} ->
+// {rotaId, pacoteId, lojistaUid}), nunca pelo Bearer normal.
+async function resolverRastreioTokenServer(token) {
+  const tokenStr = String(token || '').trim();
+  if (!tokenStr) return null;
+  const snap = await db.ref(`rastreioToken/${tokenStr}`).once('value');
+  const dados = snap.val();
+  if (!dados?.rotaId || !dados?.pacoteId || !dados?.lojistaUid) return null;
+  return { rotaId: String(dados.rotaId), pacoteId: String(dados.pacoteId), lojistaUid: String(dados.lojistaUid) };
+}
+
+async function criarPixSubida(req, res) {
+  const resolvido = await resolverRastreioTokenServer((req.body || {}).rastreioToken);
+  if (!resolvido) {
+    return res.status(404).json({ error: 'Link de rastreio inválido' });
+  }
+  const { rotaId, pacoteId, lojistaUid } = resolvido;
+
+  const token = MP_ACCESS_TOKEN.value();
+  if (!token) {
+    return res.status(500).json({ error: 'MP_ACCESS_TOKEN não configurado no servidor' });
+  }
+  const ambiente = ambienteDoTokenMp(token);
+
+  const rotaSnap = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
+  const rota = rotaSnap.val();
+  const entregadorId = String(rota?.entregadorId || rota?.aceitoPor || '');
+  if (!rota || !entregadorId) {
+    return res.status(404).json({ error: 'Rota não encontrada' });
+  }
+
+  // Nunca confia em valor/estado vindo do cliente: só gera o Pix se o
+  // ENTREGADOR já aceitou subir (esperaEntrega.subirStatus === 'aceito',
+  // gravado por responderSolicitacaoSubida) e ainda não foi pago/gerado.
+  const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(lojistaUid, pacoteId);
+  const espera = pacote?.esperaEntrega || {};
+  if (!pacote || espera.subirStatus !== 'aceito') {
+    return res.status(422).json({ error: 'A entrega na porta ainda não foi aceita pelo entregador' });
+  }
+
+  const nomeCliente = String(pacote?.destinatario || 'Cliente Flex').trim() || 'Cliente Flex';
+  const [firstNameCliente, ...restoNomeCliente] = nomeCliente.split(' ');
+  const lastNameCliente = restoNomeCliente.join(' ') || 'Flex';
+
+  const mpData = await criarPagamentoPixMp(token, {
+    valor: TAXA_SUBIR_FIXA,
+    descricao: `Flex - taxa de entrega na porta (pedido ${pacoteId})`,
+    payerEmail: `cliente-${pacoteId}@flex.app`,
+    payerFirstName: firstNameCliente || 'Cliente',
+    payerLastName: lastNameCliente,
+    externalReference: `subida:${rotaId}:${pacoteId}`,
+    idempotencyKey: `${lojistaUid}-${rotaId}-${pacoteId}-subida-${Date.now()}`
+  });
+
+  const tx = mpData?.point_of_interaction?.transaction_data || {};
+  const pixCode = tx.qr_code || '';
+  if (!pixCode) {
+    return res.status(502).json({ error: 'Mercado Pago não retornou código Pix Copia e Cola' });
+  }
+
+  const paymentId = String(mpData?.id || '');
+  await db.ref(`mp_payments/${paymentId}`).set({
+    tenantId: lojistaUid,
+    rotaId,
+    envioId: pacoteId,
+    entregadorId,
+    tipo: 'taxa_subida',
+    total: TAXA_SUBIR_FIXA,
+    ambiente,
+    criadoEm: Date.now()
+  });
+  await db.ref(`${pacotePath}/esperaEntrega/subidaPixPaymentId`).set(paymentId);
+
+  return res.status(200).json({
+    paymentId,
+    status: mpData?.status || 'pending',
+    statusDetail: mpData?.status_detail || '',
+    pixCode,
+    ticketUrl: tx.ticket_url || '',
+    qrCodeBase64: tx.qr_code_base64 || '',
+    valor: TAXA_SUBIR_FIXA,
+    ambiente
+  });
+}
+
+async function checarPixSubida(req, res) {
+  const body = req.body || {};
+  const resolvido = await resolverRastreioTokenServer(body.rastreioToken);
+  const paymentId = String(body.paymentId || '').trim();
+  if (!resolvido || !paymentId) {
+    return res.status(404).json({ error: 'Link de rastreio ou pagamento inválido' });
+  }
+  const { rotaId, pacoteId, lojistaUid } = resolvido;
+
+  const token = MP_ACCESS_TOKEN.value();
+  if (!token) {
+    return res.status(500).json({ error: 'MP_ACCESS_TOKEN não configurado no servidor' });
+  }
+
+  const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
+  const registro = registroSnap.val();
+  if (!registro || registro.tipo !== 'taxa_subida' || String(registro.tenantId) !== lojistaUid || String(registro.envioId) !== pacoteId || String(registro.rotaId) !== rotaId) {
+    return res.status(404).json({ error: 'Pagamento não encontrado para este link de rastreio' });
+  }
+
+  const data = await consultarPagamentoPixMp(token, paymentId);
+  const statusPagamento = data?.status || 'pending';
+
+  if (statusPagamento === 'approved') {
+    const { path: envioPath } = await resolverEnvioLojista(lojistaUid, pacoteId);
+    if (envioPath) {
+      const marcadorRef = db.ref(`${envioPath}/esperaEntrega/subidaCreditoEfetuadoEm`);
+      const marcadorSnap = await marcadorRef.once('value');
+      if (!marcadorSnap.val()) {
+        // Crédito vai DIRETO pro entregador (ele que sobe, ele que recebe) —
+        // mesmo padrão de /check-pix-devolucao, nunca passa pelo lojista.
+        await ajustarSaldoUsuarioServer(registro.entregadorId, registro.total);
+        await marcadorRef.set(Date.now());
+        await db.ref(`usuarios/${registro.entregadorId}/financeiro/transacoes`).push({
+          protocolo: gerarProtocoloTransacaoServer(),
+          tipo: 'CREDITO',
+          metodo: 'pix',
+          valor: registro.total,
+          descricao: `Taxa de entrega na porta recebida via Pix (pedido #${pacoteId})`,
+          remetente: 'Cliente (Pix)',
+          destinatario: 'Você (entregador)',
+          paymentIdMp: String(paymentId),
+          criadoEm: Date.now()
+        });
+        await syncEnvioFields(lojistaUid, pacoteId, {
+          'esperaEntrega/subirStatus': 'pago',
+          'esperaEntrega/subidaPagoEm': Date.now()
+        });
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ subirStatus: 'pago' }).catch(() => {});
+      }
+    }
+  }
+
+  return res.status(200).json({
+    paymentId,
+    status: statusPagamento,
+    statusDetail: data?.status_detail || '',
+    ambiente: ambienteDoTokenMp(token)
+  });
+}
+
 // Mesma normalização de normalizarStatusRotaFiltro no frontend (sem a parte
 // de remover acentos — os valores reais gravados no banco pra status de
 // rota são sempre ASCII puro).
@@ -821,7 +978,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/create-pix-subida', '/check-pix-subida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -837,6 +994,27 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       return await consumirLoginCliente(req, res);
     } catch (error) {
       logger.error('consumir_login_cliente_error', error);
+      return res.status(500).json({ error: 'Internal error', message: error.message });
+    }
+  }
+
+  // Mesmo motivo do bloco acima: o cliente nesta tela (link de rastreio
+  // público) não está logado em nada, então estas duas rotas também
+  // precisam rodar antes do Bearer obrigatório — a prova de identidade é o
+  // rastreioToken (ver resolverRastreioTokenServer).
+  if (path === '/create-pix-subida') {
+    try {
+      return await criarPixSubida(req, res);
+    } catch (error) {
+      logger.error('create_pix_subida_error', error);
+      return res.status(500).json({ error: 'Internal error', message: error.message });
+    }
+  }
+  if (path === '/check-pix-subida') {
+    try {
+      return await checarPixSubida(req, res);
+    } catch (error) {
+      logger.error('check_pix_subida_error', error);
       return res.status(500).json({ error: 'Internal error', message: error.message });
     }
   }

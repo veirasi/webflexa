@@ -29,5 +29,11 @@
       "Bash(gcloud auth *)",
       "Bash(node -c src/legacy-monolith.js)"
     ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Bash(firebase deploy*)"
+    ]
   }
 }

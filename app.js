@@ -158,6 +158,7 @@
     copiarCodigoPixDevolucaoLojista: () => copiarCodigoPixDevolucaoLojista,
     copiarCodigoPixQuitacaoDivida: () => copiarCodigoPixQuitacaoDivida,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
+    copiarCodigoPixSubidaCliente: () => copiarCodigoPixSubidaCliente,
     copiarLinkRastreioPacote: () => copiarLinkRastreioPacote,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
     criarNotificacao: () => criarNotificacao,
@@ -241,6 +242,7 @@
     gerarIniciais: () => gerarIniciais,
     gerarPixCobrancaEntrega: () => gerarPixCobrancaEntrega,
     gerarPixQuitacaoDivida: () => gerarPixQuitacaoDivida,
+    gerarPixSubidaCliente: () => gerarPixSubidaCliente,
     getChavePacoteRota: () => getChavePacoteRota,
     getClienteById: () => getClienteById,
     getGeoCliente: () => getGeoCliente,
@@ -449,6 +451,7 @@
     simularAprovacaoCobrancaEntregaTeste: () => simularAprovacaoCobrancaEntregaTeste,
     simularAprovacaoDevolucaoTeste: () => simularAprovacaoDevolucaoTeste,
     simularAprovacaoQuitacaoDividaTeste: () => simularAprovacaoQuitacaoDividaTeste,
+    simularRecebimentoTaxaSubidaTeste: () => simularRecebimentoTaxaSubidaTeste,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
     solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
     solicitarExclusaoDadosLgpd: () => solicitarExclusaoDadosLgpd,
@@ -4720,20 +4723,27 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         if (espera.subirStatus === "pendente") {
           blocoEspera += `
                     <div class="ent-sheet-subir-pedido">
-                        <span>Cliente pediu pra voc\xEA subir at\xE9 o apartamento</span>
+                        <span>Cliente pediu entrega at\xE9 a porta do apartamento</span>
                         <div class="ent-sheet-actions-inline">
                             <button type="button" class="ent-sheet-primary small" onclick="aceitarSolicitacaoSubida()">Aceitar (+R$ 6,00)</button>
                             <button type="button" class="ent-sheet-btn-ghost" onclick="recusarSolicitacaoSubida()">Recusar</button>
                         </div>
                     </div>`;
         } else if (espera.subirStatus === "aceito") {
-          blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Subida aceita (+R$ 6,00)</div>`;
+          blocoEspera += `
+                    <div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Entrega aceita (+R$ 6,00)</div>
+                    <div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando o cliente pagar via Pix...</div>`;
+          if (mercadoPagoAmbienteAtual === "teste") {
+            blocoEspera += `<button type="button" class="ent-sheet-link" onclick="simularRecebimentoTaxaSubidaTeste()">Simular pagamento recebido (teste)</button>`;
+          }
+        } else if (espera.subirStatus === "pago") {
+          blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Taxa de entrega na porta paga via Pix (+R$ 6,00)</div>`;
         } else if (espera.subirStatus === "recusado") {
-          blocoEspera += `<div class="ent-sheet-subir-recusado">Voc\xEA recusou subir dessa vez</div>`;
+          blocoEspera += `<div class="ent-sheet-subir-recusado">Voc\xEA recusou entregar na porta dessa vez</div>`;
         }
       }
     }
-    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.subirStatus) {
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && espera.subirStatus !== "recusado" && espera.subirStatus !== "pago") {
       gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
     } else {
       pararListenerEsperaPacote();
@@ -5457,6 +5467,44 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function recusarSolicitacaoSubida() {
     responderSolicitacaoSubida(false);
   }
+  async function simularRecebimentoTaxaSubidaTeste() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const rotaId = rotaObj?.id;
+    const meuUid = getUsuarioIdAtual();
+    if (!rotaId || !pac || !meuUid) return;
+    if (pac?.esperaEntrega?.subirStatus !== "aceito") return;
+    if (!window.confirm("Simular o pagamento dessa taxa como recebido? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
+    const agora = Date.now();
+    try {
+      const resultado = await ajustarSaldoUsuario(meuUid, TAXA_SUBIR_FIXA);
+      if (!resultado.ok) throw new Error("N\xE3o foi poss\xEDvel creditar sua carteira agora.");
+      await db.ref(`usuarios/${meuUid}/financeiro/transacoes`).push({
+        protocolo: gerarProtocoloTransacao(),
+        tipo: "CREDITO",
+        metodo: "pix",
+        valor: TAXA_SUBIR_FIXA,
+        descricao: `Taxa de entrega na porta recebida via Pix (pedido #${envioId}) [TESTE]`,
+        remetente: "Cliente (Pix simulado \u2014 ambiente teste)",
+        destinatario: "Voc\xEA (entregador)",
+        criadoEm: agora
+      });
+      if (lojistaUid && envioId) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, { "esperaEntrega/subirStatus": "pago", "esperaEntrega/subidaPagoEm": agora });
+      }
+      await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({ subirStatus: "pago" }).catch(() => {
+      });
+      pac.esperaEntrega = { ...pac.esperaEntrega || {}, subirStatus: "pago", subidaPagoEm: agora };
+      pararListenerEsperaPacote();
+      renderSheetRotaEntregadorConteudo();
+      notificarSucesso("Pagamento simulado \u2014 carteira creditada.");
+    } catch (err) {
+      console.warn("Falha ao simular recebimento da taxa de entrega na porta:", err);
+      alert(err.message || "N\xE3o foi poss\xEDvel simular o pagamento agora.");
+    }
+  }
   function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
     const chave = `${rotaId}|${pacoteId}`;
     if (rotaEntSheetEsperaListenerChave === chave && rotaEntSheetEsperaListenerRef) return;
@@ -5496,7 +5544,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (valorTaxaEstimado > 0) {
       const partes = [];
       if (valorEsperaEstimado > 0) partes.push(`${minutosEsperaEstimado} min de espera (${precoParaMoeda(valorEsperaEstimado)})`);
-      if (valorSubirEstimado > 0) partes.push(`subida no local (${precoParaMoeda(valorSubirEstimado)})`);
+      if (valorSubirEstimado > 0) partes.push(`entrega na porta (${precoParaMoeda(valorSubirEstimado)})`);
       const motivo = partes.join(" + ");
       recebeuEmDinheiro = window.confirm(
         `Taxa extra pra voc\xEA: ${precoParaMoeda(valorTaxaEstimado)} (${motivo}).
@@ -9192,17 +9240,38 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     let subirHtml = "";
     if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
       const subirStatus = pacoteInfo.subirStatus || null;
-      if (subirStatus === "aceito") {
-        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou: vai subir at\xE9 voc\xEA.</div>`;
+      if (subirStatus === "pago") {
+        pararPollingPixSubidaCliente();
+        pararOcultacaoPixSubidaCliente();
+        pararAbandonoPixSubidaCliente();
+        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! O entregador j\xE1 pode entregar at\xE9 a porta.</div>`;
+      } else if (subirStatus === "aceito") {
+        const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId && !pixSubidaClienteOculto;
+        if (pixAtivo) {
+          subirHtml = `
+                    <div class="rastreio-pub-subir">
+                        <p><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou! Pague a taxa de entrega na porta (${precoParaMoeda(pixSubidaClienteAtual.valor)}) via Pix:</p>
+                        ${pixSubidaClienteAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixSubidaClienteAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
+                        <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixSubidaClienteAtual.pixCode)}</textarea>
+                        <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixSubidaCliente()">Copiar c\xF3digo Pix</button>
+                        <div id="rastreio-pub-pix-status" class="ent-sheet-pix-status">Aguardando confirma\xE7\xE3o do pagamento...</div>
+                    </div>`;
+        } else {
+          subirHtml = `
+                    <div class="rastreio-pub-subir rastreio-pub-subir-ok">
+                        <p><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou: vai entregar at\xE9 a porta.</p>
+                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pagar taxa (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                    </div>`;
+        }
       } else if (subirStatus === "recusado") {
-        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que n\xE3o vai poder subir dessa vez.</div>`;
+        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que n\xE3o vai poder entregar na porta dessa vez.</div>`;
       } else if (subirStatus === "pendente") {
-        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar a subida...</div>`;
+        subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar...</div>`;
       } else {
         subirHtml = `
                 <div class="rastreio-pub-subir">
-                    <p>O entregador chegou! Precisa que ele suba at\xE9 voc\xEA?</p>
-                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Solicitar subida (R$ 6,00)</button>
+                    <p>O entregador chegou! Precisa que ele entregue at\xE9 a porta do seu apartamento?</p>
+                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
                 </div>`;
       }
     }
@@ -9241,9 +9310,176 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       alert("N\xE3o foi poss\xEDvel enviar o pedido agora. Tente de novo.");
       if (btn) {
         btn.disabled = false;
-        btn.innerText = "Solicitar subida (R$ 6,00)";
+        btn.innerText = `Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})`;
       }
     });
+  }
+  var pixSubidaClienteAtual = null;
+  var pixSubidaClientePollTimer = null;
+  var pixSubidaClienteOcultarTimer = null;
+  var pixSubidaClienteAbandonarTimer = null;
+  var pixSubidaClienteOculto = false;
+  var PIX_SUBIDA_OCULTAR_MS = 2.5 * 60 * 1e3;
+  var PIX_SUBIDA_ABANDONAR_MS = 30 * 60 * 1e3;
+  async function chamarPaymentsProxyPublico(caminho, payload) {
+    if (!FLEXA_PAYMENTS_PROXY_URL) {
+      throw new Error("Endpoint de pagamento (FLEXA_PAYMENTS_PROXY_URL) n\xE3o configurado.");
+    }
+    const resp = await fetch(FLEXA_PAYMENTS_PROXY_URL + caminho, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (data?.ambiente) {
+      mercadoPagoAmbienteAtual = data.ambiente;
+    }
+    if (!resp.ok) {
+      throw new Error(data?.error || data?.message || "HTTP " + resp.status);
+    }
+    return data;
+  }
+  async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario) {
+    const nomeCliente = (nomeDestinatario || "Cliente Flex").toString().trim() || "Cliente Flex";
+    const partes = nomeCliente.split(/\s+/).filter(Boolean);
+    const firstName = partes[0] || "Cliente";
+    const lastName = partes.slice(1).join(" ") || "Flex";
+    const resp = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + FLEXA_MP_TEST_TOKEN,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": gerarIdempotencyKeyTesteLocal()
+      },
+      body: JSON.stringify({
+        transaction_amount: Number(TAXA_SUBIR_FIXA.toFixed(2)),
+        description: "Flex - taxa de entrega na porta (pedido " + pacoteId + ") [TESTE LOCAL]",
+        payment_method_id: "pix",
+        payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
+        external_reference: "subida:" + rotaId + ":" + pacoteId
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || "HTTP " + resp.status;
+      throw new Error("Mercado Pago: " + detalhe);
+    }
+    const tx = data?.point_of_interaction?.transaction_data || {};
+    return {
+      paymentId: data?.id ? String(data.id) : "",
+      status: data?.status || "pending",
+      pixCode: tx.qr_code || "",
+      qrCodeBase64: tx.qr_code_base64 || "",
+      valor: TAXA_SUBIR_FIXA
+    };
+  }
+  async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId || !tokenRastreioAtual) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Gerando Pix...";
+    }
+    try {
+      const snapAtual = await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).once("value");
+      const nomeDestinatario = (snapAtual.val() || {}).destinatario || "";
+      let data;
+      if (FLEXA_PAYMENTS_PROXY_URL) {
+        data = await chamarPaymentsProxyPublico("/create-pix-subida", { rastreioToken: tokenRastreioAtual });
+      } else if (FLEXA_MP_TEST_TOKEN) {
+        data = await criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario);
+      } else {
+        throw new Error("Pagamento n\xE3o configurado.");
+      }
+      const pixCode = normalizarCodigoPix(data.pixCode || "");
+      if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix Copia e Cola.");
+      pixSubidaClienteAtual = {
+        paymentId: data.paymentId ? String(data.paymentId) : "",
+        pacoteId,
+        rotaId,
+        pixCode,
+        qrCodeBase64: data.qrCodeBase64 || "",
+        valor: data.valor || TAXA_SUBIR_FIXA
+      };
+      pixSubidaClienteOculto = false;
+      const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
+      renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
+      iniciarPollingPixSubidaCliente();
+      iniciarOcultacaoPixSubidaCliente(rotaId, pacoteId);
+      iniciarAbandonoPixSubidaCliente();
+    } catch (err) {
+      console.warn("Falha ao gerar Pix da taxa de entrega na porta:", err);
+      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = `Pagar taxa (${precoParaMoeda(TAXA_SUBIR_FIXA)})`;
+      }
+    }
+  }
+  function pararPollingPixSubidaCliente() {
+    if (pixSubidaClientePollTimer) {
+      clearInterval(pixSubidaClientePollTimer);
+      pixSubidaClientePollTimer = null;
+    }
+  }
+  function pararOcultacaoPixSubidaCliente() {
+    if (pixSubidaClienteOcultarTimer) {
+      clearTimeout(pixSubidaClienteOcultarTimer);
+      pixSubidaClienteOcultarTimer = null;
+    }
+  }
+  function pararAbandonoPixSubidaCliente() {
+    if (pixSubidaClienteAbandonarTimer) {
+      clearTimeout(pixSubidaClienteAbandonarTimer);
+      pixSubidaClienteAbandonarTimer = null;
+    }
+  }
+  function iniciarOcultacaoPixSubidaCliente(rotaId, pacoteId) {
+    pararOcultacaoPixSubidaCliente();
+    pixSubidaClienteOcultarTimer = setTimeout(async () => {
+      pixSubidaClienteOculto = true;
+      try {
+        const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
+        renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
+      } catch (e) {
+      }
+    }, PIX_SUBIDA_OCULTAR_MS);
+  }
+  function iniciarAbandonoPixSubidaCliente() {
+    pararAbandonoPixSubidaCliente();
+    pixSubidaClienteAbandonarTimer = setTimeout(() => {
+      pixSubidaClienteAtual = null;
+      pixSubidaClienteOculto = false;
+      pararPollingPixSubidaCliente();
+    }, PIX_SUBIDA_ABANDONAR_MS);
+  }
+  function iniciarPollingPixSubidaCliente() {
+    pararPollingPixSubidaCliente();
+    pixSubidaClientePollTimer = setInterval(async () => {
+      if (!pixSubidaClienteAtual?.paymentId) {
+        pararPollingPixSubidaCliente();
+        return;
+      }
+      try {
+        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxyPublico("/check-pix-subida", { rastreioToken: tokenRastreioAtual, paymentId: pixSubidaClienteAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixSubidaClienteAtual.paymentId);
+        if (data?.status === "approved") {
+          pararPollingPixSubidaCliente();
+          pararOcultacaoPixSubidaCliente();
+          pararAbandonoPixSubidaCliente();
+        } else {
+          const statusEl = document.getElementById("rastreio-pub-pix-status");
+          if (statusEl) statusEl.innerText = "Aguardando confirma\xE7\xE3o do pagamento...";
+        }
+      } catch (err) {
+        console.warn("Falha ao consultar status do Pix da taxa de entrega na porta:", err);
+      }
+    }, 4e3);
+  }
+  function copiarCodigoPixSubidaCliente() {
+    if (!pixSubidaClienteAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pixSubidaClienteAtual.pixCode).then(() => {
+      notificarSucesso("C\xF3digo Pix copiado!");
+    }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
   }
   function agruparParadasPorEndereco(paradasBrutas) {
     const grupos = [];
