@@ -6136,27 +6136,30 @@ async function resolverTaxaEsperaSubidaAntesDeEntregar(rotaObj, pac) {
     const rotaId = rotaObj?.id;
     if (!lojistaUid || !envioId || !rotaId) return;
 
+    // A taxa de entrega na porta NÃO entra mais nessa conta/diálogo (pedido
+    // do dono, 2026-10-04): ou o cliente já pagou via Pix (fica retido desde
+    // /check-pix-subida e é liberado pro entregador dentro da própria
+    // chamada de /resolver-taxa-espera abaixo, automaticamente) ou nunca
+    // pagou e o entregador não recebe nada por ela — nunca mais em dinheiro,
+    // pra não gerar dúvida sobre o que foi ou não recebido. Só a taxa de
+    // ESPERA (tempo parado) continua podendo virar dinheiro/dívida aqui.
     const chegouEm = Number(espera.chegouEm) || 0;
     const minutosEsperaEstimado = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
     const valorEsperaEstimado = Number((minutosEsperaEstimado * TAXA_ESPERA_POR_MIN).toFixed(2));
-    const valorSubirEstimado = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-    const valorTaxaEstimado = Number((valorEsperaEstimado + valorSubirEstimado).toFixed(2));
 
     let recebeuEmDinheiro = false;
-    if (valorTaxaEstimado > 0) {
-        const partes = [];
-        if (valorEsperaEstimado > 0) partes.push(`${minutosEsperaEstimado} min de espera (${precoParaMoeda(valorEsperaEstimado)})`);
-        if (valorSubirEstimado > 0) partes.push(`entrega na porta (${precoParaMoeda(valorSubirEstimado)})`);
-        const motivo = partes.join(' + ');
-
+    if (valorEsperaEstimado > 0) {
         recebeuEmDinheiro = window.confirm(
-            `Taxa extra pra você: ${precoParaMoeda(valorTaxaEstimado)} (${motivo}).\n\n` +
+            `Taxa de espera pra você: ${precoParaMoeda(valorEsperaEstimado)} (${minutosEsperaEstimado} min parado).\n\n` +
             `Você recebeu esse valor EM DINHEIRO do cliente agora?\n\n` +
             `OK = recebi em dinheiro (fica com você)\nCancelar = não recebi (a loja te paga via Pix depois)`
         );
     } else if (!chegouEm) {
-        // nunca chegou a registrar "cheguei" nessa entrega — não tem taxa
-        // nenhuma a resolver, nem precisa chamar o servidor.
+        // nunca chegou a registrar "cheguei" nessa entrega — não tem taxa de
+        // espera a resolver. Mas se o cliente pagou a entrega na porta via
+        // Pix (só é possível depois de "cheguei"), chegouEm já estaria
+        // preenchido — então chegar aqui também significa que não há Pix
+        // retido a liberar, pode sair sem chamar o servidor.
         return;
     }
 
@@ -6169,7 +6172,7 @@ async function resolverTaxaEsperaSubidaAntesDeEntregar(rotaObj, pac) {
         });
     } catch (err) {
         console.warn('Falha ao resolver taxa de espera:', err);
-        if (valorTaxaEstimado > 0) alert('Não foi possível registrar a taxa de espera agora. Tente novamente.');
+        if (valorEsperaEstimado > 0) alert('Não foi possível registrar a taxa de espera agora. Tente novamente.');
     }
 }
 
@@ -10942,11 +10945,10 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
         const subirStatus = pacoteInfo.subirStatus || null;
         if (subirStatus === 'pago') {
             pararPollingPixSubidaCliente();
-            pararOcultacaoPixSubidaCliente();
-            pararAbandonoPixSubidaCliente();
+            pararExpiracaoPixSubidaCliente();
             subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! O entregador já pode entregar até a porta.</div>`;
         } else if (subirStatus === 'aceito') {
-            const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId && !pixSubidaClienteOculto;
+            const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId;
             if (pixAtivo) {
                 subirHtml = `
                     <div class="rastreio-pub-subir">
@@ -11026,20 +11028,16 @@ function solicitarSubidaCliente(rotaId, pacoteId, btn) {
 // chamarPaymentsProxy.
 let pixSubidaClienteAtual = null;
 let pixSubidaClientePollTimer = null;
-let pixSubidaClienteOcultarTimer = null;
-let pixSubidaClienteAbandonarTimer = null;
-let pixSubidaClienteOculto = false;
-// A TELA esconde o QR/código em 2,5 min (pedido do dono — o entregador tá
-// parado esperando, não faz sentido deixar pendurado pra sempre). Mas o Pix
-// em si continua válido no Mercado Pago por 30 min (mesmo prazo de
-// date_of_expiration em criarPagamentoPixMp) — se só escondêssemos SEM
-// continuar checando, um cliente que copiou o código antes de esconder e
-// paga depois dos 2,5 min nunca seria detectado, e o entregador nunca seria
-// creditado por um Pix que a Flex já recebeu de verdade. Por isso os dois
-// prazos são independentes: o "ocultar" só mexe na exibição, quem decide
-// quando desistir de vez de checar é o "abandonar" (alinhado aos 30 min reais).
-const PIX_SUBIDA_OCULTAR_MS = 2.5 * 60 * 1000;
-const PIX_SUBIDA_ABANDONAR_MS = 30 * 60 * 1000;
+let pixSubidaClienteExpiraTimer = null;
+// Pedido do dono (2026-10-04): o QR/código fica na tela até o cliente pagar
+// OU até 30 min passarem (mesmo prazo de date_of_expiration que
+// criarPagamentoPixMp já grava no Mercado Pago) — NUNCA some antes disso.
+// Escondê-lo mais cedo (ex: 2,5 min) faria o botão "Pagar taxa" reaparecer
+// enquanto o Pix anterior ainda é válido, e o cliente podia gerar e pagar um
+// SEGUNDO Pix sem perceber que o primeiro ainda estava de pé — pagando a
+// taxa duas vezes. Mantendo os dois prazos iguais, nunca existe uma janela
+// em que um Pix válido fica invisível.
+const PIX_SUBIDA_VALIDADE_MS = 30 * 60 * 1000;
 
 async function chamarPaymentsProxyPublico(caminho, payload) {
     if (!FLEXA_PAYMENTS_PROXY_URL) {
@@ -11132,13 +11130,10 @@ async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
             qrCodeBase64: data.qrCodeBase64 || '',
             valor: data.valor || TAXA_SUBIR_FIXA
         };
-        pixSubidaClienteOculto = false;
-
         const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
         renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
         iniciarPollingPixSubidaCliente();
-        iniciarOcultacaoPixSubidaCliente(rotaId, pacoteId);
-        iniciarAbandonoPixSubidaCliente();
+        iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId);
     } catch (err) {
         console.warn('Falha ao gerar Pix da taxa de entrega na porta:', err);
         alert(err.message || 'Não foi possível gerar o Pix agora.');
@@ -11153,49 +11148,29 @@ function pararPollingPixSubidaCliente() {
     }
 }
 
-function pararOcultacaoPixSubidaCliente() {
-    if (pixSubidaClienteOcultarTimer) {
-        clearTimeout(pixSubidaClienteOcultarTimer);
-        pixSubidaClienteOcultarTimer = null;
+function pararExpiracaoPixSubidaCliente() {
+    if (pixSubidaClienteExpiraTimer) {
+        clearTimeout(pixSubidaClienteExpiraTimer);
+        pixSubidaClienteExpiraTimer = null;
     }
 }
 
-function pararAbandonoPixSubidaCliente() {
-    if (pixSubidaClienteAbandonarTimer) {
-        clearTimeout(pixSubidaClienteAbandonarTimer);
-        pixSubidaClienteAbandonarTimer = null;
-    }
-}
-
-// Pedido do dono (2026-10-04): se o cliente não pagar a tempo, o QR/código
-// some da tela e volta a mostrar o botão de pagar — evita um código Pix
-// "pendurado" na tela indefinidamente depois que o entregador já pode ter
-// desistido de esperar. Só esconde da TELA — pixSubidaClienteAtual continua
-// vivo e o polling continua rodando em segundo plano (ver
-// iniciarAbandonoPixSubidaCliente logo abaixo), porque o Pix em si ainda
-// pode ser pago no Mercado Pago por mais tempo.
-function iniciarOcultacaoPixSubidaCliente(rotaId, pacoteId) {
-    pararOcultacaoPixSubidaCliente();
-    pixSubidaClienteOcultarTimer = setTimeout(async () => {
-        pixSubidaClienteOculto = true;
+// Pedido do dono (2026-10-04): se o cliente não pagar em 30 min (mesmo
+// prazo de date_of_expiration que criarPagamentoPixMp já grava no Mercado
+// Pago), o QR/código some da tela e volta o botão de pagar. Fica alinhado
+// de propósito ao prazo real do Pix — escondê-lo ANTES disso faria o botão
+// reaparecer com o Pix anterior ainda válido, arriscando o cliente gerar e
+// pagar um segundo sem perceber que o primeiro ainda estava de pé.
+function iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId) {
+    pararExpiracaoPixSubidaCliente();
+    pixSubidaClienteExpiraTimer = setTimeout(async () => {
+        pixSubidaClienteAtual = null;
+        pararPollingPixSubidaCliente();
         try {
             const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
             renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
         } catch (e) { /* próxima atualização ao vivo do listener corrige sozinha */ }
-    }, PIX_SUBIDA_OCULTAR_MS);
-}
-
-// Só aqui de fato desiste de checar — alinhado ao date_of_expiration de 30
-// min que criarPagamentoPixMp já grava no Mercado Pago (ver backend). Até
-// esse momento, mesmo com o QR escondido da tela, um pagamento feito com o
-// código já copiado antes ainda é detectado e credita o entregador.
-function iniciarAbandonoPixSubidaCliente() {
-    pararAbandonoPixSubidaCliente();
-    pixSubidaClienteAbandonarTimer = setTimeout(() => {
-        pixSubidaClienteAtual = null;
-        pixSubidaClienteOculto = false;
-        pararPollingPixSubidaCliente();
-    }, PIX_SUBIDA_ABANDONAR_MS);
+    }, PIX_SUBIDA_VALIDADE_MS);
 }
 
 function iniciarPollingPixSubidaCliente() {
@@ -11216,8 +11191,7 @@ function iniciarPollingPixSubidaCliente() {
                 // listener ao vivo de rastreioPublico (já ativo nesta tela)
                 // atualiza a UI assim que essa escrita chegar.
                 pararPollingPixSubidaCliente();
-                pararOcultacaoPixSubidaCliente();
-                pararAbandonoPixSubidaCliente();
+                pararExpiracaoPixSubidaCliente();
             } else {
                 const statusEl = document.getElementById('rastreio-pub-pix-status');
                 if (statusEl) statusEl.innerText = 'Aguardando confirmação do pagamento...';

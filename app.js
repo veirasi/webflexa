@@ -5538,16 +5538,10 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const chegouEm = Number(espera.chegouEm) || 0;
     const minutosEsperaEstimado = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
     const valorEsperaEstimado = Number((minutosEsperaEstimado * TAXA_ESPERA_POR_MIN).toFixed(2));
-    const valorSubirEstimado = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-    const valorTaxaEstimado = Number((valorEsperaEstimado + valorSubirEstimado).toFixed(2));
     let recebeuEmDinheiro = false;
-    if (valorTaxaEstimado > 0) {
-      const partes = [];
-      if (valorEsperaEstimado > 0) partes.push(`${minutosEsperaEstimado} min de espera (${precoParaMoeda(valorEsperaEstimado)})`);
-      if (valorSubirEstimado > 0) partes.push(`entrega na porta (${precoParaMoeda(valorSubirEstimado)})`);
-      const motivo = partes.join(" + ");
+    if (valorEsperaEstimado > 0) {
       recebeuEmDinheiro = window.confirm(
-        `Taxa extra pra voc\xEA: ${precoParaMoeda(valorTaxaEstimado)} (${motivo}).
+        `Taxa de espera pra voc\xEA: ${precoParaMoeda(valorEsperaEstimado)} (${minutosEsperaEstimado} min parado).
 
 Voc\xEA recebeu esse valor EM DINHEIRO do cliente agora?
 
@@ -5566,7 +5560,7 @@ Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
       });
     } catch (err) {
       console.warn("Falha ao resolver taxa de espera:", err);
-      if (valorTaxaEstimado > 0) alert("N\xE3o foi poss\xEDvel registrar a taxa de espera agora. Tente novamente.");
+      if (valorEsperaEstimado > 0) alert("N\xE3o foi poss\xEDvel registrar a taxa de espera agora. Tente novamente.");
     }
   }
   async function relatarProblemaRota() {
@@ -9242,11 +9236,10 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       const subirStatus = pacoteInfo.subirStatus || null;
       if (subirStatus === "pago") {
         pararPollingPixSubidaCliente();
-        pararOcultacaoPixSubidaCliente();
-        pararAbandonoPixSubidaCliente();
+        pararExpiracaoPixSubidaCliente();
         subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! O entregador j\xE1 pode entregar at\xE9 a porta.</div>`;
       } else if (subirStatus === "aceito") {
-        const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId && !pixSubidaClienteOculto;
+        const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId;
         if (pixAtivo) {
           subirHtml = `
                     <div class="rastreio-pub-subir">
@@ -9316,11 +9309,8 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
   }
   var pixSubidaClienteAtual = null;
   var pixSubidaClientePollTimer = null;
-  var pixSubidaClienteOcultarTimer = null;
-  var pixSubidaClienteAbandonarTimer = null;
-  var pixSubidaClienteOculto = false;
-  var PIX_SUBIDA_OCULTAR_MS = 2.5 * 60 * 1e3;
-  var PIX_SUBIDA_ABANDONAR_MS = 30 * 60 * 1e3;
+  var pixSubidaClienteExpiraTimer = null;
+  var PIX_SUBIDA_VALIDADE_MS = 30 * 60 * 1e3;
   async function chamarPaymentsProxyPublico(caminho, payload) {
     if (!FLEXA_PAYMENTS_PROXY_URL) {
       throw new Error("Endpoint de pagamento (FLEXA_PAYMENTS_PROXY_URL) n\xE3o configurado.");
@@ -9401,12 +9391,10 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         qrCodeBase64: data.qrCodeBase64 || "",
         valor: data.valor || TAXA_SUBIR_FIXA
       };
-      pixSubidaClienteOculto = false;
       const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
       renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
       iniciarPollingPixSubidaCliente();
-      iniciarOcultacaoPixSubidaCliente(rotaId, pacoteId);
-      iniciarAbandonoPixSubidaCliente();
+      iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId);
     } catch (err) {
       console.warn("Falha ao gerar Pix da taxa de entrega na porta:", err);
       alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
@@ -9422,36 +9410,23 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       pixSubidaClientePollTimer = null;
     }
   }
-  function pararOcultacaoPixSubidaCliente() {
-    if (pixSubidaClienteOcultarTimer) {
-      clearTimeout(pixSubidaClienteOcultarTimer);
-      pixSubidaClienteOcultarTimer = null;
+  function pararExpiracaoPixSubidaCliente() {
+    if (pixSubidaClienteExpiraTimer) {
+      clearTimeout(pixSubidaClienteExpiraTimer);
+      pixSubidaClienteExpiraTimer = null;
     }
   }
-  function pararAbandonoPixSubidaCliente() {
-    if (pixSubidaClienteAbandonarTimer) {
-      clearTimeout(pixSubidaClienteAbandonarTimer);
-      pixSubidaClienteAbandonarTimer = null;
-    }
-  }
-  function iniciarOcultacaoPixSubidaCliente(rotaId, pacoteId) {
-    pararOcultacaoPixSubidaCliente();
-    pixSubidaClienteOcultarTimer = setTimeout(async () => {
-      pixSubidaClienteOculto = true;
+  function iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId) {
+    pararExpiracaoPixSubidaCliente();
+    pixSubidaClienteExpiraTimer = setTimeout(async () => {
+      pixSubidaClienteAtual = null;
+      pararPollingPixSubidaCliente();
       try {
         const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
         renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
       } catch (e) {
       }
-    }, PIX_SUBIDA_OCULTAR_MS);
-  }
-  function iniciarAbandonoPixSubidaCliente() {
-    pararAbandonoPixSubidaCliente();
-    pixSubidaClienteAbandonarTimer = setTimeout(() => {
-      pixSubidaClienteAtual = null;
-      pixSubidaClienteOculto = false;
-      pararPollingPixSubidaCliente();
-    }, PIX_SUBIDA_ABANDONAR_MS);
+    }, PIX_SUBIDA_VALIDADE_MS);
   }
   function iniciarPollingPixSubidaCliente() {
     pararPollingPixSubidaCliente();
@@ -9464,8 +9439,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxyPublico("/check-pix-subida", { rastreioToken: tokenRastreioAtual, paymentId: pixSubidaClienteAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixSubidaClienteAtual.paymentId);
         if (data?.status === "approved") {
           pararPollingPixSubidaCliente();
-          pararOcultacaoPixSubidaCliente();
-          pararAbandonoPixSubidaCliente();
+          pararExpiracaoPixSubidaCliente();
         } else {
           const statusEl = document.getElementById("rastreio-pub-pix-status");
           if (statusEl) statusEl.innerText = "Aguardando confirma\xE7\xE3o do pagamento...";
