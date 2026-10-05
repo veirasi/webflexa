@@ -7098,8 +7098,8 @@ body.usuario-entregador #entregador-rotas-shell {
    só texto discreto, sem caixa colorida, pra não parecer mais um item
    pendente da lista. */
 .ent-sheet-cronometro {
-    display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
-    color: #64748b; margin-bottom: 12px; padding-left: 2px;
+    display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
+    color: #64748b; margin-bottom: 8px; padding: 0 12px;
 }
 .ent-sheet-cronometro i { color: #94a3b8; }
 .ent-sheet-subir-pedido {
