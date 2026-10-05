@@ -7065,6 +7065,8 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-code-box label { font-weight: 800; font-size: 13px; color: #0f172a; display: block; margin-bottom: 6px; }
 .ent-sheet-code-box input { width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font-size: 16px; font-weight: 800; letter-spacing: 0.6px; }
 .ent-sheet-actions-inline { display: flex; gap: 10px; margin-top: 10px; }
+.ent-sheet-actions-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.ent-sheet-actions-stack .ent-sheet-primary.small, .ent-sheet-actions-stack .ent-sheet-btn-ghost { width: 100%; }
 .ent-sheet-btn-ghost { flex: 1; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; background: #fff; font-weight: 800; color: #0f172a; cursor: pointer; }
 .ent-sheet-status-ok { width: 100%; border-radius: 14px; padding: 12px; background: #ecfdf3; color: #15803d; font-weight: 800; display: flex; align-items: center; gap: 8px; }
 .ent-sheet-status-ok i { color: #15803d; }
@@ -7105,6 +7107,15 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-subir-aceito { background: #ecfdf3; color: #15803d; }
 .ent-sheet-subir-recusado { background: #f1f5f9; color: #64748b; }
 
+/* Checklist de etapas (subida + taxas), tela do entregador — 2026-10-04 */
+.ent-sheet-checklist { width: 100%; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.ent-sheet-checklist-item {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+    background: #fffaf5; color: #b45309; font-weight: 700; font-size: 13px; border: 1px solid #fde3c8;
+}
+.ent-sheet-checklist-item.done { background: #ecfdf3; color: #15803d; border-color: #bbf7d0; }
+.ent-sheet-checklist-item.neg { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+
 /* Card combinado de taxas (espera + entrega na porta), tela do cliente — 2026-10-04 */
 .rastreio-pub-taxas-card strong { display: block; font-size: 14px; color: #0f172a; margin-bottom: 6px; }
 .rastreio-pub-taxas-card .rastreio-pub-taxa-linha { display: flex; justify-content: space-between; font-size: 13px; color: #475569; padding: 2px 0; }
@@ -7117,6 +7128,12 @@ body.usuario-entregador #entregador-rotas-shell {
 .rastreio-pub-codigo span { display: block; font-size: 11px; font-weight: 800; color: #15803d; text-transform: uppercase; letter-spacing: 0.04em; }
 .rastreio-pub-codigo strong { display: block; font-size: 28px; font-weight: 900; color: #0f172a; letter-spacing: 0.08em; margin: 4px 0; }
 .rastreio-pub-codigo small { display: block; font-size: 11px; color: var(--text-sub); }
+
+/* Código bloqueado até pagar as taxas pendentes — 2026-10-04 */
+.rastreio-pub-codigo-bloqueado { background: #fffaf5; border-color: #fde3c8; }
+.rastreio-pub-codigo-bloqueado span { color: #b45309; }
+.rastreio-pub-codigo-bloqueado i { color: #b45309; margin: 6px 0; }
+.rastreio-pub-codigo-bloqueado small { color: #b45309; font-weight: 700; }
 
 .rastreio-pub-sucesso { text-align: center; padding: 10px 0 4px; }
 .rastreio-pub-sucesso-check { color: #16a34a; display: flex; justify-content: center; margin-bottom: 10px; }

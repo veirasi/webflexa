@@ -1275,6 +1275,14 @@ window.addEventListener('resize', () => {
 // o estado mudou, pra quem chamou saber se precisa re-renderizar a tela
 // atual (o dashboard tem HTML completamente diferente em cada modo).
 function atualizarModoDesktopLoja() {
+    // BUG CORRIGIDO 2026-10-04 (achado pelo dono): abrir o link de rastreio
+    // público em tela grande, no MESMO navegador onde já existia uma sessão
+    // de loja (de teste ou de verdade) ainda guardada, ativava o modo
+    // desktop do LOJISTA por cima da tela do cliente — usuarioLogado/auth
+    // continuam preenchidos mesmo numa aba que agora só devia mostrar o
+    // rastreio público. modoRastreioPublico nunca devia conviver com o
+    // painel da loja, então bloqueia aqui, independente do resto.
+    if (modoRastreioPublico) return false;
     const tipo = obterTipoUsuarioAtual();
     const deveAtivar = tipo === 'loja' && window.innerWidth >= 1024 && !!getUsuarioIdAtual();
     const jaAtivo = document.body.classList.contains('lojista-desktop-mode');
@@ -5089,9 +5097,13 @@ function renderSheetRotaEntregadorConteudo() {
         if (!espera.chegouEm) {
             blocoEspera = `<button type=\"button\" class=\"ent-sheet-cheguei-btn\" onclick=\"confirmarCheguei()\"><i data-lucide=\"map-pin\" size=\"14\"></i> Cheguei no local</button>`;
         } else {
+            // Cronômetro de espera — fica sempre visível enquanto aguarda,
+            // igual já era (pedido do dono, 2026-10-04: manter o cronômetro
+            // tanto aqui quanto na tela do cliente).
             const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000));
             const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
             blocoEspera = `<div class=\"ent-sheet-aguardando\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}</div>`;
+
             if (espera.subirStatus === 'pendente') {
                 blocoEspera += `
                     <div class=\"ent-sheet-subir-pedido\">
@@ -5101,23 +5113,33 @@ function renderSheetRotaEntregadorConteudo() {
                             <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"recusarSolicitacaoSubida()\">Recusar</button>
                         </div>
                     </div>`;
-            } else if (espera.subirStatus === 'aceito') {
-                blocoEspera += `<div class=\"ent-sheet-subir-aceito\"><i data-lucide=\"check\" size=\"14\"></i> Entrega aceita (+R$ 6,00)</div>`;
-            } else if (espera.subirStatus === 'pago') {
-                blocoEspera += `<div class=\"ent-sheet-subir-aceito\"><i data-lucide=\"check\" size=\"14\"></i> Taxa de entrega na porta paga via Pix (+R$ 6,00)</div>`;
-            } else if (espera.subirStatus === 'recusado') {
-                blocoEspera += `<div class=\"ent-sheet-subir-recusado\">Você recusou entregar na porta dessa vez</div>`;
-            }
+            } else {
+                // Checklist (pedido do dono, 2026-10-04): em vez de vários
+                // avisos soltos, duas linhas que viram verdes conforme cada
+                // etapa confirma. Quem gera e paga o Pix das taxas é o
+                // CLIENTE, na própria tela de rastreio — o entregador só
+                // acompanha, sem nenhuma ação de cobrança aqui.
+                const itensChecklist = [];
+                if (espera.subirStatus === 'aceito' || espera.subirStatus === 'pago') {
+                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item done\"><i data-lucide=\"check-circle-2\" size=\"16\"></i><span>Entrega na porta aceita</span></div>`);
+                } else if (espera.subirStatus === 'recusado') {
+                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item neg\"><i data-lucide=\"x-circle\" size=\"16\"></i><span>Você recusou entregar na porta dessa vez</span></div>`);
+                }
 
-            // Quem gera e paga o Pix das taxas é o CLIENTE, na própria tela
-            // de rastreio (pedido do dono, 2026-10-04 — pra não ter duas
-            // cobranças em telas diferentes). O entregador só vê que tem
-            // taxa pendente; não tem nenhuma ação de cobrança aqui.
-            const valorEsperaPendente = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-            const valorSubidaPendente = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-            if (valorEsperaPendente > 0 || valorSubidaPendente > 0) {
-                blocoEspera += `<div class=\"ent-sheet-aguardando\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando o cliente pagar as taxas (${precoParaMoeda(valorEsperaPendente + valorSubidaPendente)}) via Pix...</div>`;
-                if (mercadoPagoAmbienteAtual === 'teste') {
+                const valorEsperaPendente = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+                const valorSubidaPendente = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+                const valorPendenteTotal = Number((valorEsperaPendente + valorSubidaPendente).toFixed(2));
+                const taxaJaPaga = valorPendenteTotal <= 0 && (espera.subirStatus === 'pago' || espera.esperaStatus === 'pago');
+                if (valorPendenteTotal > 0) {
+                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item\"><i data-lucide=\"clock\" size=\"16\"></i><span>Aguardando pagamento das taxas (${precoParaMoeda(valorPendenteTotal)})</span></div>`);
+                } else if (taxaJaPaga) {
+                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item done\"><i data-lucide=\"check-circle-2\" size=\"16\"></i><span>Taxas pagas via Pix</span></div>`);
+                }
+
+                if (itensChecklist.length) {
+                    blocoEspera += `<div class=\"ent-sheet-checklist\">${itensChecklist.join('')}</div>`;
+                }
+                if (valorPendenteTotal > 0 && mercadoPagoAmbienteAtual === 'teste') {
                     blocoEspera += `<button type=\"button\" class=\"ent-sheet-link\" onclick=\"simularPagamentoTaxasTeste()\">Simular pagamento recebido (teste)</button>`;
                 }
             }
@@ -5144,7 +5166,7 @@ function renderSheetRotaEntregadorConteudo() {
             ${blocoEspera}
             <label for=\"ent-sheet-code-input\">${ehColetaReversaLabel ? 'Confirme a devolução (código com o lojista)' : 'Confirme a entrega'}</label>
             <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
-            <div class=\"ent-sheet-actions-inline\">
+            <div class=\"ent-sheet-actions-stack\">
                 <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarEntregaPacoteAtual()\">${ehColetaReversaLabel ? 'Confirmar devolução' : 'Confirmar entrega'}</button>
                 <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
             </div>
@@ -5159,7 +5181,7 @@ function renderSheetRotaEntregadorConteudo() {
         <div class=\"ent-sheet-code-box\">
             <label for=\"ent-sheet-code-input\">Confirme a retirada (código com o cliente)</label>
             <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
-            <div class=\"ent-sheet-actions-inline\">
+            <div class=\"ent-sheet-actions-stack\">
                 <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarRetiradaPacoteAtual()\">Confirmar retirada</button>
                 <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
             </div>
@@ -10905,22 +10927,6 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : '';
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : '';
 
-    // Código de confirmação, sempre visível na própria tela (bug corrigido
-    // 2026-09-26: antes só ia na mensagem de WhatsApp — se o cliente
-    // perdesse essa mensagem, não tinha como saber o código de outro jeito).
-    // Coleta reversa mostra o código de RETIRADA (é o cliente quem confirma
-    // essa perna) só até ele entregar o pacote ao entregador — a 2ª perna
-    // (devolução na loja) é confirmada pelo LOJISTA, não pelo cliente, então
-    // nenhum código aparece mais aqui depois da retirada.
-    let codigoHtml = '';
-    if (ehColetaReversaTexto) {
-        if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
-            codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse código ao entregador na hora da retirada</small></div>`;
-        }
-    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO') {
-        codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora da entrega</small></div>`;
-    }
-
     // Aviso da taxa de espera (pedido do dono, 2026-10-04): avisa o cliente,
     // assim que o entregador chega, que a espera é limitada — pra ele não
     // ser pego de surpresa por uma cobrança depois.
@@ -10928,6 +10934,46 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     const esperaAvisoHtml = entregadorPresenteParaTaxas
         ? `<div class="rastreio-pub-subir"><p><i data-lucide="clock" size="16"></i> O entregador chegou e vai te aguardar por até 5 minutos, sem nenhum custo. Depois desse tempo, cada minuto extra de espera passa a gerar uma taxa de ${precoParaMoeda(TAXA_ESPERA_POR_MIN)}.</p></div>`
         : '';
+
+    // Estimativa do que ainda falta pagar (espera + entrega na porta) —
+    // usada tanto pra decidir se o código de confirmação fica visível
+    // quanto pro card de taxas logo abaixo. O valor real que vai pro Pix é
+    // sempre recalculado no servidor (/create-pix-subida), nunca confia no
+    // que é calculado aqui.
+    const subirStatus = pacoteInfo.subirStatus || null;
+    const esperaStatus = pacoteInfo.esperaStatus || null;
+    const minutosDesde = pacoteInfo.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteInfo.chegouEm)) / 60000)) : 0;
+    const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+    const valorEsperaEstimado = esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubidaEstimado = subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+    const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
+
+    // Código de confirmação, sempre visível na própria tela (bug corrigido
+    // 2026-09-26: antes só ia na mensagem de WhatsApp — se o cliente
+    // perdesse essa mensagem, não tinha como saber o código de outro jeito).
+    // Coleta reversa mostra o código de RETIRADA (é o cliente quem confirma
+    // essa perna) só até ele entregar o pacote ao entregador — a 2ª perna
+    // (devolução na loja) é confirmada pelo LOJISTA, não pelo cliente, então
+    // nenhum código aparece mais aqui depois da retirada.
+    //
+    // Pedido do dono (2026-10-04): se tiver taxa pendente (espera e/ou
+    // entrega na porta), o código some e fica bloqueado até pagar — é o
+    // código que o cliente passa pro entregador pra receber o produto, então
+    // isso força o pagamento antes da entrega acontecer. Só vale pro código
+    // de ENTREGA normal, não pro de retirada da coleta reversa (ali quem
+    // recebe o produto no fim é a loja, não o cliente).
+    let codigoHtml = '';
+    if (ehColetaReversaTexto) {
+        if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
+            codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse código ao entregador na hora da retirada</small></div>`;
+        }
+    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO') {
+        if (valorTotalEstimado > 0) {
+            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu código</small></div>`;
+        } else {
+            codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora da entrega</small></div>`;
+        }
+    }
 
     // Taxas da entrega (espera + entrega na porta combinadas, pedido do
     // dono, 2026-10-04): tudo nesta MESMA tela — o cliente pede a entrega
@@ -10937,9 +10983,6 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
     // entrega — não mexe em Pix nenhum.
     let subirHtml = '';
     if (rotaId && entregadorPresenteParaTaxas) {
-        const subirStatus = pacoteInfo.subirStatus || null;
-        const esperaStatus = pacoteInfo.esperaStatus || null;
-
         // Pedido de subida em si (perguntar/aguardar aceite) — independente
         // do pagamento, que fica no card combinado logo abaixo.
         if (!subirStatus) {
@@ -10955,15 +10998,6 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
         }
         // 'aceito' e 'pago' não têm mensagem própria aqui — ficam refletidos
         // no card de taxas/confirmação de pagamento abaixo.
-
-        // Estimativa só pra decidir o que mostrar — o valor real que vai pro
-        // Pix é sempre recalculado no servidor (/create-pix-subida), nunca
-        // confia no que é calculado aqui.
-        const minutosDesde = pacoteInfo.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteInfo.chegouEm)) / 60000)) : 0;
-        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
-        const valorEsperaEstimado = esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-        const valorSubidaEstimado = subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-        const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
 
         if (valorTotalEstimado > 0) {
             const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId;
@@ -11009,14 +11043,14 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
             <h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace(destinatario)}!</h2>
             <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
             ${etaHtml}
-            ${codigoHtml}
+            ${mapaHtml}
             ${timelineHtml}
             ${paradaInfoHtml}
             ${(distTxt || durTxt) ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(' • '))}</div>` : ''}
             ${esperaAvisoHtml}
             ${subirHtml}
+            ${codigoHtml}
         </div>
-        ${mapaHtml}
     `;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }

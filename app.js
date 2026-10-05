@@ -1711,6 +1711,7 @@
     requestAnimationFrame(atualizarIndicadorMenuInferior);
   });
   function atualizarModoDesktopLoja() {
+    if (modoRastreioPublico) return false;
     const tipo = obterTipoUsuarioAtual();
     const deveAtivar = tipo === "loja" && window.innerWidth >= 1024 && !!getUsuarioIdAtual();
     const jaAtivo = document.body.classList.contains("lojista-desktop-mode");
@@ -4730,18 +4731,26 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                             <button type="button" class="ent-sheet-btn-ghost" onclick="recusarSolicitacaoSubida()">Recusar</button>
                         </div>
                     </div>`;
-        } else if (espera.subirStatus === "aceito") {
-          blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Entrega aceita (+R$ 6,00)</div>`;
-        } else if (espera.subirStatus === "pago") {
-          blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Taxa de entrega na porta paga via Pix (+R$ 6,00)</div>`;
-        } else if (espera.subirStatus === "recusado") {
-          blocoEspera += `<div class="ent-sheet-subir-recusado">Voc\xEA recusou entregar na porta dessa vez</div>`;
-        }
-        const valorEsperaPendente = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-        const valorSubidaPendente = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-        if (valorEsperaPendente > 0 || valorSubidaPendente > 0) {
-          blocoEspera += `<div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando o cliente pagar as taxas (${precoParaMoeda(valorEsperaPendente + valorSubidaPendente)}) via Pix...</div>`;
-          if (mercadoPagoAmbienteAtual === "teste") {
+        } else {
+          const itensChecklist = [];
+          if (espera.subirStatus === "aceito" || espera.subirStatus === "pago") {
+            itensChecklist.push(`<div class="ent-sheet-checklist-item done"><i data-lucide="check-circle-2" size="16"></i><span>Entrega na porta aceita</span></div>`);
+          } else if (espera.subirStatus === "recusado") {
+            itensChecklist.push(`<div class="ent-sheet-checklist-item neg"><i data-lucide="x-circle" size="16"></i><span>Voc\xEA recusou entregar na porta dessa vez</span></div>`);
+          }
+          const valorEsperaPendente = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+          const valorSubidaPendente = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+          const valorPendenteTotal = Number((valorEsperaPendente + valorSubidaPendente).toFixed(2));
+          const taxaJaPaga = valorPendenteTotal <= 0 && (espera.subirStatus === "pago" || espera.esperaStatus === "pago");
+          if (valorPendenteTotal > 0) {
+            itensChecklist.push(`<div class="ent-sheet-checklist-item"><i data-lucide="clock" size="16"></i><span>Aguardando pagamento das taxas (${precoParaMoeda(valorPendenteTotal)})</span></div>`);
+          } else if (taxaJaPaga) {
+            itensChecklist.push(`<div class="ent-sheet-checklist-item done"><i data-lucide="check-circle-2" size="16"></i><span>Taxas pagas via Pix</span></div>`);
+          }
+          if (itensChecklist.length) {
+            blocoEspera += `<div class="ent-sheet-checklist">${itensChecklist.join("")}</div>`;
+          }
+          if (valorPendenteTotal > 0 && mercadoPagoAmbienteAtual === "teste") {
             blocoEspera += `<button type="button" class="ent-sheet-link" onclick="simularPagamentoTaxasTeste()">Simular pagamento recebido (teste)</button>`;
           }
         }
@@ -4758,7 +4767,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             ${blocoEspera}
             <label for="ent-sheet-code-input">${ehColetaReversaLabel ? "Confirme a devolu\xE7\xE3o (c\xF3digo com o lojista)" : "Confirme a entrega"}</label>
             <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
-            <div class="ent-sheet-actions-inline">
+            <div class="ent-sheet-actions-stack">
                 <button type="button" class="ent-sheet-primary small" onclick="confirmarEntregaPacoteAtual()">${ehColetaReversaLabel ? "Confirmar devolu\xE7\xE3o" : "Confirmar entrega"}</button>
                 <button type="button" class="ent-sheet-btn-ghost" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
             </div>
@@ -4768,7 +4777,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         <div class="ent-sheet-code-box">
             <label for="ent-sheet-code-input">Confirme a retirada (c\xF3digo com o cliente)</label>
             <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
-            <div class="ent-sheet-actions-inline">
+            <div class="ent-sheet-actions-stack">
                 <button type="button" class="ent-sheet-primary small" onclick="confirmarRetiradaPacoteAtual()">Confirmar retirada</button>
                 <button type="button" class="ent-sheet-btn-ghost" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
             </div>
@@ -9214,20 +9223,29 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             </div>` : "";
     const distTxt = dados.distanciaKm ? formatarDistancia(Number(dados.distanciaKm)) : "";
     const durTxt = dados.duracaoMin ? formatarDuracao(Number(dados.duracaoMin)) : "";
+    const entregadorPresenteParaTaxas = pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO";
+    const esperaAvisoHtml = entregadorPresenteParaTaxas ? `<div class="rastreio-pub-subir"><p><i data-lucide="clock" size="16"></i> O entregador chegou e vai te aguardar por at\xE9 5 minutos, sem nenhum custo. Depois desse tempo, cada minuto extra de espera passa a gerar uma taxa de ${precoParaMoeda(TAXA_ESPERA_POR_MIN)}.</p></div>` : "";
+    const subirStatus = pacoteInfo.subirStatus || null;
+    const esperaStatus = pacoteInfo.esperaStatus || null;
+    const minutosDesde = pacoteInfo.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteInfo.chegouEm)) / 6e4)) : 0;
+    const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+    const valorEsperaEstimado = esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubidaEstimado = subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+    const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
     let codigoHtml = "";
     if (ehColetaReversaTexto) {
       if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
         codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse c\xF3digo ao entregador na hora da retirada</small></div>`;
       }
     } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
-      codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
+      if (valorTotalEstimado > 0) {
+        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu c\xF3digo</small></div>`;
+      } else {
+        codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
+      }
     }
-    const entregadorPresenteParaTaxas = pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO";
-    const esperaAvisoHtml = entregadorPresenteParaTaxas ? `<div class="rastreio-pub-subir"><p><i data-lucide="clock" size="16"></i> O entregador chegou e vai te aguardar por at\xE9 5 minutos, sem nenhum custo. Depois desse tempo, cada minuto extra de espera passa a gerar uma taxa de ${precoParaMoeda(TAXA_ESPERA_POR_MIN)}.</p></div>` : "";
     let subirHtml = "";
     if (rotaId && entregadorPresenteParaTaxas) {
-      const subirStatus = pacoteInfo.subirStatus || null;
-      const esperaStatus = pacoteInfo.esperaStatus || null;
       if (!subirStatus) {
         subirHtml += `
                 <div class="rastreio-pub-subir">
@@ -9239,11 +9257,6 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       } else if (subirStatus === "recusado") {
         subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que n\xE3o vai poder entregar na porta dessa vez.</div>`;
       }
-      const minutosDesde = pacoteInfo.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteInfo.chegouEm)) / 6e4)) : 0;
-      const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
-      const valorEsperaEstimado = esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-      const valorSubidaEstimado = subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-      const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
       if (valorTotalEstimado > 0) {
         const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId;
         if (pixAtivo) {
@@ -9285,14 +9298,14 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             <h2 class="rastreio-pub-titulo">Ol\xE1, ${escaparHtmlMarketplace(destinatario)}!</h2>
             <p class="rastreio-pub-status">${escaparHtmlMarketplace(statusTexto)}</p>
             ${etaHtml}
-            ${codigoHtml}
+            ${mapaHtml}
             ${timelineHtml}
             ${paradaInfoHtml}
             ${distTxt || durTxt ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(" \u2022 "))}</div>` : ""}
             ${esperaAvisoHtml}
             ${subirHtml}
+            ${codigoHtml}
         </div>
-        ${mapaHtml}
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
