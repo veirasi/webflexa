@@ -451,7 +451,6 @@
     simularAprovacaoCobrancaEntregaTeste: () => simularAprovacaoCobrancaEntregaTeste,
     simularAprovacaoDevolucaoTeste: () => simularAprovacaoDevolucaoTeste,
     simularAprovacaoQuitacaoDividaTeste: () => simularAprovacaoQuitacaoDividaTeste,
-    simularPagamentoTaxasTeste: () => simularPagamentoTaxasTeste,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
     solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
     solicitarExclusaoDadosLgpd: () => solicitarExclusaoDadosLgpd,
@@ -4721,7 +4720,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       } else {
         const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4));
         const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
-        blocoEspera = `<div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}</div>`;
+        blocoEspera = `<div class="ent-sheet-cronometro"><i data-lucide="clock" size="14"></i> Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}</div>`;
         if (espera.subirStatus === "pendente") {
           blocoEspera += `
                     <div class="ent-sheet-subir-pedido">
@@ -4749,9 +4748,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           }
           if (itensChecklist.length) {
             blocoEspera += `<div class="ent-sheet-checklist">${itensChecklist.join("")}</div>`;
-          }
-          if (valorPendenteTotal > 0 && mercadoPagoAmbienteAtual === "teste") {
-            blocoEspera += `<button type="button" class="ent-sheet-link" onclick="simularPagamentoTaxasTeste()">Simular pagamento recebido (teste)</button>`;
           }
         }
       }
@@ -5479,52 +5475,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   }
   function recusarSolicitacaoSubida() {
     responderSolicitacaoSubida(false);
-  }
-  async function simularPagamentoTaxasTeste() {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const rotaId = rotaObj?.id;
-    if (!rotaId || !pac) return;
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const envioId = obterIdPacoteConfirmacao(pac);
-    const espera = pac?.esperaEntrega || {};
-    const chegouEm = Number(espera.chegouEm) || 0;
-    const minutosCobrados = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
-    const valorEspera = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-    const valorSubida = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-    if (!lojistaUid || !envioId || valorEspera <= 0 && valorSubida <= 0) return;
-    if (!window.confirm("Simular o pagamento dessas taxas como recebido? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
-    const agora = Date.now();
-    try {
-      const updates = {};
-      if (valorSubida > 0) {
-        updates["esperaEntrega/subirStatus"] = "pago";
-        updates["esperaEntrega/subidaPagoEm"] = agora;
-      }
-      if (valorEspera > 0) {
-        updates["esperaEntrega/esperaStatus"] = "pago";
-        updates["esperaEntrega/valorEsperaPago"] = valorEspera;
-        updates["esperaEntrega/esperaPagoEm"] = agora;
-      }
-      await sincronizarCamposEnvioLojista(lojistaUid, envioId, updates);
-      const mirror = {};
-      if (valorSubida > 0) mirror.subirStatus = "pago";
-      if (valorEspera > 0) mirror.esperaStatus = "pago";
-      await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update(mirror).catch(() => {
-      });
-      pac.esperaEntrega = {
-        ...espera,
-        subirStatus: valorSubida > 0 ? "pago" : espera.subirStatus,
-        esperaStatus: valorEspera > 0 ? "pago" : espera.esperaStatus,
-        valorEsperaPago: valorEspera > 0 ? valorEspera : espera.valorEsperaPago
-      };
-      pararListenerEsperaPacote();
-      renderSheetRotaEntregadorConteudo();
-      notificarSucesso("Pagamento simulado \u2014 libera quando confirmar a entrega.");
-    } catch (err) {
-      console.warn("Falha ao simular pagamento das taxas:", err);
-      alert("N\xE3o foi poss\xEDvel simular o pagamento agora.");
-    }
   }
   function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
     const chave = `${rotaId}|${pacoteId}`;

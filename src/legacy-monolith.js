@@ -5102,7 +5102,7 @@ function renderSheetRotaEntregadorConteudo() {
             // tanto aqui quanto na tela do cliente).
             const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000));
             const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
-            blocoEspera = `<div class=\"ent-sheet-aguardando\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}</div>`;
+            blocoEspera = `<div class=\"ent-sheet-cronometro\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}</div>`;
 
             if (espera.subirStatus === 'pendente') {
                 blocoEspera += `
@@ -5138,9 +5138,6 @@ function renderSheetRotaEntregadorConteudo() {
 
                 if (itensChecklist.length) {
                     blocoEspera += `<div class=\"ent-sheet-checklist\">${itensChecklist.join('')}</div>`;
-                }
-                if (valorPendenteTotal > 0 && mercadoPagoAmbienteAtual === 'teste') {
-                    blocoEspera += `<button type=\"button\" class=\"ent-sheet-link\" onclick=\"simularPagamentoTaxasTeste()\">Simular pagamento recebido (teste)</button>`;
                 }
             }
         }
@@ -6064,70 +6061,6 @@ function aceitarSolicitacaoSubida() {
 
 function recusarSolicitacaoSubida() {
     responderSolicitacaoSubida(false);
-}
-
-// Pedido do dono (2026-10-04, corrigindo pedido anterior): quem gera e paga
-// o Pix das taxas (espera + entrega na porta) é o CLIENTE, na própria tela
-// de rastreio — não o entregador. Ele só aceita o pedido de subida, entrega
-// e confirma o código; não gera cobrança nenhuma. Ver gerarPixSubidaCliente
-// mais abaixo (seção do cliente) pra onde isso foi.
-//
-// Um Pix de TESTE nunca é aprovado por um banco de verdade (mesmo motivo de
-// simularAprovacaoCobrancaEntregaTeste) — como quem gera o Pix é o CLIENTE,
-// numa tela sem login nenhum, ele não tem permissão pra creditar/marcar
-// nada (regra de financeiro/pacotes exige dono/master). Por isso o botão de
-// simular fica aqui, do lado do ENTREGADOR (já autenticado): grava o mesmo
-// desfecho que o servidor gravaria num pagamento aprovado de verdade — só
-// marca como pago, não credita a carteira direto (quem credita é
-// /resolver-taxa-espera, na confirmação da entrega, igual um Pix real).
-async function simularPagamentoTaxasTeste() {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const rotaId = rotaObj?.id;
-    if (!rotaId || !pac) return;
-
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const envioId = obterIdPacoteConfirmacao(pac);
-    const espera = pac?.esperaEntrega || {};
-    const chegouEm = Number(espera.chegouEm) || 0;
-    const minutosCobrados = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
-    const valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-    const valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-    if (!lojistaUid || !envioId || (valorEspera <= 0 && valorSubida <= 0)) return;
-    if (!window.confirm('Simular o pagamento dessas taxas como recebido? Isso só deve ser usado em ambiente de TESTE.')) return;
-
-    const agora = Date.now();
-    try {
-        const updates = {};
-        if (valorSubida > 0) {
-            updates['esperaEntrega/subirStatus'] = 'pago';
-            updates['esperaEntrega/subidaPagoEm'] = agora;
-        }
-        if (valorEspera > 0) {
-            updates['esperaEntrega/esperaStatus'] = 'pago';
-            updates['esperaEntrega/valorEsperaPago'] = valorEspera;
-            updates['esperaEntrega/esperaPagoEm'] = agora;
-        }
-        await sincronizarCamposEnvioLojista(lojistaUid, envioId, updates);
-
-        const mirror = {};
-        if (valorSubida > 0) mirror.subirStatus = 'pago';
-        if (valorEspera > 0) mirror.esperaStatus = 'pago';
-        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update(mirror).catch(() => {});
-
-        pac.esperaEntrega = {
-            ...espera,
-            subirStatus: valorSubida > 0 ? 'pago' : espera.subirStatus,
-            esperaStatus: valorEspera > 0 ? 'pago' : espera.esperaStatus,
-            valorEsperaPago: valorEspera > 0 ? valorEspera : espera.valorEsperaPago
-        };
-        pararListenerEsperaPacote();
-        renderSheetRotaEntregadorConteudo();
-        notificarSucesso('Pagamento simulado — libera quando confirmar a entrega.');
-    } catch (err) {
-        console.warn('Falha ao simular pagamento das taxas:', err);
-        alert('Não foi possível simular o pagamento agora.');
-    }
 }
 
 function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
@@ -11114,10 +11047,10 @@ async function chamarPaymentsProxyPublico(caminho, payload) {
 // pra teste local sem Cloud Function deployada, ver
 // feedback_flexa_test_mode_escape_hatches) — chama a API do Mercado Pago
 // direto do navegador com o token de TESTE. Como quem credita o entregador é
-// o backend (/check-pix-subida), esse Pix de teste nunca "aprova" sozinho;
-// quem finaliza o teste é o botão do ENTREGADOR (simularPagamentoTaxasTeste),
-// que grava o desfecho direto sem depender desse Pix ter sido pago de
-// verdade — ver seção da espera/subida no entregador.
+// o backend (/check-pix-subida), esse Pix de teste nunca "aprova" sozinho —
+// e, a pedido do dono (2026-10-04), não existe mais nenhum botão de simular
+// aprovação pra essa cobrança; testar o pagamento de verdade agora depende
+// de FLEXA_PAYMENTS_PROXY_URL estar deployado e um Pix real ser pago.
 async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEstimado) {
     const valor = Number(valorEstimado) > 0 ? Number(valorEstimado) : TAXA_SUBIR_FIXA;
     const nomeCliente = (nomeDestinatario || 'Cliente Flex').toString().trim() || 'Cliente Flex';
@@ -16983,7 +16916,6 @@ export {
   simularAprovacaoCobrancaEntregaTeste,
   simularAprovacaoDevolucaoTeste,
   simularAprovacaoQuitacaoDividaTeste,
-  simularPagamentoTaxasTeste,
   sincronizarDropdownBuscaEntregador,
   solicitarDevolucaoPacoteAtual,
   solicitarExclusaoDadosLgpd,
