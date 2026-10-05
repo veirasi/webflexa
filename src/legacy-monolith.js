@@ -5109,14 +5109,17 @@ function renderSheetRotaEntregadorConteudo() {
                 blocoEspera += `<div class=\"ent-sheet-subir-recusado\">Você recusou entregar na porta dessa vez</div>`;
             }
 
-            // Card combinado de taxas (pedido do dono, 2026-10-04): some as
-            // taxas de espera + entrega na porta AINDA NÃO pagas num valor
-            // só, com um Pix único pro cliente pagar escaneando o celular do
-            // entregador (em vez de depender só da tela de rastreio dele).
+            // Quem gera e paga o Pix das taxas é o CLIENTE, na própria tela
+            // de rastreio (pedido do dono, 2026-10-04 — pra não ter duas
+            // cobranças em telas diferentes). O entregador só vê que tem
+            // taxa pendente; não tem nenhuma ação de cobrança aqui.
             const valorEsperaPendente = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
             const valorSubidaPendente = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
             if (valorEsperaPendente > 0 || valorSubidaPendente > 0) {
-                blocoEspera += renderCardTaxasEntregador(obterIdPacoteConfirmacao(pac), valorEsperaPendente, valorSubidaPendente);
+                blocoEspera += `<div class=\"ent-sheet-aguardando\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando o cliente pagar as taxas (${precoParaMoeda(valorEsperaPendente + valorSubidaPendente)}) via Pix...</div>`;
+                if (mercadoPagoAmbienteAtual === 'teste') {
+                    blocoEspera += `<button type=\"button\" class=\"ent-sheet-link\" onclick=\"simularPagamentoTaxasTeste()\">Simular pagamento recebido (teste)</button>`;
+                }
             }
         }
     }
@@ -6041,203 +6044,37 @@ function recusarSolicitacaoSubida() {
     responderSolicitacaoSubida(false);
 }
 
-// ===================== [PIX DAS TAXAS DA ENTREGA — ENTREGADOR] =====================
-// Pedido do dono (2026-10-04): espera + entrega na porta, quando as duas
-// estão pendentes, viram UM Pix só, gerado aqui na tela do entregador (ele
-// que mostra pro cliente escanear — diferente da entrega na porta isolada,
-// que o CLIENTE gera sozinho pela própria tela de rastreio). Mesmo padrão
-// de gerarPixCobrancaEntrega: autenticado, usa chamarPaymentsProxy normal.
-let pixTaxasEntregadorAtual = null;
-let pixTaxasEntregadorPollTimer = null;
-
-function renderCardTaxasEntregador(envioId, valorEspera, valorSubida) {
-    const valorTotal = Number((valorEspera + valorSubida).toFixed(2));
-    const pixAtivo = pixTaxasEntregadorAtual && pixTaxasEntregadorAtual.envioId === envioId;
-
-    if (pixAtivo) {
-        return `
-            <div class=\"ent-sheet-cobranca-box\">
-                <strong>Cobrar ${precoParaMoeda(pixTaxasEntregadorAtual.valor || valorTotal)} do cliente via Pix</strong>
-                ${pixTaxasEntregadorAtual.qrCodeBase64 ? `<img class=\"ent-sheet-pix-qr-img\" src=\"data:image/png;base64,${pixTaxasEntregadorAtual.qrCodeBase64}\" alt=\"QR Code Pix\">` : ''}
-                <textarea readonly class=\"ent-sheet-pix-copia\" onclick=\"this.select()\">${escaparHtmlMarketplace(pixTaxasEntregadorAtual.pixCode)}</textarea>
-                <div class=\"ent-sheet-actions-inline\">
-                    <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"copiarCodigoPixTaxasEntregador()\">Copiar código Pix</button>
-                </div>
-                <div id=\"ent-sheet-taxas-pix-status\" class=\"ent-sheet-pix-status\">Aguardando pagamento do cliente...</div>
-                ${mercadoPagoAmbienteAtual === 'teste' ? `<button type=\"button\" class=\"ent-sheet-link\" onclick=\"simularAprovacaoTaxasEntregadorTeste()\">Simular pagamento aprovado (teste)</button>` : ''}
-            </div>`;
-    }
-
-    const linhas = [];
-    if (valorEspera > 0) linhas.push(`<div class=\"ent-sheet-taxa-linha\"><span>Espera</span><span>${precoParaMoeda(valorEspera)}</span></div>`);
-    if (valorSubida > 0) linhas.push(`<div class=\"ent-sheet-taxa-linha\"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubida)}</span></div>`);
-
-    return `
-        <div class=\"ent-sheet-cobranca-box ent-sheet-taxas-card\">
-            <strong>Taxas desta entrega</strong>
-            ${linhas.join('')}
-            <div class=\"ent-sheet-taxa-linha ent-sheet-taxa-total\"><span>Total</span><span>${precoParaMoeda(valorTotal)}</span></div>
-            <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"gerarPixTaxasEntregador('${escaparHtmlMarketplace(envioId)}', this)\">Gerar Pix</button>
-        </div>`;
-}
-
-async function gerarPixTaxasEntregador(envioId, btn) {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId) || rotaEntSheetPacotes[rotaEntSheetIndex];
-    if (!rotaObj || !pac) return;
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    if (!lojistaUid || !envioId) return;
-
-    if (btn) { btn.disabled = true; btn.innerText = 'Gerando Pix...'; }
-
-    try {
-        let data;
-        if (FLEXA_PAYMENTS_PROXY_URL) {
-            data = await chamarPaymentsProxy('/create-pix-taxas', { tenantId: lojistaUid, rotaId: rotaObj.id, envioId });
-        } else if (FLEXA_MP_TEST_TOKEN) {
-            data = await criarPagamentoPixTaxasEntregadorTesteLocal(pac, rotaObj.id, envioId);
-        } else {
-            throw new Error('Pagamento não configurado: defina FLEXA_PAYMENTS_PROXY_URL (produção) ou FLEXA_MP_TEST_TOKEN (só teste local).');
-        }
-
-        const pixCode = normalizarCodigoPix(data.pixCode || '');
-        if (!pixCode) throw new Error('Mercado Pago não retornou código Pix Copia e Cola.');
-
-        pixTaxasEntregadorAtual = {
-            paymentId: data.paymentId ? String(data.paymentId) : '',
-            envioId,
-            rotaId: rotaObj.id,
-            lojistaUid,
-            pixCode,
-            qrCodeBase64: data.qrCodeBase64 || '',
-            valor: data.valor || 0
-        };
-
-        renderSheetRotaEntregadorConteudo();
-        iniciarPollingPixTaxasEntregador();
-    } catch (err) {
-        console.warn('Falha ao gerar Pix das taxas da entrega:', err);
-        alert(err.message || 'Não foi possível gerar o Pix agora.');
-        if (btn) { btn.disabled = false; btn.innerText = 'Gerar Pix'; }
-    }
-}
-
-// Mesmo padrão de criarPagamentoPixCobrancaEntregaTesteLocal (fallback só
-// pra teste local sem Cloud Function deployada, ver
-// feedback_flexa_test_mode_escape_hatches).
-async function criarPagamentoPixTaxasEntregadorTesteLocal(pac, rotaId, envioId) {
-    const espera = pac?.esperaEntrega || {};
-    const chegouEm = Number(espera.chegouEm) || 0;
-    const minutosCobrados = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
-    const valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-    const valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-    const valor = Number((valorEspera + valorSubida).toFixed(2));
-    if (valor <= 0) throw new Error('Nenhuma taxa pendente pra cobrar.');
-
-    const nomeCliente = (pac?.destinatario || 'Cliente Flex').toString().trim() || 'Cliente Flex';
-    const partes = nomeCliente.split(/\s+/).filter(Boolean);
-    const firstName = partes[0] || 'Cliente';
-    const lastName = partes.slice(1).join(' ') || 'Flex';
-
-    const resp = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + FLEXA_MP_TEST_TOKEN,
-            'Content-Type': 'application/json',
-            'X-Idempotency-Key': gerarIdempotencyKeyTesteLocal()
-        },
-        body: JSON.stringify({
-            transaction_amount: valor,
-            description: 'Flex - taxas da entrega (pedido ' + envioId + ') [TESTE LOCAL]',
-            payment_method_id: 'pix',
-            payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
-            date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            external_reference: 'taxas:' + rotaId + ':' + envioId
-        })
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-        const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || ('HTTP ' + resp.status);
-        throw new Error('Mercado Pago: ' + detalhe);
-    }
-    const tx = data?.point_of_interaction?.transaction_data || {};
-    return {
-        paymentId: data?.id ? String(data.id) : '',
-        pixCode: tx.qr_code || '',
-        qrCodeBase64: tx.qr_code_base64 || '',
-        valor
-    };
-}
-
-function pararPollingPixTaxasEntregador() {
-    if (pixTaxasEntregadorPollTimer) {
-        clearInterval(pixTaxasEntregadorPollTimer);
-        pixTaxasEntregadorPollTimer = null;
-    }
-}
-
-function iniciarPollingPixTaxasEntregador() {
-    pararPollingPixTaxasEntregador();
-    pixTaxasEntregadorPollTimer = setInterval(async () => {
-        if (!pixTaxasEntregadorAtual?.paymentId) {
-            pararPollingPixTaxasEntregador();
-            return;
-        }
-        try {
-            const data = FLEXA_PAYMENTS_PROXY_URL
-                ? await chamarPaymentsProxy('/check-pix-taxas', { tenantId: pixTaxasEntregadorAtual.lojistaUid, paymentId: pixTaxasEntregadorAtual.paymentId })
-                : await consultarPagamentoPixTesteClienteLocal(pixTaxasEntregadorAtual.paymentId);
-
-            const statusEl = document.getElementById('ent-sheet-taxas-pix-status');
-            if (data?.status === 'approved') {
-                pararPollingPixTaxasEntregador();
-                await finalizarPixTaxasEntregadorComoPago();
-            } else if (statusEl) {
-                statusEl.innerText = 'Aguardando pagamento do cliente...';
-            }
-        } catch (err) {
-            console.warn('Falha ao consultar status do Pix das taxas:', err);
-        }
-    }, 4000);
-}
-
-// Desfecho de "pago" — o próprio servidor (/check-pix-taxas) já marcou
-// subirStatus/esperaStatus; aqui só busca o que ele gravou e atualiza a
-// tela (mesma ideia de finalizarCobrancaEntregaComoPaga).
-async function finalizarPixTaxasEntregadorComoPago() {
-    const info = pixTaxasEntregadorAtual;
-    pixTaxasEntregadorAtual = null;
-    if (info) {
-        const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === info.envioId);
-        if (pac) {
-            try {
-                const snap = await db.ref(`usuarios/${info.lojistaUid}/pacotes/${info.envioId}/esperaEntrega`).once('value');
-                if (snap.exists()) pac.esperaEntrega = { ...(pac.esperaEntrega || {}), ...snap.val() };
-            } catch (e) { /* segue com o que já tinha em memória */ }
-        }
-        pararListenerEsperaPacote();
-    }
-    renderSheetRotaEntregadorConteudo();
-    notificarSucesso('Pagamento recebido — taxas liberadas.');
-}
-
+// Pedido do dono (2026-10-04, corrigindo pedido anterior): quem gera e paga
+// o Pix das taxas (espera + entrega na porta) é o CLIENTE, na própria tela
+// de rastreio — não o entregador. Ele só aceita o pedido de subida, entrega
+// e confirma o código; não gera cobrança nenhuma. Ver gerarPixSubidaCliente
+// mais abaixo (seção do cliente) pra onde isso foi.
+//
 // Um Pix de TESTE nunca é aprovado por um banco de verdade (mesmo motivo de
-// simularAprovacaoCobrancaEntregaTeste) — sem isto o teste ficaria travado
-// em "aguardando pagamento" pra sempre.
-async function simularAprovacaoTaxasEntregadorTeste() {
-    if (!pixTaxasEntregadorAtual) return;
-    if (!window.confirm('Simular esse Pix de taxas como pago? Isso só deve ser usado em ambiente de TESTE.')) return;
-    pararPollingPixTaxasEntregador();
+// simularAprovacaoCobrancaEntregaTeste) — como quem gera o Pix é o CLIENTE,
+// numa tela sem login nenhum, ele não tem permissão pra creditar/marcar
+// nada (regra de financeiro/pacotes exige dono/master). Por isso o botão de
+// simular fica aqui, do lado do ENTREGADOR (já autenticado): grava o mesmo
+// desfecho que o servidor gravaria num pagamento aprovado de verdade — só
+// marca como pago, não credita a carteira direto (quem credita é
+// /resolver-taxa-espera, na confirmação da entrega, igual um Pix real).
+async function simularPagamentoTaxasTeste() {
+    const rotaObj = rotaEntSheetRotaAtual;
+    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
+    const rotaId = rotaObj?.id;
+    if (!rotaId || !pac) return;
 
-    const { lojistaUid, envioId, rotaId } = pixTaxasEntregadorAtual;
-    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
+    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
+    const envioId = obterIdPacoteConfirmacao(pac);
     const espera = pac?.esperaEntrega || {};
     const chegouEm = Number(espera.chegouEm) || 0;
     const minutosCobrados = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
     const valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
     const valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-    const agora = Date.now();
+    if (!lojistaUid || !envioId || (valorEspera <= 0 && valorSubida <= 0)) return;
+    if (!window.confirm('Simular o pagamento dessas taxas como recebido? Isso só deve ser usado em ambiente de TESTE.')) return;
 
+    const agora = Date.now();
     try {
         const updates = {};
         if (valorSubida > 0) {
@@ -6249,24 +6086,26 @@ async function simularAprovacaoTaxasEntregadorTeste() {
             updates['esperaEntrega/valorEsperaPago'] = valorEspera;
             updates['esperaEntrega/esperaPagoEm'] = agora;
         }
-        if (lojistaUid && envioId && Object.keys(updates).length) {
-            await sincronizarCamposEnvioLojista(lojistaUid, envioId, updates);
-        }
-        if (valorSubida > 0 && rotaId) {
-            await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({ subirStatus: 'pago' }).catch(() => {});
-        }
-        await finalizarPixTaxasEntregadorComoPago();
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, updates);
+
+        const mirror = {};
+        if (valorSubida > 0) mirror.subirStatus = 'pago';
+        if (valorEspera > 0) mirror.esperaStatus = 'pago';
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update(mirror).catch(() => {});
+
+        pac.esperaEntrega = {
+            ...espera,
+            subirStatus: valorSubida > 0 ? 'pago' : espera.subirStatus,
+            esperaStatus: valorEspera > 0 ? 'pago' : espera.esperaStatus,
+            valorEsperaPago: valorEspera > 0 ? valorEspera : espera.valorEsperaPago
+        };
+        pararListenerEsperaPacote();
+        renderSheetRotaEntregadorConteudo();
+        notificarSucesso('Pagamento simulado — libera quando confirmar a entrega.');
     } catch (err) {
         console.warn('Falha ao simular pagamento das taxas:', err);
         alert('Não foi possível simular o pagamento agora.');
     }
-}
-
-function copiarCodigoPixTaxasEntregador() {
-    if (!pixTaxasEntregadorAtual?.pixCode) return;
-    navigator.clipboard?.writeText(pixTaxasEntregadorAtual.pixCode).then(() => {
-        notificarSucesso('Código Pix copiado!');
-    }).catch(() => notificarErro('Não foi possível copiar automaticamente.'));
 }
 
 function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
@@ -11084,53 +10923,75 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
 
     // Aviso da taxa de espera (pedido do dono, 2026-10-04): avisa o cliente,
     // assim que o entregador chega, que a espera é limitada — pra ele não
-    // ser pego de surpresa por uma cobrança depois. Só texto informativo,
-    // nenhuma ação do cliente aqui (quem gera a cobrança, se precisar, é o
-    // próprio entregador na entrega — ver renderCardTaxasEntregador).
-    const esperaAvisoHtml = (pacoteInfo.entregadorChegou && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO')
+    // ser pego de surpresa por uma cobrança depois.
+    const entregadorPresenteParaTaxas = pacoteInfo.entregadorChegou && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO';
+    const esperaAvisoHtml = entregadorPresenteParaTaxas
         ? `<div class="rastreio-pub-subir"><p><i data-lucide="clock" size="16"></i> O entregador chegou e vai te aguardar por até 5 minutos, sem nenhum custo. Depois desse tempo, cada minuto extra de espera passa a gerar uma taxa de ${precoParaMoeda(TAXA_ESPERA_POR_MIN)}.</p></div>`
         : '';
 
-    // Taxa de subida (pedido do dono 2026-09-25): só aparece depois que o
-    // entregador confirma "Cheguei" (entregadorChegou, espelhado aqui em
-    // rastreioPublico) e enquanto o pacote ainda não foi entregue/devolvido.
-    // A escrita de subirSolicitado é pública (sem exigir conta de cliente) —
-    // ver regra em backend/database.rules.json.
+    // Taxas da entrega (espera + entrega na porta combinadas, pedido do
+    // dono, 2026-10-04): tudo nesta MESMA tela — o cliente pede a entrega
+    // até a porta aqui, acompanha o aceite aqui, e paga aqui (um Pix só pra
+    // tudo que estiver pendente), pra não ter duas cobranças em duas telas
+    // diferentes. O entregador só aceita/recusa o pedido e confirma a
+    // entrega — não mexe em Pix nenhum.
     let subirHtml = '';
-    if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO') {
+    if (rotaId && entregadorPresenteParaTaxas) {
         const subirStatus = pacoteInfo.subirStatus || null;
-        if (subirStatus === 'pago') {
-            pararPollingPixSubidaCliente();
-            pararExpiracaoPixSubidaCliente();
-            subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! O entregador já pode entregar até a porta.</div>`;
-        } else if (subirStatus === 'aceito') {
+        const esperaStatus = pacoteInfo.esperaStatus || null;
+
+        // Pedido de subida em si (perguntar/aguardar aceite) — independente
+        // do pagamento, que fica no card combinado logo abaixo.
+        if (!subirStatus) {
+            subirHtml += `
+                <div class="rastreio-pub-subir">
+                    <p>O entregador chegou! Precisa que ele entregue até a porta do seu apartamento?</p>
+                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                </div>`;
+        } else if (subirStatus === 'pendente') {
+            subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar...</div>`;
+        } else if (subirStatus === 'recusado') {
+            subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que não vai poder entregar na porta dessa vez.</div>`;
+        }
+        // 'aceito' e 'pago' não têm mensagem própria aqui — ficam refletidos
+        // no card de taxas/confirmação de pagamento abaixo.
+
+        // Estimativa só pra decidir o que mostrar — o valor real que vai pro
+        // Pix é sempre recalculado no servidor (/create-pix-subida), nunca
+        // confia no que é calculado aqui.
+        const minutosDesde = pacoteInfo.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteInfo.chegouEm)) / 60000)) : 0;
+        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+        const valorEsperaEstimado = esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+        const valorSubidaEstimado = subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+        const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
+
+        if (valorTotalEstimado > 0) {
             const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId;
             if (pixAtivo) {
-                subirHtml = `
+                subirHtml += `
                     <div class="rastreio-pub-subir">
-                        <p><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou! Pague a taxa de entrega na porta (${precoParaMoeda(pixSubidaClienteAtual.valor)}) via Pix:</p>
+                        <p><i data-lucide="check-circle-2" size="16"></i> Pague as taxas da entrega (${precoParaMoeda(pixSubidaClienteAtual.valor)}) via Pix:</p>
                         ${pixSubidaClienteAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixSubidaClienteAtual.qrCodeBase64}" alt="QR Code Pix">` : ''}
                         <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixSubidaClienteAtual.pixCode)}</textarea>
                         <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixSubidaCliente()">Copiar código Pix</button>
                         <div id="rastreio-pub-pix-status" class="ent-sheet-pix-status">Aguardando confirmação do pagamento...</div>
                     </div>`;
             } else {
-                subirHtml = `
-                    <div class="rastreio-pub-subir rastreio-pub-subir-ok">
-                        <p><i data-lucide="check-circle-2" size="16"></i> O entregador confirmou: vai entregar até a porta.</p>
-                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pagar taxa (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                const linhas = [];
+                if (valorEsperaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Espera</span><span>${precoParaMoeda(valorEsperaEstimado)}</span></div>`);
+                if (valorSubidaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubidaEstimado)}</span></div>`);
+                subirHtml += `
+                    <div class="rastreio-pub-subir rastreio-pub-taxas-card">
+                        <strong>Taxas desta entrega</strong>
+                        ${linhas.join('')}
+                        <div class="rastreio-pub-taxa-linha rastreio-pub-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotalEstimado)}</span></div>
+                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pagar taxas</button>
                     </div>`;
             }
-        } else if (subirStatus === 'recusado') {
-            subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que não vai poder entregar na porta dessa vez.</div>`;
-        } else if (subirStatus === 'pendente') {
-            subirHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar...</div>`;
-        } else {
-            subirHtml = `
-                <div class="rastreio-pub-subir">
-                    <p>O entregador chegou! Precisa que ele entregue até a porta do seu apartamento?</p>
-                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
-                </div>`;
+        } else if (subirStatus === 'pago' || esperaStatus === 'pago') {
+            pararPollingPixSubidaCliente();
+            pararExpiracaoPixSubidaCliente();
+            subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! Obrigado.</div>`;
         }
     }
 
@@ -11220,10 +11081,11 @@ async function chamarPaymentsProxyPublico(caminho, payload) {
 // feedback_flexa_test_mode_escape_hatches) — chama a API do Mercado Pago
 // direto do navegador com o token de TESTE. Como quem credita o entregador é
 // o backend (/check-pix-subida), esse Pix de teste nunca "aprova" sozinho;
-// quem finaliza o teste é o botão do ENTREGADOR no card combinado de taxas
-// (simularAprovacaoTaxasEntregadorTeste), que grava o desfecho direto sem
-// depender desse Pix ter sido pago de verdade.
-async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario) {
+// quem finaliza o teste é o botão do ENTREGADOR (simularPagamentoTaxasTeste),
+// que grava o desfecho direto sem depender desse Pix ter sido pago de
+// verdade — ver seção da espera/subida no entregador.
+async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEstimado) {
+    const valor = Number(valorEstimado) > 0 ? Number(valorEstimado) : TAXA_SUBIR_FIXA;
     const nomeCliente = (nomeDestinatario || 'Cliente Flex').toString().trim() || 'Cliente Flex';
     const partes = nomeCliente.split(/\s+/).filter(Boolean);
     const firstName = partes[0] || 'Cliente';
@@ -11237,12 +11099,12 @@ async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinata
             'X-Idempotency-Key': gerarIdempotencyKeyTesteLocal()
         },
         body: JSON.stringify({
-            transaction_amount: Number(TAXA_SUBIR_FIXA.toFixed(2)),
-            description: 'Flex - taxa de entrega na porta (pedido ' + pacoteId + ') [TESTE LOCAL]',
+            transaction_amount: Number(valor.toFixed(2)),
+            description: 'Flex - taxas da entrega (pedido ' + pacoteId + ') [TESTE LOCAL]',
             payment_method_id: 'pix',
             payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
             date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            external_reference: 'subida:' + rotaId + ':' + pacoteId
+            external_reference: 'taxas:' + rotaId + ':' + pacoteId
         })
     });
     const data = await resp.json().catch(() => ({}));
@@ -11256,7 +11118,7 @@ async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinata
         status: data?.status || 'pending',
         pixCode: tx.qr_code || '',
         qrCodeBase64: tx.qr_code_base64 || '',
-        valor: TAXA_SUBIR_FIXA
+        valor
     };
 }
 
@@ -11266,13 +11128,20 @@ async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
 
     try {
         const snapAtual = await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).once('value');
-        const nomeDestinatario = (snapAtual.val() || {}).destinatario || '';
+        const pacoteAtual = snapAtual.val() || {};
+        const nomeDestinatario = pacoteAtual.destinatario || '';
 
         let data;
         if (FLEXA_PAYMENTS_PROXY_URL) {
             data = await chamarPaymentsProxyPublico('/create-pix-subida', { rastreioToken: tokenRastreioAtual });
         } else if (FLEXA_MP_TEST_TOKEN) {
-            data = await criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario);
+            // Estimativa só pro teste local funcionar sem backend — o valor
+            // real sempre vem recalculado do servidor em produção.
+            const minutosDesde = pacoteAtual.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteAtual.chegouEm)) / 60000)) : 0;
+            const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+            const valorEspera = pacoteAtual.esperaStatus === 'pago' ? 0 : minutosCobrados * TAXA_ESPERA_POR_MIN;
+            const valorSubida = pacoteAtual.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+            data = await criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEspera + valorSubida);
         } else {
             throw new Error('Pagamento não configurado.');
         }
@@ -11293,9 +11162,9 @@ async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
         iniciarPollingPixSubidaCliente();
         iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId);
     } catch (err) {
-        console.warn('Falha ao gerar Pix da taxa de entrega na porta:', err);
+        console.warn('Falha ao gerar Pix das taxas da entrega:', err);
         alert(err.message || 'Não foi possível gerar o Pix agora.');
-        if (btn) { btn.disabled = false; btn.innerText = `Pagar taxa (${precoParaMoeda(TAXA_SUBIR_FIXA)})`; }
+        if (btn) { btn.disabled = false; btn.innerText = 'Pagar taxas'; }
     }
 }
 
@@ -16786,7 +16655,6 @@ export {
   copiarCodigoPixCobrancaEntrega,
   copiarCodigoPixDevolucaoLojista,
   copiarCodigoPixSubidaCliente,
-  copiarCodigoPixTaxasEntregador,
   copiarCodigoPixQuitacaoDivida,
   copiarCodigoPixRota,
   copiarLinkRastreioPacote,
@@ -16873,7 +16741,6 @@ export {
   gerarPixCobrancaEntrega,
   gerarPixQuitacaoDivida,
   gerarPixSubidaCliente,
-  gerarPixTaxasEntregador,
   getChavePacoteRota,
   getClienteById,
   getGeoCliente,
@@ -17082,7 +16949,7 @@ export {
   simularAprovacaoCobrancaEntregaTeste,
   simularAprovacaoDevolucaoTeste,
   simularAprovacaoQuitacaoDividaTeste,
-  simularAprovacaoTaxasEntregadorTeste,
+  simularPagamentoTaxasTeste,
   sincronizarDropdownBuscaEntregador,
   solicitarDevolucaoPacoteAtual,
   solicitarExclusaoDadosLgpd,
