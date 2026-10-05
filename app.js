@@ -159,6 +159,7 @@
     copiarCodigoPixQuitacaoDivida: () => copiarCodigoPixQuitacaoDivida,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
     copiarCodigoPixSubidaCliente: () => copiarCodigoPixSubidaCliente,
+    copiarCodigoPixTaxasEntregador: () => copiarCodigoPixTaxasEntregador,
     copiarLinkRastreioPacote: () => copiarLinkRastreioPacote,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
     criarNotificacao: () => criarNotificacao,
@@ -243,6 +244,7 @@
     gerarPixCobrancaEntrega: () => gerarPixCobrancaEntrega,
     gerarPixQuitacaoDivida: () => gerarPixQuitacaoDivida,
     gerarPixSubidaCliente: () => gerarPixSubidaCliente,
+    gerarPixTaxasEntregador: () => gerarPixTaxasEntregador,
     getChavePacoteRota: () => getChavePacoteRota,
     getClienteById: () => getClienteById,
     getGeoCliente: () => getGeoCliente,
@@ -451,7 +453,7 @@
     simularAprovacaoCobrancaEntregaTeste: () => simularAprovacaoCobrancaEntregaTeste,
     simularAprovacaoDevolucaoTeste: () => simularAprovacaoDevolucaoTeste,
     simularAprovacaoQuitacaoDividaTeste: () => simularAprovacaoQuitacaoDividaTeste,
-    simularRecebimentoTaxaSubidaTeste: () => simularRecebimentoTaxaSubidaTeste,
+    simularAprovacaoTaxasEntregadorTeste: () => simularAprovacaoTaxasEntregadorTeste,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
     solicitarDevolucaoPacoteAtual: () => solicitarDevolucaoPacoteAtual,
     solicitarExclusaoDadosLgpd: () => solicitarExclusaoDadosLgpd,
@@ -1853,7 +1855,7 @@
     freteTesteOverride: null
   };
   var TAXA_MINIMA = { Standard: 5, Flash: 9 };
-  var TAXA_ESPERA_GRACE_MIN = 4;
+  var TAXA_ESPERA_GRACE_MIN = 5;
   var TAXA_ESPERA_POR_MIN = 1;
   var TAXA_SUBIR_FIXA = 6;
   var TAXA_POR_KM = { Standard: 1.1, Flash: 1.99 };
@@ -4719,7 +4721,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         blocoEspera = `<button type="button" class="ent-sheet-cheguei-btn" onclick="confirmarCheguei()"><i data-lucide="map-pin" size="14"></i> Cheguei no local</button>`;
       } else {
         const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4));
-        blocoEspera = `<div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosDesde - TAXA_ESPERA_GRACE_MIN} min j\xE1 geram taxa)` : ""}</div>`;
+        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+        blocoEspera = `<div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}</div>`;
         if (espera.subirStatus === "pendente") {
           blocoEspera += `
                     <div class="ent-sheet-subir-pedido">
@@ -4730,16 +4733,16 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
                         </div>
                     </div>`;
         } else if (espera.subirStatus === "aceito") {
-          blocoEspera += `
-                    <div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Entrega aceita (+R$ 6,00)</div>
-                    <div class="ent-sheet-aguardando"><i data-lucide="clock" size="14"></i> Aguardando o cliente pagar via Pix...</div>`;
-          if (mercadoPagoAmbienteAtual === "teste") {
-            blocoEspera += `<button type="button" class="ent-sheet-link" onclick="simularRecebimentoTaxaSubidaTeste()">Simular pagamento recebido (teste)</button>`;
-          }
+          blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Entrega aceita (+R$ 6,00)</div>`;
         } else if (espera.subirStatus === "pago") {
           blocoEspera += `<div class="ent-sheet-subir-aceito"><i data-lucide="check" size="14"></i> Taxa de entrega na porta paga via Pix (+R$ 6,00)</div>`;
         } else if (espera.subirStatus === "recusado") {
           blocoEspera += `<div class="ent-sheet-subir-recusado">Voc\xEA recusou entregar na porta dessa vez</div>`;
+        }
+        const valorEsperaPendente = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+        const valorSubidaPendente = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+        if (valorEsperaPendente > 0 || valorSubidaPendente > 0) {
+          blocoEspera += renderCardTaxasEntregador(obterIdPacoteConfirmacao(pac), valorEsperaPendente, valorSubidaPendente);
         }
       }
     }
@@ -5467,43 +5470,202 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function recusarSolicitacaoSubida() {
     responderSolicitacaoSubida(false);
   }
-  async function simularRecebimentoTaxaSubidaTeste() {
+  var pixTaxasEntregadorAtual = null;
+  var pixTaxasEntregadorPollTimer = null;
+  function renderCardTaxasEntregador(envioId, valorEspera, valorSubida) {
+    const valorTotal = Number((valorEspera + valorSubida).toFixed(2));
+    const pixAtivo = pixTaxasEntregadorAtual && pixTaxasEntregadorAtual.envioId === envioId;
+    if (pixAtivo) {
+      return `
+            <div class="ent-sheet-cobranca-box">
+                <strong>Cobrar ${precoParaMoeda(pixTaxasEntregadorAtual.valor || valorTotal)} do cliente via Pix</strong>
+                ${pixTaxasEntregadorAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixTaxasEntregadorAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
+                <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixTaxasEntregadorAtual.pixCode)}</textarea>
+                <div class="ent-sheet-actions-inline">
+                    <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixTaxasEntregador()">Copiar c\xF3digo Pix</button>
+                </div>
+                <div id="ent-sheet-taxas-pix-status" class="ent-sheet-pix-status">Aguardando pagamento do cliente...</div>
+                ${mercadoPagoAmbienteAtual === "teste" ? `<button type="button" class="ent-sheet-link" onclick="simularAprovacaoTaxasEntregadorTeste()">Simular pagamento aprovado (teste)</button>` : ""}
+            </div>`;
+    }
+    const linhas = [];
+    if (valorEspera > 0) linhas.push(`<div class="ent-sheet-taxa-linha"><span>Espera</span><span>${precoParaMoeda(valorEspera)}</span></div>`);
+    if (valorSubida > 0) linhas.push(`<div class="ent-sheet-taxa-linha"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubida)}</span></div>`);
+    return `
+        <div class="ent-sheet-cobranca-box ent-sheet-taxas-card">
+            <strong>Taxas desta entrega</strong>
+            ${linhas.join("")}
+            <div class="ent-sheet-taxa-linha ent-sheet-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotal)}</span></div>
+            <button type="button" class="ent-sheet-primary small" onclick="gerarPixTaxasEntregador('${escaparHtmlMarketplace(envioId)}', this)">Gerar Pix</button>
+        </div>`;
+  }
+  async function gerarPixTaxasEntregador(envioId, btn) {
     const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const rotaId = rotaObj?.id;
-    const meuUid = getUsuarioIdAtual();
-    if (!rotaId || !pac || !meuUid) return;
-    if (pac?.esperaEntrega?.subirStatus !== "aceito") return;
-    if (!window.confirm("Simular o pagamento dessa taxa como recebido? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
+    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId) || rotaEntSheetPacotes[rotaEntSheetIndex];
+    if (!rotaObj || !pac) return;
     const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const envioId = obterIdPacoteConfirmacao(pac);
+    if (!lojistaUid || !envioId) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Gerando Pix...";
+    }
+    try {
+      let data;
+      if (FLEXA_PAYMENTS_PROXY_URL) {
+        data = await chamarPaymentsProxy("/create-pix-taxas", { tenantId: lojistaUid, rotaId: rotaObj.id, envioId });
+      } else if (FLEXA_MP_TEST_TOKEN) {
+        data = await criarPagamentoPixTaxasEntregadorTesteLocal(pac, rotaObj.id, envioId);
+      } else {
+        throw new Error("Pagamento n\xE3o configurado: defina FLEXA_PAYMENTS_PROXY_URL (produ\xE7\xE3o) ou FLEXA_MP_TEST_TOKEN (s\xF3 teste local).");
+      }
+      const pixCode = normalizarCodigoPix(data.pixCode || "");
+      if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix Copia e Cola.");
+      pixTaxasEntregadorAtual = {
+        paymentId: data.paymentId ? String(data.paymentId) : "",
+        envioId,
+        rotaId: rotaObj.id,
+        lojistaUid,
+        pixCode,
+        qrCodeBase64: data.qrCodeBase64 || "",
+        valor: data.valor || 0
+      };
+      renderSheetRotaEntregadorConteudo();
+      iniciarPollingPixTaxasEntregador();
+    } catch (err) {
+      console.warn("Falha ao gerar Pix das taxas da entrega:", err);
+      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Gerar Pix";
+      }
+    }
+  }
+  async function criarPagamentoPixTaxasEntregadorTesteLocal(pac, rotaId, envioId) {
+    const espera = pac?.esperaEntrega || {};
+    const chegouEm = Number(espera.chegouEm) || 0;
+    const minutosCobrados = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
+    const valorEspera = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubida = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+    const valor = Number((valorEspera + valorSubida).toFixed(2));
+    if (valor <= 0) throw new Error("Nenhuma taxa pendente pra cobrar.");
+    const nomeCliente = (pac?.destinatario || "Cliente Flex").toString().trim() || "Cliente Flex";
+    const partes = nomeCliente.split(/\s+/).filter(Boolean);
+    const firstName = partes[0] || "Cliente";
+    const lastName = partes.slice(1).join(" ") || "Flex";
+    const resp = await fetch("https://api.mercadopago.com/v1/payments", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + FLEXA_MP_TEST_TOKEN,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": gerarIdempotencyKeyTesteLocal()
+      },
+      body: JSON.stringify({
+        transaction_amount: valor,
+        description: "Flex - taxas da entrega (pedido " + envioId + ") [TESTE LOCAL]",
+        payment_method_id: "pix",
+        payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
+        external_reference: "taxas:" + rotaId + ":" + envioId
+      })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || "HTTP " + resp.status;
+      throw new Error("Mercado Pago: " + detalhe);
+    }
+    const tx = data?.point_of_interaction?.transaction_data || {};
+    return {
+      paymentId: data?.id ? String(data.id) : "",
+      pixCode: tx.qr_code || "",
+      qrCodeBase64: tx.qr_code_base64 || "",
+      valor
+    };
+  }
+  function pararPollingPixTaxasEntregador() {
+    if (pixTaxasEntregadorPollTimer) {
+      clearInterval(pixTaxasEntregadorPollTimer);
+      pixTaxasEntregadorPollTimer = null;
+    }
+  }
+  function iniciarPollingPixTaxasEntregador() {
+    pararPollingPixTaxasEntregador();
+    pixTaxasEntregadorPollTimer = setInterval(async () => {
+      if (!pixTaxasEntregadorAtual?.paymentId) {
+        pararPollingPixTaxasEntregador();
+        return;
+      }
+      try {
+        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxy("/check-pix-taxas", { tenantId: pixTaxasEntregadorAtual.lojistaUid, paymentId: pixTaxasEntregadorAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixTaxasEntregadorAtual.paymentId);
+        const statusEl = document.getElementById("ent-sheet-taxas-pix-status");
+        if (data?.status === "approved") {
+          pararPollingPixTaxasEntregador();
+          await finalizarPixTaxasEntregadorComoPago();
+        } else if (statusEl) {
+          statusEl.innerText = "Aguardando pagamento do cliente...";
+        }
+      } catch (err) {
+        console.warn("Falha ao consultar status do Pix das taxas:", err);
+      }
+    }, 4e3);
+  }
+  async function finalizarPixTaxasEntregadorComoPago() {
+    const info = pixTaxasEntregadorAtual;
+    pixTaxasEntregadorAtual = null;
+    if (info) {
+      const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === info.envioId);
+      if (pac) {
+        try {
+          const snap = await db.ref(`usuarios/${info.lojistaUid}/pacotes/${info.envioId}/esperaEntrega`).once("value");
+          if (snap.exists()) pac.esperaEntrega = { ...pac.esperaEntrega || {}, ...snap.val() };
+        } catch (e) {
+        }
+      }
+      pararListenerEsperaPacote();
+    }
+    renderSheetRotaEntregadorConteudo();
+    notificarSucesso("Pagamento recebido \u2014 taxas liberadas.");
+  }
+  async function simularAprovacaoTaxasEntregadorTeste() {
+    if (!pixTaxasEntregadorAtual) return;
+    if (!window.confirm("Simular esse Pix de taxas como pago? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
+    pararPollingPixTaxasEntregador();
+    const { lojistaUid, envioId, rotaId } = pixTaxasEntregadorAtual;
+    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
+    const espera = pac?.esperaEntrega || {};
+    const chegouEm = Number(espera.chegouEm) || 0;
+    const minutosCobrados = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
+    const valorEspera = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+    const valorSubida = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
     const agora = Date.now();
     try {
-      const resultado = await ajustarSaldoUsuario(meuUid, TAXA_SUBIR_FIXA);
-      if (!resultado.ok) throw new Error("N\xE3o foi poss\xEDvel creditar sua carteira agora.");
-      await db.ref(`usuarios/${meuUid}/financeiro/transacoes`).push({
-        protocolo: gerarProtocoloTransacao(),
-        tipo: "CREDITO",
-        metodo: "pix",
-        valor: TAXA_SUBIR_FIXA,
-        descricao: `Taxa de entrega na porta recebida via Pix (pedido #${envioId}) [TESTE]`,
-        remetente: "Cliente (Pix simulado \u2014 ambiente teste)",
-        destinatario: "Voc\xEA (entregador)",
-        criadoEm: agora
-      });
-      if (lojistaUid && envioId) {
-        await sincronizarCamposEnvioLojista(lojistaUid, envioId, { "esperaEntrega/subirStatus": "pago", "esperaEntrega/subidaPagoEm": agora });
+      const updates = {};
+      if (valorSubida > 0) {
+        updates["esperaEntrega/subirStatus"] = "pago";
+        updates["esperaEntrega/subidaPagoEm"] = agora;
       }
-      await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({ subirStatus: "pago" }).catch(() => {
-      });
-      pac.esperaEntrega = { ...pac.esperaEntrega || {}, subirStatus: "pago", subidaPagoEm: agora };
-      pararListenerEsperaPacote();
-      renderSheetRotaEntregadorConteudo();
-      notificarSucesso("Pagamento simulado \u2014 carteira creditada.");
+      if (valorEspera > 0) {
+        updates["esperaEntrega/esperaStatus"] = "pago";
+        updates["esperaEntrega/valorEsperaPago"] = valorEspera;
+        updates["esperaEntrega/esperaPagoEm"] = agora;
+      }
+      if (lojistaUid && envioId && Object.keys(updates).length) {
+        await sincronizarCamposEnvioLojista(lojistaUid, envioId, updates);
+      }
+      if (valorSubida > 0 && rotaId) {
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update({ subirStatus: "pago" }).catch(() => {
+        });
+      }
+      await finalizarPixTaxasEntregadorComoPago();
     } catch (err) {
-      console.warn("Falha ao simular recebimento da taxa de entrega na porta:", err);
-      alert(err.message || "N\xE3o foi poss\xEDvel simular o pagamento agora.");
+      console.warn("Falha ao simular pagamento das taxas:", err);
+      alert("N\xE3o foi poss\xEDvel simular o pagamento agora.");
     }
+  }
+  function copiarCodigoPixTaxasEntregador() {
+    if (!pixTaxasEntregadorAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pixTaxasEntregadorAtual.pixCode).then(() => {
+      notificarSucesso("C\xF3digo Pix copiado!");
+    }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
   }
   function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
     const chave = `${rotaId}|${pacoteId}`;
@@ -5535,32 +5697,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const envioId = obterIdPacoteConfirmacao(pac);
     const rotaId = rotaObj?.id;
     if (!lojistaUid || !envioId || !rotaId) return;
-    const chegouEm = Number(espera.chegouEm) || 0;
-    const minutosEsperaEstimado = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
-    const valorEsperaEstimado = Number((minutosEsperaEstimado * TAXA_ESPERA_POR_MIN).toFixed(2));
-    let recebeuEmDinheiro = false;
-    if (valorEsperaEstimado > 0) {
-      recebeuEmDinheiro = window.confirm(
-        `Taxa de espera pra voc\xEA: ${precoParaMoeda(valorEsperaEstimado)} (${minutosEsperaEstimado} min parado).
-
-Voc\xEA recebeu esse valor EM DINHEIRO do cliente agora?
-
-OK = recebi em dinheiro (fica com voc\xEA)
-Cancelar = n\xE3o recebi (a loja te paga via Pix depois)`
-      );
-    } else if (!chegouEm) {
-      return;
-    }
+    if (!espera.chegouEm) return;
     try {
-      await chamarPaymentsProxy("/resolver-taxa-espera", {
-        tenantId: lojistaUid,
-        rotaId,
-        envioId,
-        recebeuEmDinheiro
-      });
+      await chamarPaymentsProxy("/resolver-taxa-espera", { tenantId: lojistaUid, rotaId, envioId });
     } catch (err) {
-      console.warn("Falha ao resolver taxa de espera:", err);
-      if (valorEsperaEstimado > 0) alert("N\xE3o foi poss\xEDvel registrar a taxa de espera agora. Tente novamente.");
+      console.warn("Falha ao resolver taxa de espera/entrega na porta:", err);
     }
   }
   async function relatarProblemaRota() {
@@ -9231,6 +9372,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
       codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
     }
+    const esperaAvisoHtml = pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" ? `<div class="rastreio-pub-subir"><p><i data-lucide="clock" size="16"></i> O entregador chegou e vai te aguardar por at\xE9 5 minutos, sem nenhum custo. Depois desse tempo, cada minuto extra de espera passa a gerar uma taxa de ${precoParaMoeda(TAXA_ESPERA_POR_MIN)}.</p></div>` : "";
     let subirHtml = "";
     if (rotaId && pacoteInfo.entregadorChegou && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
       const subirStatus = pacoteInfo.subirStatus || null;
@@ -9284,6 +9426,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             ${timelineHtml}
             ${paradaInfoHtml}
             ${distTxt || durTxt ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(" \u2022 "))}</div>` : ""}
+            ${esperaAvisoHtml}
             ${subirHtml}
         </div>
         ${mapaHtml}

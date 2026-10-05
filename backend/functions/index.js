@@ -101,7 +101,7 @@ async function routeGoogleDistanceMatrix(origin, destination, apiKey) {
 // TAXA_ESPERA_GRACE_MIN/TAXA_ESPERA_POR_MIN/TAXA_SUBIR_FIXA) — precisam ficar
 // iguais nos dois lados, senão o valor mostrado antes de confirmar diverge do
 // valor que o servidor de fato grava.
-const TAXA_ESPERA_GRACE_MIN = 4;
+const TAXA_ESPERA_GRACE_MIN = 5;
 const TAXA_ESPERA_POR_MIN = 1;
 const TAXA_SUBIR_FIXA = 6;
 
@@ -246,6 +246,32 @@ async function liberarCreditoSubidaSeElegivel(tenantId, envioId, entregadorId, p
     criadoEm: Date.now()
   });
   await syncEnvioFields(tenantId, envioId, { 'esperaEntrega/subidaCreditoLiberadoEm': Date.now() });
+  return true;
+}
+
+// Mesma lógica de liberarCreditoSubidaSeElegivel, pra taxa de ESPERA (tempo
+// parado) — pedido do dono, 2026-10-04: essa taxa deixou de ter fallback de
+// dinheiro/dívida (gerava dúvida sobre o que foi ou não recebido), agora só
+// existe via Pix combinado em /create-pix-taxas. valorEsperaPago é gravado
+// por /check-pix-taxas no momento da aprovação (o valor correto, já
+// recalculado lá — nunca confia em nada vindo daqui).
+async function liberarCreditoEsperaSeElegivel(tenantId, envioId, entregadorId, pacote) {
+  const espera = pacote?.esperaEntrega || {};
+  const valor = Number(espera.valorEsperaPago || 0);
+  if (espera.esperaStatus !== 'pago' || valor <= 0 || espera.esperaCreditoLiberadoEm) return false;
+
+  await ajustarSaldoUsuarioServer(entregadorId, valor);
+  await db.ref(`usuarios/${entregadorId}/financeiro/transacoes`).push({
+    protocolo: gerarProtocoloTransacaoServer(),
+    tipo: 'CREDITO',
+    metodo: 'pix',
+    valor,
+    descricao: `Taxa de espera liberada (pedido #${envioId})`,
+    remetente: 'Cliente (Pix)',
+    destinatario: 'Você (entregador)',
+    criadoEm: Date.now()
+  });
+  await syncEnvioFields(tenantId, envioId, { 'esperaEntrega/esperaCreditoLiberadoEm': Date.now() });
   return true;
 }
 
@@ -1012,7 +1038,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/create-pix-subida', '/check-pix-subida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/create-pix-subida', '/check-pix-subida', '/create-pix-taxas', '/check-pix-taxas', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -1296,6 +1322,172 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       });
     }
 
+    // Taxas da entrega (espera + entrega na porta combinadas) — pedido do
+    // dono, 2026-10-04: diferente de /create-pix-subida (gerado pela tela
+    // PÚBLICA do cliente, sem Bearer), esta rota é gerada pelo próprio
+    // ENTREGADOR, autenticado, na hora da entrega (mesmo padrão de
+    // /create-pix-cobranca) — junta o que estiver pendente das duas taxas
+    // num Pix só, pro cliente pagar escaneando o celular do entregador. Fica
+    // RETIDO (não credita o entregador ainda) até a entrega ser confirmada,
+    // ver liberarCreditoSubidaSeElegivel/liberarCreditoEsperaSeElegivel
+    // dentro de /resolver-taxa-espera.
+    if (path === '/create-pix-taxas') {
+      const { tenantId, rotaId, envioId } = req.body || {};
+      if (!tenantId || !rotaId || !envioId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
+      }
+
+      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
+      const rota = rotaSnap.val();
+      if (!rota) {
+        return res.status(404).json({ error: 'Rota não encontrada' });
+      }
+      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
+      if (!entregadorId || requester.uid !== entregadorId) {
+        return res.status(403).json({ error: 'Só o entregador desta rota pode gerar essa cobrança' });
+      }
+
+      const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(tenantId, envioId);
+      if (!pacote) {
+        return res.status(404).json({ error: 'Envio não encontrado' });
+      }
+
+      // Nunca confia em valor vindo do app: recalcula tudo a partir do que
+      // já está persistido, mesmo princípio de /resolver-taxa-espera.
+      const espera = pacote.esperaEntrega || {};
+      const chegouEm = Number(espera.chegouEm) || 0;
+      const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
+      const valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
+      const valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+      const valorTotal = Number((valorEspera + valorSubida).toFixed(2));
+
+      if (valorTotal <= 0) {
+        return res.status(422).json({ error: 'Nenhuma taxa pendente pra cobrar' });
+      }
+
+      const nomeCliente = String(pacote?.destinatario || 'Cliente Flex').trim() || 'Cliente Flex';
+      const [firstNameCliente, ...restoNomeCliente] = nomeCliente.split(' ');
+      const lastNameCliente = restoNomeCliente.join(' ') || 'Flex';
+      const partesDesc = [];
+      if (valorEspera > 0) partesDesc.push('espera');
+      if (valorSubida > 0) partesDesc.push('entrega na porta');
+
+      const mpData = await criarPagamentoPixMp(token, {
+        valor: valorTotal,
+        descricao: `Flex - taxas da entrega (${partesDesc.join(' + ')}) (pedido ${envioId})`,
+        payerEmail: `cliente-${envioId}@flex.app`,
+        payerFirstName: firstNameCliente || 'Cliente',
+        payerLastName: lastNameCliente,
+        externalReference: `taxas:${rotaId}:${envioId}`,
+        idempotencyKey: `${tenantId}-${rotaId}-${envioId}-taxas-${Date.now()}`
+      });
+
+      const tx = mpData?.point_of_interaction?.transaction_data || {};
+      const pixCode = tx.qr_code || '';
+      if (!pixCode) {
+        return res.status(502).json({ error: 'Mercado Pago não retornou código Pix Copia e Cola' });
+      }
+
+      const paymentId = String(mpData?.id || '');
+      await db.ref(`mp_payments/${paymentId}`).set({
+        tenantId,
+        rotaId,
+        envioId,
+        entregadorId,
+        tipo: 'taxas_entrega',
+        total: valorTotal,
+        valorEspera,
+        valorSubida,
+        ambiente,
+        criadoEm: Date.now()
+      });
+      await db.ref(`${pacotePath}/esperaEntrega/taxasPixPaymentId`).set(paymentId);
+
+      return res.status(200).json({
+        paymentId,
+        status: mpData?.status || 'pending',
+        statusDetail: mpData?.status_detail || '',
+        pixCode,
+        ticketUrl: tx.ticket_url || '',
+        qrCodeBase64: tx.qr_code_base64 || '',
+        valor: valorTotal,
+        valorEspera,
+        valorSubida,
+        ambiente
+      });
+    }
+
+    if (path === '/check-pix-taxas') {
+      const { tenantId, paymentId } = req.body || {};
+      if (!tenantId || !paymentId) {
+        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'paymentId'] });
+      }
+
+      const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
+      const registro = registroSnap.val();
+      if (!registro || String(registro.tenantId) !== String(tenantId) || registro.tipo !== 'taxas_entrega') {
+        return res.status(404).json({ error: 'Pagamento não encontrado para este tenant' });
+      }
+
+      const isEntregadorDoPagamento = Boolean(registro.entregadorId) && requester.uid === registro.entregadorId;
+      const allowed = isEntregadorDoPagamento || await canAccessTenant(requester, tenantId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden tenant access' });
+      }
+
+      const data = await consultarPagamentoPixMp(token, paymentId);
+      const statusPagamento = data?.status || 'pending';
+
+      if (statusPagamento === 'approved') {
+        const { path: envioPath, dados: pacote } = await resolverEnvioLojista(tenantId, registro.envioId);
+        if (envioPath && pacote) {
+          const marcadorRef = db.ref(`${envioPath}/esperaEntrega/taxasCreditoEfetuadoEm`);
+          const marcadorSnap = await marcadorRef.once('value');
+          if (!marcadorSnap.val()) {
+            await marcadorRef.set(Date.now());
+            const updates = {};
+            if (Number(registro.valorSubida) > 0) {
+              updates['esperaEntrega/subirStatus'] = 'pago';
+              updates['esperaEntrega/subidaPagoEm'] = Date.now();
+            }
+            if (Number(registro.valorEspera) > 0) {
+              updates['esperaEntrega/esperaStatus'] = 'pago';
+              updates['esperaEntrega/valorEsperaPago'] = registro.valorEspera;
+              updates['esperaEntrega/esperaPagoEm'] = Date.now();
+            }
+            await syncEnvioFields(tenantId, registro.envioId, updates);
+            if (Number(registro.valorSubida) > 0) {
+              await db.ref(`rastreioPublico/${registro.rotaId}/pacotes/${registro.envioId}`).update({ subirStatus: 'pago' }).catch(() => {});
+            }
+
+            // Caso raro: aprova depois da entrega já confirmada (resolver-
+            // taxa-espera já rodou e não vai rodar de novo) — libera na hora.
+            const espera = pacote.esperaEntrega || {};
+            if (espera.finalizada) {
+              const pacoteAtualizado = {
+                ...pacote,
+                esperaEntrega: {
+                  ...espera,
+                  subirStatus: Number(registro.valorSubida) > 0 ? 'pago' : espera.subirStatus,
+                  esperaStatus: Number(registro.valorEspera) > 0 ? 'pago' : espera.esperaStatus,
+                  valorEsperaPago: Number(registro.valorEspera) > 0 ? registro.valorEspera : espera.valorEsperaPago
+                }
+              };
+              await liberarCreditoSubidaSeElegivel(tenantId, registro.envioId, registro.entregadorId, pacoteAtualizado);
+              await liberarCreditoEsperaSeElegivel(tenantId, registro.envioId, registro.entregadorId, pacoteAtualizado);
+            }
+          }
+        }
+      }
+
+      return res.status(200).json({
+        paymentId,
+        status: statusPagamento,
+        statusDetail: data?.status_detail || '',
+        ambiente
+      });
+    }
+
     // Devolucao: entrega falhou (cliente nao pagou, ausente, endereco errado,
     // recusou, etc), entregador leva o pacote de volta pra loja. O entregador
     // recebe o frete normal da rota de qualquer forma (ver creditarCarteiraEntregadorRotaFinalizada
@@ -1551,15 +1743,17 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       });
     }
 
-    // Taxa de espera/subida (plano de segurança 2026-09-27): antes o valor
-    // era calculado no navegador do entregador e a dívida gravada direto do
-    // cliente, sem nenhuma validação — um cliente adulterado podia mandar
-    // qualquer valor pra qualquer lojistaUid. Agora o servidor recalcula tudo
-    // a partir de esperaEntrega.chegouEm/subirStatus (já persistidos por
-    // confirmarCheguei/responderSolicitacaoSubida) e só aceita se quem chama
-    // é de fato o entregador desta rota.
+    // Taxa de espera/entrega na porta (pedido do dono, 2026-10-04): nenhuma
+    // das duas tem mais fallback de dinheiro/dívida — dinheiro físico gerava
+    // dúvida sobre o que foi ou não recebido. As duas só existem via Pix
+    // (gerado na tela do entregador, ver /create-pix-taxas, ou pela tela do
+    // cliente no caso da subida isolada, /create-pix-subida), ficam RETIDAS
+    // até aprovar e só viram saldo gastável do entregador aqui, no momento
+    // em que confirmarEntregaPacoteAtual já validou o código de confirmação
+    // (prova que a entrega aconteceu de verdade). Se nunca foi paga, o
+    // entregador simplesmente não recebe por ela — sem dívida, sem pergunta.
     if (path === '/resolver-taxa-espera') {
-      const { tenantId, rotaId, envioId, recebeuEmDinheiro } = req.body || {};
+      const { tenantId, rotaId, envioId } = req.body || {};
       if (!tenantId || !rotaId || !envioId) {
         return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
       }
@@ -1579,74 +1773,15 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         return res.status(404).json({ error: 'Envio não encontrado' });
       }
 
-      // Taxa de entrega na porta: nunca mais cai no fallback dinheiro/dívida
-      // abaixo (pedido do dono, 2026-10-04 — dinheiro físico pra essa taxa
-      // específica gerava dúvida sobre o que foi ou não recebido). Ou o
-      // cliente já pagou via Pix (fica RETIDO desde /check-pix-subida) e
-      // libera agora que a entrega foi confirmada, ou nunca pagou e o
-      // entregador simplesmente não recebe nada por ela — sem dívida, sem
-      // pergunta. Roda ANTES do `espera.finalizada` abaixo, que só cobre a
-      // taxa de ESPERA (tempo parado), porque isso aqui é idempotente por
-      // conta própria (subidaCreditoLiberadoEm).
       await liberarCreditoSubidaSeElegivel(tenantId, envioId, entregadorId, pacote);
+      await liberarCreditoEsperaSeElegivel(tenantId, envioId, entregadorId, pacote);
 
       const espera = pacote.esperaEntrega || {};
-      if (espera.finalizada) {
-        return res.status(200).json({ jaResolvido: true, valorTaxaTotal: Number(espera.valorTaxaTotal || 0) });
+      if (!espera.finalizada) {
+        await syncEnvioFields(tenantId, envioId, { 'esperaEntrega/finalizada': true });
       }
 
-      const chegouEm = Number(espera.chegouEm) || 0;
-      const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
-      const valorEspera = Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
-
-      if (valorEspera <= 0) {
-        if (chegouEm) {
-          await syncEnvioFields(tenantId, envioId, {
-            'esperaEntrega/finalizada': true,
-            'esperaEntrega/minutosEspera': minutosEspera,
-            'esperaEntrega/valorEspera': 0,
-            'esperaEntrega/valorTaxaTotal': 0
-          });
-        }
-        return res.status(200).json({ valorTaxaTotal: 0, minutosEspera, valorEspera: 0 });
-      }
-
-      if (recebeuEmDinheiro) {
-        await syncEnvioFields(tenantId, envioId, {
-          'esperaEntrega/finalizada': true,
-          'esperaEntrega/minutosEspera': minutosEspera,
-          'esperaEntrega/valorEspera': valorEspera,
-          'esperaEntrega/valorTaxaTotal': valorEspera,
-          'esperaEntrega/formaCobranca': 'dinheiro_direto',
-          'esperaEntrega/taxaPaga': true,
-          'esperaEntrega/taxaPagoEm': Date.now()
-        });
-        return res.status(200).json({ valorTaxaTotal: valorEspera, minutosEspera, valorEspera, formaCobranca: 'dinheiro_direto' });
-      }
-
-      const entregadorNomeSnap = await db.ref(`usuarios/${entregadorId}/nome`).once('value');
-      const motivo = `${minutosEspera} min de espera (R$ ${valorEspera.toFixed(2)})`;
-
-      await criarDividaLojistaEntregador({
-        lojistaUid: tenantId,
-        uidEntregador: entregadorId,
-        entregadorNome: entregadorNomeSnap.val() || 'Entregador',
-        rotaId,
-        envioId,
-        valor: valorEspera,
-        motivo
-      });
-
-      await syncEnvioFields(tenantId, envioId, {
-        'esperaEntrega/finalizada': true,
-        'esperaEntrega/minutosEspera': minutosEspera,
-        'esperaEntrega/valorEspera': valorEspera,
-        'esperaEntrega/valorTaxaTotal': valorEspera,
-        'esperaEntrega/formaCobranca': 'divida_lojista',
-        'esperaEntrega/taxaPaga': false
-      });
-
-      return res.status(200).json({ valorTaxaTotal: valorEspera, minutosEspera, valorEspera, formaCobranca: 'divida_lojista' });
+      return res.status(200).json({ ok: true });
     }
 
     // Confirmação de recebimento da taxa de espera/subida (plano de

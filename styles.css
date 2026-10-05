@@ -7105,6 +7105,11 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-subir-aceito { background: #ecfdf3; color: #15803d; }
 .ent-sheet-subir-recusado { background: #f1f5f9; color: #64748b; }
 
+/* Card combinado de taxas (espera + entrega na porta) — 2026-10-04 */
+.ent-sheet-taxas-card .ent-sheet-taxa-linha { display: flex; justify-content: space-between; font-size: 13px; color: #475569; padding: 2px 0; }
+.ent-sheet-taxas-card .ent-sheet-taxa-total { margin-top: 6px; padding-top: 8px; border-top: 1px dashed #fde3c8; font-weight: 800; color: #0f172a; font-size: 14px; }
+.ent-sheet-taxas-card .ent-sheet-primary.small { width: 100%; margin-top: 10px; }
+
 .rastreio-pub-codigo {
     margin-top: 12px; padding: 14px; border-radius: 16px; background: #f0fdf4; border: 1px solid #bbf7d0;
     text-align: center;
