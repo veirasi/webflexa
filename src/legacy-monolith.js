@@ -5981,7 +5981,26 @@ function cancelarCorridaPacoteAtual() {
     const pacoteIdCancelar = obterIdPacoteConfirmacao(pac);
     if (lojistaUidCancelar && pacoteIdCancelar) {
         db.ref(`usuarios/${lojistaUidCancelar}/pacotes/${pacoteIdCancelar}/corridaIniciadaEm`).set(null).catch(() => {});
+
+        // BUG CORRIGIDO 2026-10-05 (achado pelo dono: "Aguardando há 1615
+        // min" aparecendo numa entrega nova): "Cancelar" nunca limpava
+        // esperaEntrega — se o entregador já tinha clicado "Cheguei no
+        // local" (ou pedido/aceitado subida) antes de cancelar, esse estado
+        // sobrevivia pro PRÓXIMO "Iniciar Corrida" dessa mesma entrega, e a
+        // tela pulava direto pro cronômetro (já violentamente atrasado) sem
+        // nunca mostrar o botão "Cheguei no local" de novo. Reseta tudo
+        // (nos dois modelos de dados, ver sincronizarCamposEnvioLojista) pra
+        // essa entrega poder começar do zero na próxima tentativa.
+        sincronizarCamposEnvioLojista(lojistaUidCancelar, pacoteIdCancelar, { esperaEntrega: null }).catch(() => {});
+        db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteIdCancelar}`).update({
+            entregadorChegou: false,
+            chegouEm: null,
+            subirStatus: null,
+            esperaStatus: null
+        }).catch(() => {});
     }
+    pac.esperaEntrega = {};
+    pararListenerEsperaPacote();
 
     renderSheetRotaEntregadorConteudo();
 }

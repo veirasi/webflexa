@@ -5415,7 +5415,18 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (lojistaUidCancelar && pacoteIdCancelar) {
       db.ref(`usuarios/${lojistaUidCancelar}/pacotes/${pacoteIdCancelar}/corridaIniciadaEm`).set(null).catch(() => {
       });
+      sincronizarCamposEnvioLojista(lojistaUidCancelar, pacoteIdCancelar, { esperaEntrega: null }).catch(() => {
+      });
+      db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteIdCancelar}`).update({
+        entregadorChegou: false,
+        chegouEm: null,
+        subirStatus: null,
+        esperaStatus: null
+      }).catch(() => {
+      });
     }
+    pac.esperaEntrega = {};
+    pararListenerEsperaPacote();
     renderSheetRotaEntregadorConteudo();
   }
   function atualizarCodigoConfirmacaoAtual(valor) {
