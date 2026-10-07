@@ -4705,8 +4705,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const pedidoId = pac?.id || pac?.codigo || pac?.codigoEntrega || pac?.codigoPacote || rotaObj?.codigo || rotaObj?.id || "-";
     const destinatarioNome = pac?.destinatario || pac?.destinatarioNome || pac?.cliente || pac?.nomeCliente || rotaObj?.destinatario || rotaObj?.destinatarioNome || rotaObj?.clienteNome || "Destinat\xE1rio";
     const estadoAtual = obterEstadoPacoteRota(rotaObj.id, pac, rotaEntSheetIndex);
-    const bloqueado = rotaSheetBloqueada();
-    const finalizado = estadoAtual.status === "concluido";
+    const statusPacoteNorm = normalizarStatusEnvioFiltro(pac?.statusRaw || pac?.status || "");
+    const bloqueado = rotaSheetBloqueada() && statusNorm !== "CONCLUIDO" && statusNorm !== "CANCELADO";
+    const finalizado = estadoAtual.status === "concluido" || statusPacoteNorm === "ENTREGUE" || statusNorm === "CONCLUIDO" && statusPacoteNorm !== "CANCELADO" && pac?.devolucaoStatus !== "DEVOLVIDO";
     const emFaseRetirada = pac?.tipoFluxo === "coleta_reversa" && !pac?.retiradaConfirmada;
     const dots = Array.from({ length: total }).map(
       (_, idx) => `<span class="ent-sheet-dot ${idx === rotaEntSheetIndex ? "active" : ""} ${bloqueado ? "locked" : ""}"></span>`
@@ -4795,6 +4796,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       footerPrincipal = renderBlocoDevolucaoConfirmada(pac);
     } else if (devolucaoStatus === "DEVOLVIDO") {
       footerPrincipal = `<div class="ent-sheet-status-ok"><i data-lucide="check-circle-2"></i> Pacote devolvido \xE0 loja</div>`;
+    } else if (statusNorm === "CANCELADO" || statusPacoteNorm === "CANCELADO") {
+      footerPrincipal = `<div class="ent-sheet-status-ok ent-sheet-status-aguardando"><i data-lucide="x-circle"></i> Rota cancelada</div>`;
     } else if (bloqueado) {
       footerPrincipal = codeBox;
     } else if (finalizado) {
@@ -7683,7 +7686,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     rotaDetalhePaginaAtual = Math.max(0, Math.min(rotaDetalhePaginaAtual, rotaDetalhePacotes.length - 1));
     const p = rotaDetalhePacotes[rotaDetalhePaginaAtual];
     const tokenRastreio = rotaDetalheAtual?.tokensRastreio?.[p.id] || "";
-    const linkRastreioHtml = tokenRastreio ? `
+    const statusRotaNormalizado = normalizarStatusRotaFiltro(rotaDetalheAtual?.status || rotaDetalheAtual?.pagamentoStatus || "CRIADA");
+    const linkRastreioHtml = tokenRastreio && (statusRotaNormalizado === "BUSCANDO" || statusRotaNormalizado === "EM_ROTA") ? `
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">

@@ -5069,8 +5069,19 @@ function renderSheetRotaEntregadorConteudo() {
         || 'Destinatário';
 
     const estadoAtual = obterEstadoPacoteRota(rotaObj.id, pac, rotaEntSheetIndex);
-    const bloqueado = rotaSheetBloqueada();
-    const finalizado = estadoAtual.status === 'concluido';
+    const statusPacoteNorm = normalizarStatusEnvioFiltro(pac?.statusRaw || pac?.status || '');
+    const bloqueado = rotaSheetBloqueada() && statusNorm !== 'CONCLUIDO' && statusNorm !== 'CANCELADO';
+    // BUG CORRIGIDO 2026-10-07 (achado pelo dono: rota já concluída ainda
+    // oferecendo "Iniciar Corrida"): finalizado dependia só do progresso em
+    // MEMÓRIA (obterEstadoPacoteRota/registrarEstadosPacotesRota), que podia
+    // ficar dessincronizado do status real persistido — ex: reabrir essa
+    // mesma rota mais tarde (ou depois de recarregar a página) reconstrói o
+    // progresso a partir de um pacote cujo campo de status ainda não tinha
+    // sido tocado por este caminho específico. Confirma também pelo status
+    // do PRÓPRIO pacote e da rota, não só pela cópia em memória.
+    const finalizado = estadoAtual.status === 'concluido'
+        || statusPacoteNorm === 'ENTREGUE'
+        || (statusNorm === 'CONCLUIDO' && statusPacoteNorm !== 'CANCELADO' && pac?.devolucaoStatus !== 'DEVOLVIDO');
     // Coleta reversa (pedido do dono 2026-09-26): antes de qualquer outra
     // coisa, o pacote precisa ser "retirado com o cliente" — reaproveita a
     // MESMA máquina de estado (obterEstadoPacoteRota/rotaSheetBloqueada) já
@@ -5212,6 +5223,8 @@ function renderSheetRotaEntregadorConteudo() {
         footerPrincipal = renderBlocoDevolucaoConfirmada(pac);
     } else if (devolucaoStatus === 'DEVOLVIDO') {
         footerPrincipal = `<div class=\"ent-sheet-status-ok\"><i data-lucide=\"check-circle-2\"></i> Pacote devolvido à loja</div>`;
+    } else if (statusNorm === 'CANCELADO' || statusPacoteNorm === 'CANCELADO') {
+        footerPrincipal = `<div class=\"ent-sheet-status-ok ent-sheet-status-aguardando\"><i data-lucide=\"x-circle\"></i> Rota cancelada</div>`;
     } else if (bloqueado) {
         footerPrincipal = codeBox;
     } else if (finalizado) {
@@ -8840,7 +8853,11 @@ function renderRotaDetalhePagina() {
     rotaDetalhePaginaAtual = Math.max(0, Math.min(rotaDetalhePaginaAtual, rotaDetalhePacotes.length - 1));
     const p = rotaDetalhePacotes[rotaDetalhePaginaAtual];
     const tokenRastreio = rotaDetalheAtual?.tokensRastreio?.[p.id] || '';
-    const linkRastreioHtml = tokenRastreio ? `
+    // Pedido do dono (2026-10-07): o link de rastreio só faz sentido
+    // enquanto a rota ainda está em andamento — numa rota já concluída ou
+    // cancelada não tem mais pra que mandar esse link de novo.
+    const statusRotaNormalizado = normalizarStatusRotaFiltro(rotaDetalheAtual?.status || rotaDetalheAtual?.pagamentoStatus || 'CRIADA');
+    const linkRastreioHtml = (tokenRastreio && (statusRotaNormalizado === 'BUSCANDO' || statusRotaNormalizado === 'EM_ROTA')) ? `
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
