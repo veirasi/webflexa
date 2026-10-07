@@ -15988,15 +15988,41 @@ function aplicarTipoCadastroNaTela() {
 // numa tela à parte (view-inicio) antes de chegar no login/cadastro; agora
 // os dois cartões ficam dentro da própria aba "Cadastre-se", então só
 // precisa marcar a seleção — não navegar pra lugar nenhum.
+//
+// Pedido do dono (2026-10-07): a escolha (cartões) e o formulário nunca
+// ficam visíveis juntos — é sempre um grupo de cada vez. Escolher um
+// cartão avança pro formulário; o link "Voltar" no topo do formulário
+// (ver mostrarEtapaEscolhaTipoCadastro) volta pra escolha.
 function selecionarTipoCadastro(tipo) {
     tipoCadastroSelecionado = normalizarTipoCadastro(tipo);
     aplicarTipoCadastroNaTela();
+    const esquerda = document.querySelector('#form-cadastrar .auth-cadastro-left');
+    const direita = document.querySelector('#form-cadastrar .auth-cadastro-right');
+    if (esquerda) esquerda.classList.add('hidden');
+    if (direita) direita.classList.remove('hidden');
+    // Esconde as abas Entrar/Cadastre-se enquanto o formulário ocupa esse
+    // espaço (pedido do dono, 2026-10-07) — o link "Voltar" é o único jeito
+    // de navegar daqui em diante, até voltar pra etapa de escolha.
+    document.getElementById('auth-tabs')?.classList.add('hidden');
+}
+
+// Volta pra etapa de escolha do tipo de conta — usado tanto pelo link
+// "Voltar" dentro do formulário quanto toda vez que a aba Cadastre-se é
+// reaberta (começa sempre do zero, nunca lembra o formulário anterior).
+function mostrarEtapaEscolhaTipoCadastro() {
+    const esquerda = document.querySelector('#form-cadastrar .auth-cadastro-left');
+    const direita = document.querySelector('#form-cadastrar .auth-cadastro-right');
+    if (esquerda) esquerda.classList.remove('hidden');
+    if (direita) direita.classList.add('hidden');
+    document.getElementById('auth-tabs')?.classList.remove('hidden');
 }
 
 const _alternarAuthComTipoOriginal = alternarAuth;
 alternarAuth = function alternarAuthComTipo(modo) {
     _alternarAuthComTipoOriginal(modo);
     aplicarTipoCadastroNaTela();
+    if (modo === 'cadastrar') mostrarEtapaEscolhaTipoCadastro();
+    else document.getElementById('auth-tabs')?.classList.remove('hidden');
 };
 
 cadastrarReal = async function cadastrarRealComTipo() {
@@ -17483,6 +17509,7 @@ export {
   montarOptionsDropdownBusca,
   montarOptionsFiltroMarketplace,
   montarWaypointRota,
+  mostrarEtapaEscolhaTipoCadastro,
   mostrarInfoParadaTrackingLoja,
   mostrarTelaAdminDashboard,
   mostrarTelaAdminLogin,

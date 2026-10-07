@@ -327,6 +327,7 @@
     montarOptionsDropdownBusca: () => montarOptionsDropdownBusca,
     montarOptionsFiltroMarketplace: () => montarOptionsFiltroMarketplace,
     montarWaypointRota: () => montarWaypointRota,
+    mostrarEtapaEscolhaTipoCadastro: () => mostrarEtapaEscolhaTipoCadastro,
     mostrarInfoParadaTrackingLoja: () => mostrarInfoParadaTrackingLoja,
     mostrarTelaAdminDashboard: () => mostrarTelaAdminDashboard,
     mostrarTelaAdminLogin: () => mostrarTelaAdminLogin,
@@ -13305,11 +13306,25 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
   function selecionarTipoCadastro(tipo) {
     tipoCadastroSelecionado = normalizarTipoCadastro(tipo);
     aplicarTipoCadastroNaTela();
+    const esquerda = document.querySelector("#form-cadastrar .auth-cadastro-left");
+    const direita = document.querySelector("#form-cadastrar .auth-cadastro-right");
+    if (esquerda) esquerda.classList.add("hidden");
+    if (direita) direita.classList.remove("hidden");
+    document.getElementById("auth-tabs")?.classList.add("hidden");
+  }
+  function mostrarEtapaEscolhaTipoCadastro() {
+    const esquerda = document.querySelector("#form-cadastrar .auth-cadastro-left");
+    const direita = document.querySelector("#form-cadastrar .auth-cadastro-right");
+    if (esquerda) esquerda.classList.remove("hidden");
+    if (direita) direita.classList.add("hidden");
+    document.getElementById("auth-tabs")?.classList.remove("hidden");
   }
   var _alternarAuthComTipoOriginal = alternarAuth;
   alternarAuth = function alternarAuthComTipo(modo) {
     _alternarAuthComTipoOriginal(modo);
     aplicarTipoCadastroNaTela();
+    if (modo === "cadastrar") mostrarEtapaEscolhaTipoCadastro();
+    else document.getElementById("auth-tabs")?.classList.remove("hidden");
   };
   cadastrarReal = async function cadastrarRealComTipo() {
     const nome = (document.getElementById("input-nome")?.value || "").trim();

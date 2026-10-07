@@ -1341,6 +1341,9 @@ body.lojista-desktop-mode .accordion-save-btn {
         input { flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; border: none; color: var(--text-main); outline: none; font-size: 16px; }
         .btn-main { width: 100%; background: #da6f18; color: white; border: none; padding: 18px; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; transition: var(--transition); margin-top: 10px; }
 
+        .auth-cadastro-voltar { display: flex; align-items: center; gap: 6px; margin: 0 0 18px; color: var(--text-sub); font-weight: 700; font-size: 13px; cursor: pointer; }
+        .auth-cadastro-voltar:hover { color: var(--text-main); }
+
         .tabs { display: flex; background: #f1f5f9; border-radius: 12px; padding: 4px; margin-bottom: 30px; }
         .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: var(--text-sub); font-weight: 600; border-radius: 11px; }
         .tab.active { background: white; color: var(--brand-orange); }
