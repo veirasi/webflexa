@@ -127,6 +127,10 @@
                     <div class="rastreio-pub-header-spacer"></div>
                     <img src="img/logoflexa.png" alt="Flex" class="flexa-brand-logo">
                     <div class="rastreio-pub-header-right">
+                        <div class="cliente-app-actions" id="cliente-app-actions" style="display:none;">
+                            <button type="button" class="cliente-pub-btn" onclick="abrirAbaCliente('publicidades')"><i data-lucide="circle-play" size="16"></i> Pub</button>
+                            <button type="button" class="cliente-bell-btn" aria-label="Notificações" onclick="abrirNotificacoesCliente()"><i data-lucide="bell" size="19"></i><span id="cliente-bell-dot" class="cliente-bell-dot"></span></button>
+                        </div>
                         <div class="rastreio-pub-auth-chip" id="rastreio-pub-auth-logado" style="display:none;">
                             <span class="rastreio-pub-auth-ola">Olá, <strong id="rastreio-pub-auth-nome"></strong></span>
                             <button type="button" class="rastreio-pub-auth-sair" onclick="sairClienteRastreio()">Sair</button>
@@ -139,6 +143,18 @@
 
                 <div id="rastreio-pub-conteudo">
                     <div class="rastreio-pub-loading">Carregando rastreio...</div>
+                </div>
+
+                <nav id="cliente-app-nav" class="cliente-app-nav" aria-label="Navegação do cliente" style="display:none;">
+                    <button type="button" class="cliente-app-nav-item active" data-cliente-tab="inicio" onclick="abrirAbaCliente('inicio')"><i data-lucide="house" size="19"></i><span>Início</span></button>
+                    <button type="button" class="cliente-app-nav-item" data-cliente-tab="pedidos" onclick="abrirAbaCliente('pedidos')"><i data-lucide="package" size="19"></i><span>Pedidos</span></button>
+                    <button type="button" class="cliente-app-nav-item" data-cliente-tab="perfil" onclick="abrirAbaCliente('perfil')"><i data-lucide="user-round" size="19"></i><span>Perfil</span></button>
+                </nav>
+                <div id="cliente-notificacoes-overlay" class="cliente-notificacoes-overlay" style="display:none;" onclick="fecharNotificacoesCliente(event)">
+                    <section class="cliente-notificacoes-sheet" onclick="event.stopPropagation()" aria-label="Notificações">
+                        <div class="cliente-notificacoes-head"><h2>Notificações</h2><button type="button" onclick="fecharNotificacoesCliente()" aria-label="Fechar">×</button></div>
+                        <div id="cliente-notificacoes-lista" class="cliente-notificacoes-lista"></div>
+                    </section>
                 </div>
             </div>
         </section>
@@ -1667,7 +1683,11 @@
                     <button type="button" class="admin-nav-btn" data-tab="ganhos" onclick="switchAdminTab('ganhos')"><i data-lucide="wallet" size="18"></i><span class="admin-nav-copy">Ganhos</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="database" onclick="switchAdminTab('database')"><i data-lucide="database" size="18"></i><span class="admin-nav-copy">Banco de dados</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="reports" onclick="switchAdminTab('reports')"><i data-lucide="chart-no-axes-combined" size="18"></i><span class="admin-nav-copy">Relatórios</span></button>
-                    <button type="button" class="admin-nav-btn" data-tab="banners" onclick="switchAdminTab('banners')"><i data-lucide="image" size="18"></i><span class="admin-nav-copy">Banners</span></button>
+                    <button type="button" class="admin-nav-btn" data-tab="banners" onclick="switchAdminTab('banners')"><i data-lucide="image" size="18"></i><span class="admin-nav-copy">Publicidades</span></button>
+                    <div class="admin-nav-submenu" id="admin-nav-submenu-banners">
+                        <button type="button" class="admin-nav-subitem active" data-sub-publicidade="banners" onclick="switchAdminTab('banners'); alternarSubAbaPublicidadeAdmin('banners', this)">Banners</button>
+                        <button type="button" class="admin-nav-subitem" data-sub-publicidade="pubflex" onclick="switchAdminTab('banners'); alternarSubAbaPublicidadeAdmin('pubflex', this)">PubFlex</button>
+                    </div>
                     <button type="button" class="admin-nav-btn" data-tab="chamados" onclick="switchAdminTab('chamados')"><i data-lucide="life-buoy" size="18"></i><span class="admin-nav-copy">Chamados</span></button>
                     <button type="button" class="admin-nav-btn" data-tab="settings" onclick="switchAdminTab('settings')"><i data-lucide="settings" size="18"></i><span class="admin-nav-copy">Configurações</span></button>
                 </nav>
@@ -2073,35 +2093,48 @@
                     </div>
 
                     <div class="admin-tab" data-tab="banners">
-                        <div class="admin-section-heading">
-                            <p class="admin-kicker">Tela de rastreio público</p>
-                            <h1>Banners</h1>
-                            <p class="admin-subtle">Anúncios exibidos pro cliente final na página de rastreio do pedido (sem login).</p>
-                        </div>
-                        <div class="admin-panel admin-report-panel">
-                            <h3>Novo banner</h3>
-                            <p class="admin-subtle">Tamanho recomendado: 1200×450px (proporção 8:3), JPG/PNG/WebP, até ~300KB.</p>
-                            <div class="banner-form-row">
-                                <select id="banner-novo-publico" class="banner-select-publico">
-                                    <option value="cliente">Cliente final (tela de rastreio)</option>
-                                    <option value="lojista">Lojista (início)</option>
-                                    <option value="entregador">Entregador (início)</option>
-                                </select>
-                                <input type="file" id="banner-novo-arquivo" accept="image/*">
-                                <input type="text" id="banner-novo-link" placeholder="Link ao clicar (opcional) — https://...">
-                                <button class="btn-main" type="button" style="width:auto;" onclick="salvarBannerAdmin()"><i data-lucide="upload" size="16"></i> Adicionar banner</button>
+                        <div id="admin-publicidade-sub-banners" class="admin-publicidade-sub">
+                            <div class="admin-section-heading">
+                                <p class="admin-kicker">Tela de rastreio público</p>
+                                <h1>Banners</h1>
+                                <p class="admin-subtle">Anúncios exibidos pro cliente final na página de rastreio do pedido (sem login).</p>
                             </div>
-                            <p class="admin-subtle" id="banner-upload-status"></p>
-                        </div>
-                        <div class="admin-panel admin-report-panel">
-                            <h3>Banners cadastrados</h3>
-                            <div class="admin-banner-tabs" id="admin-banner-tabs">
-                                <button type="button" class="admin-chip active" data-publico="cliente" onclick="filtrarBannersAdminPorPublico('cliente', this)">Cliente</button>
-                                <button type="button" class="admin-chip" data-publico="lojista" onclick="filtrarBannersAdminPorPublico('lojista', this)">Lojista</button>
-                                <button type="button" class="admin-chip" data-publico="entregador" onclick="filtrarBannersAdminPorPublico('entregador', this)">Entregador</button>
+                            <div class="admin-panel admin-report-panel">
+                                <h3>Novo banner</h3>
+                                <p class="admin-subtle">Tamanho recomendado: 1200×450px (proporção 8:3), JPG/PNG/WebP, até ~300KB.</p>
+                                <div class="banner-form-row">
+                                    <select id="banner-novo-publico" class="banner-select-publico">
+                                        <option value="cliente">Cliente final (tela de rastreio)</option>
+                                        <option value="lojista">Lojista (início)</option>
+                                        <option value="entregador">Entregador (início)</option>
+                                    </select>
+                                    <input type="file" id="banner-novo-arquivo" accept="image/*">
+                                    <input type="text" id="banner-novo-link" placeholder="Link ao clicar (opcional) — https://...">
+                                    <button class="btn-main" type="button" style="width:auto;" onclick="salvarBannerAdmin()"><i data-lucide="upload" size="16"></i> Adicionar banner</button>
+                                </div>
+                                <p class="admin-subtle" id="banner-upload-status"></p>
                             </div>
-                            <div id="admin-banners-lista" class="admin-banners-lista">
-                                <p class="admin-subtle">Carregando...</p>
+                            <div class="admin-panel admin-report-panel">
+                                <h3>Banners cadastrados</h3>
+                                <div class="admin-banner-tabs" id="admin-banner-tabs">
+                                    <button type="button" class="admin-chip active" data-publico="cliente" onclick="filtrarBannersAdminPorPublico('cliente', this)">Cliente</button>
+                                    <button type="button" class="admin-chip" data-publico="lojista" onclick="filtrarBannersAdminPorPublico('lojista', this)">Lojista</button>
+                                    <button type="button" class="admin-chip" data-publico="entregador" onclick="filtrarBannersAdminPorPublico('entregador', this)">Entregador</button>
+                                </div>
+                                <div id="admin-banners-lista" class="admin-banners-lista">
+                                    <p class="admin-subtle">Carregando...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="admin-publicidade-sub-pubflex" class="admin-publicidade-sub" style="display:none;">
+                            <div class="admin-section-heading">
+                                <p class="admin-kicker">Tela do cliente logado</p>
+                                <h1>PubFlex</h1>
+                                <p class="admin-subtle">Publicidade exibida pro cliente final ao abrir o botão "Pub" na tela de rastreio.</p>
+                            </div>
+                            <div class="admin-panel admin-report-panel admin-pubflex-vazio">
+                                <i data-lucide="megaphone" size="22"></i>
+                                <p class="admin-subtle">Ainda não temos publicidade para exibir aqui.</p>
                             </div>
                         </div>
                     </div>

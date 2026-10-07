@@ -151,6 +151,30 @@ ativarModoAdminSeNecessario();
 // navegador onde um lojista/entregador já está logado.
 let modoRastreioPublico = false;
 let tokenRastreioAtual = '';
+// Lembra qual link de rastreio o cliente abriu originalmente (ex: o link que
+// a loja A mandou) pra priorizar esse pedido na tela Início quando ele tem
+// vários pedidos de lojas diferentes — a troca entre eles fica só no menu
+// Pedidos (pedido do dono, 2026-10-07). sessionStorage sobrevive a um
+// hashchange pra #/cliente dentro da mesma aba, sem vazar entre abas/sessões.
+let clientePedidoOrigemToken = '';
+let clientePedidoOrigemCache = null;
+let clientePedidoOrigemCarregandoToken = '';
+let clientePedidoOrigemErroToken = '';
+const CLIENTE_PEDIDO_ORIGEM_STORAGE_KEY = 'flexaClientePedidoOrigemToken';
+function definirPedidoOrigemCliente(token) {
+    const tokenLimpo = String(token || '').trim();
+    if (!tokenLimpo) return;
+    if (tokenLimpo !== clientePedidoOrigemToken) {
+        clientePedidoOrigemCache = null;
+        clientePedidoOrigemErroToken = '';
+    }
+    clientePedidoOrigemToken = tokenLimpo;
+    try { window.sessionStorage.setItem(CLIENTE_PEDIDO_ORIGEM_STORAGE_KEY, tokenLimpo); } catch (_) {}
+}
+function obterPedidoOrigemCliente() {
+    if (clientePedidoOrigemToken) return clientePedidoOrigemToken;
+    try { return window.sessionStorage.getItem(CLIENTE_PEDIDO_ORIGEM_STORAGE_KEY) || ''; } catch (_) { return ''; }
+}
 // Endereço estruturado do pacote rastreado nesta tela (ver
 // renderConteudoRastreioPublico/abrirClienteAuthCompletarCadastro) — usado
 // só pra pré-preencher o passo de completar cadastro, nunca persistido aqui.
@@ -174,6 +198,7 @@ function ativarModoRastreioSeNecessario() {
         // aberto num computador (ex: WhatsApp Web).
         document.body.classList.add('modo-rastreio-publico');
         tokenRastreioAtual = match ? match[1] : '';
+        if (tokenRastreioAtual) definirPedidoOrigemCliente(tokenRastreioAtual);
 
         // Login automático via link (plano 2026-09-28): se a URL trouxer
         // ?lt=..., tenta autenticar o cliente sozinho, sem nunca mostrar
@@ -301,6 +326,7 @@ function switchAdminTab(tab) {
     // Submenu Lojistas/Entregadores (pedido do dono 2026-09-27) só faz
     // sentido aberto enquanto a aba Usuários está ativa.
     document.getElementById('admin-nav-submenu-users')?.classList.toggle('open', tab === 'users');
+    document.getElementById('admin-nav-submenu-banners')?.classList.toggle('open', tab === 'banners');
     const main = document.querySelector('.admin-main');
     if (main) main.scrollTop = 0;
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -8023,6 +8049,14 @@ function filtrarAdminUsuarios(termo) {
 // listagem de usuários por tipo sem precisar de outra ida ao banco — os
 // dados já estão todos na tabela, é só mostrar/esconder pelo data-tipo
 // gravado em cada linha (ver renderDashboardMaster).
+function alternarSubAbaPublicidadeAdmin(sub, btn) {
+    document.querySelectorAll('#admin-nav-submenu-banners .admin-nav-subitem').forEach((el) => {
+        el.classList.toggle('active', el === btn);
+    });
+    document.getElementById('admin-publicidade-sub-banners').style.display = sub === 'banners' ? '' : 'none';
+    document.getElementById('admin-publicidade-sub-pubflex').style.display = sub === 'pubflex' ? '' : 'none';
+}
+
 function filtrarAdminUsuariosPorTipo(tipo, btn) {
     document.querySelectorAll('#admin-nav-submenu-users .admin-nav-subitem').forEach((el) => {
         el.classList.toggle('active', el === btn);
@@ -8861,7 +8895,7 @@ function renderRotaDetalhePagina() {
         <div class="rota-detalhe-rastreio">
             <span>Link de rastreio pro cliente</span>
             <div class="rota-detalhe-rastreio-actions">
-                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.whatsapp || ''))}', '${escaparHtmlMarketplace(String(p.destinatario || '').replace(/'/g, "\\'"))}')"><i data-lucide="link" size="14"></i> Copiar link</button>
+                <button type="button" class="btn-chip" onclick="copiarLinkRastreioPacote('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.whatsapp || ''))}', '${escaparHtmlMarketplace(String(p.destinatario || '').replace(/'/g, "\\'"))}', this)"><i data-lucide="link" size="14"></i> Copiar link</button>
                 ${p.whatsapp && p.whatsapp !== '--' ? `<button type="button" class="btn-chip btn-chip-primary" onclick="compartilharLinkRastreioWhatsapp('${tokenRastreio}', '${escaparHtmlMarketplace(String(p.whatsapp))}', '${escaparHtmlMarketplace(String(p.codigoConfirmacaoEntrega || ''))}', '${escaparHtmlMarketplace(String(p.destinatario || '').replace(/'/g, "\\'"))}')"><i data-lucide="send" size="14"></i> Enviar no WhatsApp</button>` : ''}
             </div>
         </div>
@@ -8897,7 +8931,7 @@ function montarUrlRastreioPublico(token) {
     return `${window.location.origin}${window.location.pathname}#/rastreio/${token}`;
 }
 
-async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp, nome) {
+async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp, nome, btn) {
     // Login automático embutido no link — mesmo mecanismo do "Enviar no
     // WhatsApp" (ver compartilharLinkRastreioWhatsapp). BUG CORRIGIDO
     // 2026-10-03 (pedido do dono): antes só o botão de WhatsApp gerava esse
@@ -8905,6 +8939,13 @@ async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp, nome
     // no navegador nunca logava o cliente nem abria completar cadastro
     // automaticamente. Se a chamada falhar, cai pro link normal sem login
     // automático — o rastreio em si nunca depende disso.
+    //
+    // Feedback instantâneo no botão (pedido do dono, 2026-10-07): a chamada
+    // de /gerar-login-cliente é uma ida e volta de rede de verdade e pode
+    // levar um instante — sem isso o botão ficava "sem reação nenhuma" até
+    // ela terminar, dando impressão de travado.
+    const textoOriginalBtn = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" size="14" class="spin-icon"></i> Copiando...'; if (typeof lucide !== 'undefined') lucide.createIcons(); }
     let loginTokenParam = '';
     if (whatsapp) {
         try {
@@ -8928,6 +8969,7 @@ async function copiarLinkRastreioPacote(token, codigoConfirmacao, whatsapp, nome
     } else {
         alert(`Copie o link manualmente:\n${texto}`);
     }
+    if (btn) { btn.disabled = false; btn.innerHTML = textoOriginalBtn; if (typeof lucide !== 'undefined') lucide.createIcons(); }
 }
 
 // BUG CORRIGIDO 2026-09-22: o wa.me exige o número no formato internacional
@@ -10328,7 +10370,16 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             // outros clientes — mesmo padrão de índice mínimo já usado em
             // clientesGlobais/telefoneParaEmail.
             if (whatsappCliente) {
-                updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = { lojistaNome: lojaNome, criadoEm: Date.now() };
+                // lojistaUid/rotaId/pacoteId (2026-10-07): evita o cliente logado
+                // ter que buscar rastreioToken/{token} de novo só pra achar a
+                // rota/pacote de cada pedido na lista — já vem pronto aqui.
+                updates[`pedidosPorCliente/${whatsappCliente}/${token}`] = {
+                    lojistaNome: lojaNome,
+                    criadoEm: Date.now(),
+                    lojistaUid: uidLojista,
+                    rotaId: String(rota.id),
+                    pacoteId
+                };
             }
             pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino };
         }
@@ -10610,14 +10661,51 @@ function sairClienteRastreio() {
     obterClienteAuth().signOut().finally(() => atualizarUiClienteAuth());
 }
 
+// ===== [ÁREA LOGADA DO CLIENTE FINAL] (2026-10-07) =====
+let clienteDadosAtual = null;
+let clienteEnderecoAtual = null;
+let clienteEnderecoWhatsappCache = '';
+let clientePedidosCache = [];
+let clientePedidosWhatsappCache = '';
+let clientePedidosCarregando = false;
+let clientePedidosErro = false;
+let clienteAppTabAtual = 'inicio';
+let clientePedidoSelecionado = null;
+let clienteNotificacoesCache = [];
+let clienteNotificacoesListenerRef = null;
+let clienteNotificacoesResolvido = false;
+let clienteNotificacoesListenerUid = '';
+let clienteHomeTrackingListenerRef = null;
+let clienteHomeTrackingRouteId = '';
+let clienteHomeTokenExibidoAtual = '';
+
 function atualizarUiClienteAuth() {
     const logado = document.getElementById('rastreio-pub-auth-logado');
     const deslogado = document.getElementById('rastreio-pub-auth-deslogado');
     const nomeEl = document.getElementById('rastreio-pub-auth-nome');
+    const appActions = document.getElementById('cliente-app-actions');
+    const appNav = document.getElementById('cliente-app-nav');
     if (!logado || !deslogado) return;
+
+    const limparEstadoCliente = () => {
+        clienteDadosAtual = null;
+        clienteEnderecoAtual = null;
+        clienteEnderecoWhatsappCache = '';
+        clientePedidosCache = [];
+        clientePedidosWhatsappCache = '';
+        clientePedidosCarregando = false;
+        clientePedidosErro = false;
+        pararListenerRastreioHomeCliente();
+        pararListenerNotificacoesCliente();
+        clienteHomeTokenExibidoAtual = '';
+        document.body.classList.remove('cliente-app-mode');
+        if (appActions) appActions.style.display = 'none';
+        if (appNav) appNav.style.display = 'none';
+    };
 
     const user = obterClienteAuth().currentUser;
     if (!user) {
+        limparEstadoCliente();
         logado.style.display = 'none';
         deslogado.style.display = 'flex';
         // Só a tela genérica #/cliente (sem token) mostra esse card de boas-vindas
@@ -10637,67 +10725,623 @@ function atualizarUiClienteAuth() {
         // com o cadastro incompleto (ou tendo dado erro no meio), porque
         // aqui só checava "existe usuário autenticado", nunca cadastroCompleto.
         if (dados?.cadastroCompleto === false) {
+            limparEstadoCliente();
             logado.style.display = 'none';
             deslogado.style.display = 'flex';
             if (!tokenRastreioAtual) renderBemVindoClienteDeslogado();
             return;
         }
 
+        clienteDadosAtual = { id: user.uid, ...(dados || {}) };
         if (nomeEl) nomeEl.innerText = dados?.nome ? dados.nome.split(' ')[0] : 'cliente';
         logado.style.display = 'flex';
         deslogado.style.display = 'none';
-        if (!tokenRastreioAtual) renderMeusPedidosCliente(dados?.whatsapp);
+        document.body.classList.add('cliente-app-mode');
+        if (appActions) appActions.style.display = 'flex';
+        if (appNav) appNav.style.display = 'flex';
+        atualizarNavCliente(false);
+        carregarBadgeNotificacoesCliente(user.uid);
+        if (!tokenRastreioAtual) {
+            renderTelaCliente();
+            renderMeusPedidosCliente(dados?.whatsapp);
+        }
     });
 }
 
 function renderBemVindoClienteDeslogado() {
     const conteudo = document.getElementById('rastreio-pub-conteudo');
     if (!conteudo) return;
-    conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Bem-vindo(a) à Flex</p><p class="rastreio-pub-status">Entre com seu WhatsApp e senha pra acompanhar seus pedidos, ou acesse pelo link de rastreio que a loja te enviou.</p></div>';
+    const nav = document.getElementById('cliente-app-nav');
+    if (nav) nav.style.display = 'none';
+    conteudo.innerHTML = `
+        <div class="cliente-boas-vindas">
+            <h2>Bem-vindo(a) à Flex!</h2>
+            <p>Entre para acompanhar suas entregas, consultar pedidos e gerenciar seus dados.</p>
+            <button type="button" class="btn-main" onclick="abrirModalClienteAuth('entrar')">Entrar na minha conta</button>
+            <button type="button" class="cliente-text-button" onclick="abrirModalClienteAuth('cadastrar')">Criar uma conta</button>
+        </div>`;
 }
 
-// "Meus pedidos": lista os pedidos do cliente logado em QUALQUER loja
+// "Meus pedidos": carrega os pedidos do cliente logado em QUALQUER loja
 // parceira, usando o índice mínimo pedidosPorCliente (ver
-// criarLinksRastreioParaRota). Cada item é só um link pra tela de rastreio
-// já existente daquele pedido — não duplica nenhum dado sensível aqui.
+// criarLinksRastreioParaRota), enriquecido com o estado de rastreio/
+// pagamento de cada um (pra Início/Pedidos renderizarem sem buscas extras).
 function renderMeusPedidosCliente(whatsapp) {
-    const conteudo = document.getElementById('rastreio-pub-conteudo');
-    if (!conteudo) return;
     if (!whatsapp) {
-        conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><p class="rastreio-pub-status">Não encontramos um WhatsApp na sua conta.</p></div>';
+        clientePedidosCache = [];
+        clientePedidosWhatsappCache = '';
+        clientePedidosCarregando = false;
+        clientePedidosErro = false;
+        if (!tokenRastreioAtual) renderTelaCliente();
         return;
     }
+    if (clientePedidosWhatsappCache === whatsapp && !clientePedidosCarregando) {
+        if (!tokenRastreioAtual) renderTelaCliente();
+        return;
+    }
+    if (clientePedidosCarregando && clientePedidosWhatsappCache === whatsapp) return;
 
-    conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando seus pedidos...</div>';
-
-    obterClienteDb().ref('pedidosPorCliente/' + whatsapp).once('value').then((snap) => {
+    clientePedidosWhatsappCache = whatsapp;
+    clientePedidosCarregando = true;
+    clientePedidosErro = false;
+    if (!tokenRastreioAtual) renderTelaCliente();
+    const uidAtual = obterClienteAuth().currentUser?.uid;
+    obterClienteDb().ref('pedidosPorCliente/' + whatsapp).once('value').then(async (snap) => {
         const dados = snap.val() || {};
-        const itens = Object.entries(dados)
-            .map(([token, info]) => ({ token, ...info }))
+        const itensBase = Object.entries(dados)
+            .map(([token, info]) => ({ token, ...(info || {}) }))
             .sort((a, b) => (Number(b?.criadoEm) || 0) - (Number(a?.criadoEm) || 0));
 
-        if (!itens.length) {
-            conteudo.innerHTML = '<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><p class="rastreio-pub-status">Você ainda não tem nenhum pedido rastreado por aqui.</p></div>';
+        // O índice guarda apenas o mínimo pra localizar cada pedido. Os
+        // detalhes de rastreio/pagamento são carregados pelo token do
+        // próprio pedido, sem abrir os dados dos outros pedidos da rota.
+        const itens = await Promise.all(itensBase.slice(0, 100).map(async (item) => {
+            try {
+                const dbCliente = obterClienteDb();
+                const tokenInfo = item.rotaId && item.pacoteId && item.lojistaUid
+                    ? { rotaId: item.rotaId, pacoteId: item.pacoteId, lojistaUid: item.lojistaUid }
+                    : ((await dbCliente.ref('rastreioToken/' + item.token).once('value')).val() || {});
+                if (!tokenInfo?.rotaId || !tokenInfo?.pacoteId) return { ...item, tokenInfo };
+                const [rotaSnap, pacoteSnap] = await Promise.all([
+                    dbCliente.ref('rastreioPublico/' + tokenInfo.rotaId).once('value'),
+                    tokenInfo.lojistaUid
+                        ? dbCliente.ref(`usuarios/${tokenInfo.lojistaUid}/pacotes/${tokenInfo.pacoteId}`).once('value').catch(() => null)
+                        : Promise.resolve(null)
+                ]);
+                const rotaPublica = rotaSnap.val() || {};
+                return {
+                    ...item,
+                    tokenInfo,
+                    rotaPublica,
+                    pacotePublico: rotaPublica?.pacotes?.[tokenInfo.pacoteId] || {},
+                    pacote: pacoteSnap?.val?.() || {}
+                };
+            } catch (err) {
+                return { ...item, pacotePublico: {}, pacote: {} };
+            }
+        }));
+
+        // Se a pessoa saiu/trocou de conta enquanto os pedidos carregavam, não
+        // deixa a resposta antiga aparecer na sessão nova.
+        if (uidAtual !== obterClienteAuth().currentUser?.uid) return;
+        clientePedidosCache = itens;
+        clientePedidosCarregando = false;
+        clientePedidosErro = false;
+        if (!tokenRastreioAtual) renderTelaCliente();
+    }).catch(() => {
+        clientePedidosCarregando = false;
+        clientePedidosErro = true;
+        if (!tokenRastreioAtual) renderTelaCliente();
+    });
+}
+
+function statusPedidoCliente(item = {}) {
+    const bruto = String(item.pacotePublico?.status || item.pacote?.statusRaw || item.pacote?.status || item.rotaPublica?.statusRota || 'BUSCANDO').toUpperCase();
+    if (bruto === 'ENTREGUE' || bruto === 'CONCLUIDO' || bruto === 'CONCLUÍDO') return { label: 'Concluída', classe: 'concluido' };
+    if (bruto === 'DEVOLVIDO' || bruto === 'CANCELADO' || bruto === 'CANCELADA') return { label: 'Cancelada', classe: 'cancelado' };
+    if (bruto === 'EM_ROTA' || bruto === 'EM ROTA') return { label: 'Em rota', classe: 'em-rota' };
+    return { label: 'Buscando entregador', classe: 'buscando' };
+}
+
+function renderCardPedidoCliente(item, index) {
+    const status = statusPedidoCliente(item);
+    const codigo = item.pacote?.codigo || item.pacotePublico?.codigo || item.pacoteId || item.token?.slice(0, 8) || '--';
+    const frete = Number(item.pacote?.valorFrete || 0);
+    const dataTxt = item.criadoEm ? new Date(Number(item.criadoEm)).toLocaleDateString('pt-BR') : '--';
+    return `<button type="button" class="cliente-pedido-card" onclick="abrirPedidoCliente(${index})">
+        <div class="cliente-pedido-card-head"><div><strong>Pedido #${escaparHtmlMarketplace(String(codigo))}</strong><small>${escaparHtmlMarketplace(item.lojistaNome || item.rotaPublica?.lojaNome || 'Loja')} · ${dataTxt}</small></div><span class="cliente-status-tag ${status.classe}">${status.label}</span></div>
+        <div class="cliente-pedido-card-foot"><span>${frete > 0 ? `Frete ${precoParaMoeda(frete)}` : 'Ver detalhes do pedido'}</span><i data-lucide="chevron-right" size="17"></i></div>
+    </button>`;
+}
+
+function abrirAbaCliente(aba) {
+    clienteAppTabAtual = aba || 'inicio';
+    clientePedidoSelecionado = null;
+    atualizarNavCliente(true);
+    if (clienteAppTabAtual !== 'inicio') {
+        pararListenerRastreioHomeCliente();
+        clienteHomeTokenExibidoAtual = '';
+    }
+    if (tokenRastreioAtual) {
+        window.location.hash = '#/cliente';
+        return;
+    }
+    renderTelaCliente();
+}
+
+function atualizarNavCliente(animar = false) {
+    const nav = document.getElementById('cliente-app-nav');
+    if (!nav) return;
+    const abaAtiva = clienteAppTabAtual === 'publicidades' ? '' : clienteAppTabAtual;
+    nav.querySelectorAll('.cliente-app-nav-item').forEach((item) => {
+        const estavaAtivo = item.classList.contains('active');
+        const ficaAtivo = item.dataset.clienteTab === abaAtiva;
+        item.classList.toggle('active', ficaAtivo);
+        if (ficaAtivo && animar && !estavaAtivo) {
+            item.classList.remove('nav-just-activated');
+            void item.offsetWidth;
+            item.classList.add('nav-just-activated');
+            setTimeout(() => item.classList.remove('nav-just-activated'), 320);
+        }
+    });
+}
+
+function renderTelaCliente() {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo || tokenRastreioAtual) return;
+    if (!clienteDadosAtual) {
+        renderBemVindoClienteDeslogado();
+        return;
+    }
+    atualizarNavCliente(false);
+    const banners = document.getElementById('rastreio-pub-banners');
+    const mostrarBanners = clienteAppTabAtual === 'inicio';
+    if (banners) {
+        banners.style.display = mostrarBanners ? '' : 'none';
+        if (mostrarBanners && banners.dataset.clienteBannersCarregados !== 'true') {
+            banners.dataset.clienteBannersCarregados = 'true';
+            carregarBannersRastreioPublico();
+        }
+    }
+
+    if (clientePedidoSelecionado) {
+        renderDetalhePedidoCliente(clientePedidoSelecionado);
+        return;
+    }
+    if (clienteAppTabAtual === 'pedidos') {
+        renderTelaPedidosCliente();
+    } else if (clienteAppTabAtual === 'perfil') {
+        renderTelaPerfilCliente();
+    } else if (clienteAppTabAtual === 'publicidades') {
+        conteudo.innerHTML = `<div class="cliente-page-heading"><h1>Pubflex</h1></div><div class="cliente-pub-formatos-vazio"><i data-lucide="megaphone" size="24"></i><h2>Ainda não temos publicidade para exibir aqui</h2></div>`;
+    } else {
+        renderTelaInicioCliente();
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function renderTelaInicioCliente() {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+    const pedidosComRastreio = clientePedidosCache.filter((item) => item.rotaPublica && item.tokenInfo?.pacoteId && item.tokenInfo?.rotaId);
+    const tokenOrigem = obterPedidoOrigemCliente();
+    const pedidoOrigem = tokenOrigem
+        ? pedidosComRastreio.find((item) => String(item.token) === tokenOrigem)
+            || (String(clientePedidoOrigemCache?.token || '') === tokenOrigem ? clientePedidoOrigemCache : null)
+        : null;
+    if (tokenOrigem && !pedidoOrigem) {
+        pararListenerRastreioHomeCliente();
+        if (clientePedidoOrigemErroToken === tokenOrigem) {
+            conteudo.innerHTML = '<div class="rastreio-pub-erro">Não foi possível carregar o pedido deste link. Ele continua disponível em Pedidos, se estiver vinculado à sua conta.</div>';
             return;
         }
+        conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando o pedido do link...</div>';
+        if (clientePedidoOrigemCarregandoToken !== tokenOrigem && !clientePedidosCarregando) {
+            carregarPedidoOrigemCliente(tokenOrigem);
+        }
+        return;
+    }
+    const pedidoAtivo = pedidosComRastreio.find((item) => ['buscando', 'em-rota'].includes(statusPedidoCliente(item).classe));
+    const pedidoExibido = pedidoOrigem || pedidoAtivo || pedidosComRastreio[0];
+    if (!pedidoExibido) {
+        pararListenerRastreioHomeCliente();
+        conteudo.innerHTML = clientePedidosCarregando
+            ? '<div class="rastreio-pub-loading">Carregando seus pedidos...</div>'
+            : clientePedidosErro
+                ? '<div class="rastreio-pub-erro">Não foi possível carregar seus pedidos agora.</div>'
+                : `<div class="rastreio-pub-card cliente-home-empty"><h2 class="rastreio-pub-titulo">Olá, ${escaparHtmlMarketplace((clienteDadosAtual?.nome || 'cliente').split(' ')[0])}!</h2><p class="rastreio-pub-status">Seus pedidos e informações de rastreio aparecerão aqui.</p><button type="button" class="cliente-track-button" onclick="abrirAbaCliente('pedidos')">Ver meus pedidos</button></div>`;
+        return;
+    }
+    acompanharPedidoAtivoCliente(pedidoExibido);
+    clienteHomeTokenExibidoAtual = pedidoExibido.token;
+    renderConteudoRastreioPublico(
+        pedidoExibido.rotaPublica,
+        pedidoExibido.tokenInfo.pacoteId,
+        pedidoExibido.tokenInfo.rotaId,
+        conteudo,
+        pedidoExibido.token
+    );
+}
 
-        const linhas = itens.map((item) => {
-            const dataTxt = item.criadoEm ? new Date(item.criadoEm).toLocaleDateString('pt-BR') : '--';
-            return `
-                <a class="meus-pedidos-item" href="#/rastreio/${encodeURIComponent(item.token)}">
-                    <div>
-                        <p class="meus-pedidos-loja">${escaparHtmlMarketplace(item.lojistaNome || 'Loja')}</p>
-                        <p class="meus-pedidos-data">${dataTxt}</p>
-                    </div>
-                    <i data-lucide="chevron-right" size="18"></i>
-                </a>`;
-        }).join('');
+function obterContainerRastreioCliente(token) {
+    if (!token) return false;
+    if (tokenRastreioAtual) return token === tokenRastreioAtual ? (document.getElementById('rastreio-pub-conteudo') || false) : false;
+    if (clienteAppTabAtual !== 'inicio' || clientePedidoSelecionado) return false;
+    if (clienteHomeTokenExibidoAtual !== token) return false;
+    return document.getElementById('rastreio-pub-conteudo') || false;
+}
 
-        conteudo.innerHTML = `<div class="rastreio-pub-card"><p class="rastreio-pub-titulo">Meus pedidos</p><div class="meus-pedidos-lista">${linhas}</div></div>`;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }).catch(() => {
-        conteudo.innerHTML = '<div class="rastreio-pub-erro">Não foi possível carregar seus pedidos agora.</div>';
+async function carregarPedidoOrigemCliente(token) {
+    if (!token || clientePedidoOrigemCarregandoToken === token) return;
+    clientePedidoOrigemCarregandoToken = token;
+    try {
+        const dbCliente = obterClienteDb();
+        const tokenInfo = (await dbCliente.ref('rastreioToken/' + token).once('value')).val() || {};
+        if (!tokenInfo.rotaId || !tokenInfo.pacoteId) throw new Error('Token de rastreio inválido.');
+        const [rotaSnap, pacoteSnap] = await Promise.all([
+            dbCliente.ref('rastreioPublico/' + tokenInfo.rotaId).once('value'),
+            tokenInfo.lojistaUid
+                ? dbCliente.ref(`usuarios/${tokenInfo.lojistaUid}/pacotes/${tokenInfo.pacoteId}`).once('value').catch(() => null)
+                : Promise.resolve(null)
+        ]);
+        const rotaPublica = rotaSnap.val();
+        if (!rotaPublica) throw new Error('Rota de rastreio não encontrada.');
+        const pedido = {
+            token,
+            ...(clientePedidosCache.find((item) => String(item.token) === token) || {}),
+            tokenInfo,
+            rotaPublica,
+            pacotePublico: rotaPublica?.pacotes?.[tokenInfo.pacoteId] || {},
+            pacote: pacoteSnap?.val?.() || {},
+            lojistaNome: rotaPublica.lojaNome || 'Loja'
+        };
+        if (obterPedidoOrigemCliente() !== token) return;
+        clientePedidoOrigemCache = pedido;
+        const indice = clientePedidosCache.findIndex((item) => String(item.token) === token);
+        if (indice >= 0) clientePedidosCache[indice] = pedido;
+        else clientePedidosCache.unshift(pedido);
+    } catch (err) {
+        if (obterPedidoOrigemCliente() === token) {
+            clientePedidoOrigemErroToken = token;
+            console.warn('Falha ao carregar o pedido de origem do cliente:', err);
+        }
+    } finally {
+        if (clientePedidoOrigemCarregandoToken === token) clientePedidoOrigemCarregandoToken = '';
+        if (!tokenRastreioAtual && clienteAppTabAtual === 'inicio' && obterPedidoOrigemCliente() === token) {
+            renderTelaInicioCliente();
+        }
+    }
+}
+
+function pararListenerRastreioHomeCliente() {
+    if (clienteHomeTrackingListenerRef) clienteHomeTrackingListenerRef.off();
+    clienteHomeTrackingListenerRef = null;
+    clienteHomeTrackingRouteId = '';
+}
+
+function acompanharPedidoAtivoCliente(item) {
+    const rotaId = String(item?.tokenInfo?.rotaId || '');
+    if (!rotaId || clienteHomeTrackingRouteId === rotaId) return;
+    pararListenerRastreioHomeCliente();
+    clienteHomeTrackingRouteId = rotaId;
+    clienteHomeTrackingListenerRef = obterClienteDb().ref('rastreioPublico/' + rotaId);
+    clienteHomeTrackingListenerRef.on('value', (snap) => {
+        const dados = snap.val();
+        if (!dados) return;
+        const atual = clientePedidosCache.find((pedido) => String(pedido.tokenInfo?.rotaId || '') === rotaId);
+        if (!atual) return;
+        const statusAnterior = statusPedidoCliente(atual).classe;
+        atual.rotaPublica = dados;
+        atual.pacotePublico = dados?.pacotes?.[atual.tokenInfo.pacoteId] || {};
+        if (!tokenRastreioAtual && clienteAppTabAtual === 'inicio' && !clientePedidoSelecionado) {
+            if (statusAnterior !== statusPedidoCliente(atual).classe) {
+                renderTelaInicioCliente();
+                return;
+            }
+            const rastreioHome = document.getElementById('rastreio-pub-conteudo');
+            if (rastreioHome) renderConteudoRastreioPublico(dados, atual.tokenInfo.pacoteId, rotaId, rastreioHome, atual.token);
+        }
     });
+}
+
+function renderTelaPedidosCliente() {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+    if (clientePedidosCarregando) {
+        conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando seus pedidos...</div>';
+        return;
+    }
+    if (clientePedidosErro) {
+        conteudo.innerHTML = '<div class="rastreio-pub-erro">Não foi possível carregar seus pedidos agora.</div>';
+        return;
+    }
+    const cards = clientePedidosCache.map(renderCardPedidoCliente).join('');
+    conteudo.innerHTML = `<div class="cliente-page-heading"><h1>Pedidos</h1><p>Consulte o andamento, o pagamento e as taxas de cada pedido.</p></div>${cards ? `<div class="cliente-pedido-lista">${cards}</div>` : '<div class="cliente-empty-card">Você ainda não tem pedidos por aqui.</div>'}`;
+}
+
+function abrirPedidoCliente(index) {
+    const item = clientePedidosCache[Number(index)];
+    if (!item) return;
+    clientePedidoSelecionado = item;
+    clienteAppTabAtual = 'pedidos';
+    renderTelaCliente();
+}
+
+function renderDetalhePedidoCliente(item) {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo) return;
+    const status = statusPedidoCliente(item);
+    const pacote = item.pacote || {};
+    const publico = item.pacotePublico || {};
+    const espera = pacote.esperaEntrega || {};
+    const subirStatus = publico.subirStatus || espera.subirStatus || '';
+    const esperaStatus = publico.esperaStatus || espera.esperaStatus || '';
+    const rotaAtiva = ['buscando', 'em-rota'].includes(status.classe);
+    const chegouEm = Number(publico.chegouEm || espera.chegouEm || 0);
+    const minutosEspera = chegouEm && rotaAtiva ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
+    const taxaEsperaValor = Number(espera.valorEsperaPago || 0) || (minutosEspera * TAXA_ESPERA_POR_MIN);
+    const taxaPortaValor = (subirStatus === 'aceito' || subirStatus === 'pago') ? TAXA_SUBIR_FIXA : 0;
+    // O link de rastreio só existe depois que a rota já foi paga pelo lojista
+    // (ver comentário em criarLinksRastreioParaRota: "lojista pagou/confirmou
+    // o frete") — então, se o pedido chegou até aqui, o frete sempre já está
+    // pago. Nunca existe um estado real de frete pendente nesta tela.
+    const linhaValorTag = (valor, tagClasse, tagLabel) => `<div class="cliente-detail-row-value"><strong>${precoParaMoeda(valor)}</strong><span class="cliente-status-tag ${tagClasse}">${tagLabel}</span></div>`;
+    const pagamentoLinhas = [
+        `<div class="cliente-detail-row"><span>Frete</span>${linhaValorTag(Number(pacote.valorFrete || 0), 'pago', 'Pago')}</div>`
+    ];
+    if (taxaEsperaValor > 0) {
+        const pagaEspera = esperaStatus === 'pago';
+        pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Taxa de espera</span>${linhaValorTag(taxaEsperaValor, pagaEspera ? 'pago' : 'pendente', pagaEspera ? 'Pago' : 'Pendente')}</div>`);
+    }
+    if (taxaPortaValor > 0) {
+        const pagaPorta = subirStatus === 'pago';
+        pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Taxa de entrega na porta</span>${linhaValorTag(taxaPortaValor, pagaPorta ? 'pago' : 'pendente', pagaPorta ? 'Pago' : 'Pendente')}</div>`);
+    }
+    const dataTxt = item.criadoEm ? new Date(Number(item.criadoEm)).toLocaleDateString('pt-BR') : '--';
+    const codigo = pacote.codigo || publico.codigo || item.pacoteId || item.token?.slice(0, 8) || '--';
+    const token = item.token || '';
+    conteudo.innerHTML = `
+        <button type="button" class="cliente-back-button" onclick="voltarParaListaPedidosCliente()"><i data-lucide="arrow-left" size="17"></i> Pedidos</button>
+        <div class="cliente-detail-card">
+            <div class="cliente-detail-title"><div><span>Pedido #${escaparHtmlMarketplace(String(codigo))}</span><h1>${escaparHtmlMarketplace(item.lojistaNome || item.rotaPublica?.lojaNome || 'Loja')}</h1><small>${dataTxt}</small></div><span class="cliente-status-tag ${status.classe}">${status.label}</span></div>
+            <div class="cliente-detail-section">
+                <h2>Informações do pedido</h2>
+                <div class="cliente-detail-row"><span>Destino</span><strong>${escaparHtmlMarketplace(pacote.destinoEndereco || pacote.destinoCompleto || pacote.enderecoDestino?.rua || 'Endereço do pedido')}</strong></div>
+                <div class="cliente-detail-row"><span>Valor do conteúdo</span><strong>${Number.isFinite(Number(pacote.valorConteudo)) && Number(pacote.valorConteudo) > 0 ? precoParaMoeda(Number(pacote.valorConteudo)) : '—'}</strong></div>
+            </div>
+        </div>
+        <div class="cliente-detail-card cliente-payment-card">
+            <div class="cliente-detail-section">
+                <h2>Pagamento</h2>
+                ${pagamentoLinhas.join('')}
+            </div>
+        </div>
+        ${token ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="map-pin" size="17"></i> Acompanhar pedido</button>` : ''}`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function voltarParaListaPedidosCliente() {
+    clientePedidoSelecionado = null;
+    clienteAppTabAtual = 'pedidos';
+    renderTelaCliente();
+}
+
+function abrirRastreioPedidoCliente(token) {
+    if (!token) return;
+    definirPedidoOrigemCliente(token);
+    clientePedidoSelecionado = null;
+    clienteAppTabAtual = 'inicio';
+    atualizarNavCliente(true);
+    renderTelaCliente();
+}
+
+function renderTelaPerfilCliente() {
+    const conteudo = document.getElementById('rastreio-pub-conteudo');
+    if (!conteudo || !clienteDadosAtual) return;
+    const whatsapp = clienteDadosAtual.whatsapp || '';
+    if (whatsapp && clienteEnderecoWhatsappCache !== whatsapp) {
+        clienteEnderecoWhatsappCache = whatsapp;
+        conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando seu perfil...</div>';
+        obterClienteDb().ref('clientesGlobaisPerfil/' + whatsapp).once('value').then((snap) => {
+            clienteEnderecoAtual = snap.val() || {};
+            if (!tokenRastreioAtual && clienteAppTabAtual === 'perfil') renderTelaCliente();
+        }).catch(() => {
+            clienteEnderecoAtual = {};
+            if (!tokenRastreioAtual && clienteAppTabAtual === 'perfil') renderTelaCliente();
+        });
+        return;
+    }
+    conteudo.innerHTML = `
+        <div class="perfil-content cliente-profile-content">
+            <div class="perfil-section">
+                <h3 class="section-label">Conta</h3>
+                <div class="menu-group">
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('dados')"><div class="item-left"><i data-lucide="user-round"></i><span>Dados da conta</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('endereco')"><div class="item-left"><i data-lucide="map-pin"></i><span>Endereço</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('creditos')"><div class="item-left"><i data-lucide="credit-card"></i><span>Créditos</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                </div>
+            </div>
+            <div class="perfil-section">
+                <h3 class="section-label">Suporte</h3>
+                <div class="menu-group">
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('ajuda')"><div class="item-left"><i data-lucide="circle-help"></i><span>Central de ajuda</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('suporte')"><div class="item-left"><i data-lucide="message-square"></i><span>Fale conosco</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('privacidade')"><div class="item-left"><i data-lucide="shield-check"></i><span>Privacidade e LGPD</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                    <div class="menu-item cliente-profile-menu-item" role="button" tabindex="0" onclick="abrirSheetPerfilCliente('sobre')"><div class="item-left"><i data-lucide="info"></i><span>Sobre a Flex</span></div><i data-lucide="chevron-right" size="18" class="arrow"></i></div>
+                </div>
+            </div>
+            <div class="perfil-footer cliente-profile-footer"><button type="button" class="btn-logout" onclick="sairClienteRastreio()"><i data-lucide="log-out" size="20"></i> Sair da conta</button></div>
+        </div>`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function abrirSheetPerfilCliente(secao) {
+    const dados = clienteDadosAtual || {};
+    const endereco = clienteEnderecoAtual || {};
+    const creditosRaw = Number(dados.creditos ?? dados.financeiro?.creditos ?? 0);
+    const creditosValor = Math.max(0, Math.floor(Number.isFinite(creditosRaw) ? creditosRaw : 0));
+    const creditos = `${new Intl.NumberFormat('pt-BR').format(creditosValor)} ${creditosValor === 1 ? 'Ponto' : 'Pontos'}`;
+    const campo = (label, id, value = '', type = 'text', extra = '') => `<label>${label}<input id="${id}" type="${type}" value="${escaparHtmlMarketplace(value || '')}" ${extra}></label>`;
+    let titulo = '';
+    let html = '';
+
+    if (secao === 'dados') {
+        titulo = 'Dados da Conta';
+        html = `<form class="cliente-profile-sheet-form" onsubmit="salvarPerfilCliente(event, 'dados')">${campo('Nome do Usuário', 'cliente-perfil-nome', dados.nome, 'text', 'required')}${campo('WhatsApp', 'cliente-perfil-whatsapp', dados.whatsapp, 'tel', 'readonly')}${campo('E-mail', 'cliente-perfil-email', dados.emailContato || dados.email, 'email')}<button type="submit" class="cliente-track-button">Salvar Alterações</button></form>`;
+    } else if (secao === 'endereco') {
+        titulo = 'Endereço';
+        html = `<form class="cliente-profile-sheet-form" onsubmit="salvarPerfilCliente(event, 'endereco')"><div class="cliente-form-grid">${campo('CEP', 'cliente-perfil-cep', endereco.cep)}${campo('UF', 'cliente-perfil-uf', endereco.uf, 'text', 'maxlength="2"')}</div>${campo('Rua / Logradouro', 'cliente-perfil-rua', endereco.rua)}<div class="cliente-form-grid">${campo('Número', 'cliente-perfil-num', endereco.num)}${campo('Bairro', 'cliente-perfil-bairro', endereco.bairro)}</div>${campo('Cidade', 'cliente-perfil-cidade', endereco.cidade)}${campo('Complemento', 'cliente-perfil-comp', endereco.comp)}<button type="submit" class="cliente-track-button">Salvar Alterações</button></form>`;
+    } else if (secao === 'creditos') {
+        titulo = 'Créditos';
+        html = `<div class="info-card cliente-creditos-sheet"><span>CRÉDITOS</span><strong>${creditos}</strong><p>Saldo disponível para usar na Flex.</p><button type="button" class="cliente-track-button" onclick="fecharModalInfoPerfil();abrirAbaCliente('publicidades')">Ver publicidades</button></div>`;
+    } else if (secao === 'ajuda') {
+        titulo = 'Central de ajuda';
+        html = `<div class="info-card"><h4>Acompanhe seus pedidos</h4><p>Na aba Pedidos, toque em um pedido para consultar o andamento, o pagamento e as taxas. Na aba Início, você acompanha a entrega selecionada.</p></div><div class="info-card"><h4>Precisa falar com a gente?</h4><p>Abra <strong>Fale conosco</strong> para enviar uma mensagem ao suporte.</p></div>`;
+    } else if (secao === 'suporte') {
+        titulo = 'Fale conosco';
+        html = `<div class="info-card"><h4>Abrir chamado</h4><p>Escolha o assunto e conte como podemos ajudar.</p><label>Tipo de suporte<select id="cliente-suporte-categoria" class="suporte-select"><option value="tecnico">Suporte técnico</option><option value="financeiro">Suporte financeiro</option></select></label><label>Mensagem<textarea id="cliente-suporte-mensagem" class="suporte-textarea" rows="4" placeholder="Descreva o problema ou informe o número do pedido"></textarea></label><button type="button" class="btn-main" style="width:auto" onclick="enviarChamadoSuporteCliente()">Enviar chamado</button><p id="cliente-suporte-status" class="suporte-status"></p></div>`;
+    } else if (secao === 'privacidade') {
+        titulo = 'Privacidade e LGPD';
+        html = `<div class="info-card"><h4>Seus dados</h4><p>Usamos seus dados de contato e endereço para localizar pedidos, organizar entregas e manter você informado sobre o andamento.</p><p>Para consultar, corrigir ou solicitar a exclusão dos seus dados, fale com o suporte pela opção <strong>Fale conosco</strong>.</p></div>`;
+    } else {
+        titulo = 'Sobre a Flex';
+        html = `<div class="info-card"><h4>Flex</h4><p>A Flex conecta clientes, lojistas e entregadores para organizar envios e acompanhar entregas.</p></div>`;
+    }
+
+    abrirModalInfoPerfil(titulo, html);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function salvarPerfilCliente(event, secao = 'todos') {
+    event?.preventDefault?.();
+    const user = obterClienteAuth().currentUser;
+    const atual = clienteDadosAtual || {};
+    if (!user) return;
+    const editarDados = secao === 'todos' || secao === 'dados';
+    const editarEndereco = secao === 'todos' || secao === 'endereco';
+    const nome = (document.getElementById('cliente-perfil-nome')?.value || atual.nome || '').trim();
+    if (editarDados && !nome) { alert('Informe seu nome.'); return; }
+    const whatsapp = atual.whatsapp || '';
+    const emailContato = (document.getElementById('cliente-perfil-email')?.value || atual.emailContato || atual.email || '').trim();
+    const campoEndereco = (id) => (document.getElementById(id)?.value || '').trim();
+    const endereco = editarEndereco ? {
+        ...clienteEnderecoAtual,
+        nome: atual.nome || nome,
+        whatsapp,
+        cep: campoEndereco('cliente-perfil-cep'),
+        rua: campoEndereco('cliente-perfil-rua'),
+        num: campoEndereco('cliente-perfil-num'),
+        bairro: campoEndereco('cliente-perfil-bairro'),
+        cidade: campoEndereco('cliente-perfil-cidade'),
+        uf: campoEndereco('cliente-perfil-uf').toUpperCase(),
+        comp: campoEndereco('cliente-perfil-comp'),
+        confirmadoPeloCliente: true,
+        atualizadoEm: Date.now()
+    } : null;
+    try {
+        const dbCliente = obterClienteDb();
+        const updates = {};
+        if (editarDados) {
+            updates.nome = nome;
+            updates.emailContato = emailContato;
+            await dbCliente.ref('usuarios/' + user.uid).update(updates);
+        }
+        if (whatsapp) {
+            if (editarDados) await dbCliente.ref('clientesGlobais/' + whatsapp).update({ nome, whatsapp, uid: user.uid, cadastroCompleto: true });
+            if (editarEndereco) await dbCliente.ref('clientesGlobaisPerfil/' + whatsapp).update(endereco);
+        }
+        clienteDadosAtual = { ...atual, ...updates };
+        if (editarEndereco) clienteEnderecoAtual = endereco;
+        notificarSucesso('Dados do perfil salvos.');
+        fecharModalInfoPerfil();
+        renderTelaCliente();
+    } catch (err) {
+        console.warn('Falha ao salvar perfil do cliente:', err);
+        notificarErro('Não foi possível salvar seu perfil agora.');
+    }
+}
+
+async function enviarChamadoSuporteCliente() {
+    const user = obterClienteAuth().currentUser;
+    const mensagem = (document.getElementById('cliente-suporte-mensagem')?.value || '').trim();
+    const categoria = document.getElementById('cliente-suporte-categoria')?.value || 'tecnico';
+    const status = document.getElementById('cliente-suporte-status');
+    if (!user || !mensagem) {
+        if (status) status.textContent = 'Escreva uma mensagem para abrir o chamado.';
+        return;
+    }
+    try {
+        const ref = obterClienteDb().ref(`usuarios/${user.uid}/chamados`).push();
+        await ref.set({ id: ref.key, categoria, mensagem, anexos: [], status: 'aberto', criadoEm: Date.now(), tipoUsuario: 'cliente', nome: clienteDadosAtual?.nome || '' });
+        const campo = document.getElementById('cliente-suporte-mensagem');
+        if (campo) campo.value = '';
+        if (status) status.textContent = 'Chamado enviado. Nossa equipe responderá por aqui.';
+    } catch (err) {
+        console.warn('Falha ao enviar chamado do cliente:', err);
+        if (status) status.textContent = 'Não foi possível enviar agora. Tente novamente.';
+    }
+}
+
+async function abrirNotificacoesCliente() {
+    const user = obterClienteAuth().currentUser;
+    const overlay = document.getElementById('cliente-notificacoes-overlay');
+    const lista = document.getElementById('cliente-notificacoes-lista');
+    if (!user || !overlay || !lista) return;
+    overlay.style.display = 'flex';
+    // BUG CORRIGIDO 2026-10-07 (achado em teste ao vivo): quando o listener de
+    // carregarBadgeNotificacoesCliente já tinha resolvido antes (ex: anexado
+    // no login) e a lista real está vazia, esse "Carregando..." nunca era
+    // substituído — o Firebase só dispara o callback de novo quando os DADOS
+    // mudam, nunca só porque a sheet abriu. Resultado: sino clicado =
+    // "Carregando notificações..." pra sempre. Agora só mostra esse texto
+    // antes da PRIMEIRA resolução; depois disso, mostra sempre o estado real.
+    lista.innerHTML = clienteNotificacoesResolvido
+        ? (clienteNotificacoesCache.length ? renderNotificacoesClienteHtml() : '<div class="cliente-empty-card">Você não tem notificações por enquanto.</div>')
+        : '<div class="cliente-empty-card">Carregando notificações...</div>';
+    carregarBadgeNotificacoesCliente(user.uid);
+    try {
+        const updates = {};
+        clienteNotificacoesCache.filter((item) => !item.lida).forEach((item) => { updates[`usuarios/${user.uid}/notificacoes/${item.id}/lida`] = true; });
+        if (Object.keys(updates).length) await obterClienteDb().ref().update(updates);
+    } catch (err) {
+        console.warn('Falha ao marcar notificações do cliente como lidas:', err);
+    }
+}
+
+function fecharNotificacoesCliente(event) {
+    if (event && event.target?.id !== 'cliente-notificacoes-overlay') return;
+    const overlay = document.getElementById('cliente-notificacoes-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+async function carregarBadgeNotificacoesCliente(uid) {
+    const dot = document.getElementById('cliente-bell-dot');
+    if (!dot || !uid) return;
+    if (clienteNotificacoesListenerUid === uid && clienteNotificacoesListenerRef) return;
+    pararListenerNotificacoesCliente();
+    clienteNotificacoesListenerUid = uid;
+    clienteNotificacoesListenerRef = obterClienteDb().ref(`usuarios/${uid}/notificacoes`).limitToLast(10);
+    clienteNotificacoesListenerRef.on('value', (snap) => {
+        clienteNotificacoesCache = Object.entries(snap.val() || {}).map(([id, item]) => ({ id, ...(item || {}) })).sort((a, b) => Number(b.criadoEm || 0) - Number(a.criadoEm || 0));
+        clienteNotificacoesResolvido = true;
+        const temNaoLidas = clienteNotificacoesCache.some((item) => !item.lida);
+        dot.style.display = temNaoLidas ? 'block' : 'none';
+        const overlay = document.getElementById('cliente-notificacoes-overlay');
+        const lista = document.getElementById('cliente-notificacoes-lista');
+        if (overlay?.style.display === 'flex' && lista) lista.innerHTML = clienteNotificacoesCache.length ? renderNotificacoesClienteHtml() : '<div class="cliente-empty-card">Você não tem notificações por enquanto.</div>';
+    }, () => { clienteNotificacoesResolvido = true; dot.style.display = 'none'; });
+}
+
+function pararListenerNotificacoesCliente() {
+    if (clienteNotificacoesListenerRef) clienteNotificacoesListenerRef.off();
+    clienteNotificacoesListenerRef = null;
+    clienteNotificacoesListenerUid = '';
+    clienteNotificacoesCache = [];
+    clienteNotificacoesResolvido = false;
+}
+
+function renderNotificacoesClienteHtml() {
+    return clienteNotificacoesCache.map((item) => `<article class="cliente-notificacao-item ${item.lida ? '' : 'nao-lida'}"><strong>${escapeHtmlChat(item.titulo || 'Notificação')}</strong><p>${escapeHtmlChat(item.mensagem || '')}</p><small>${formatarHoraNotificacao(item.criadoEm)}</small></article>`).join('');
 }
 
 async function exibirTelaRastreioPublico(token) {
@@ -10719,7 +11363,12 @@ async function exibirTelaRastreioPublico(token) {
         // Link genérico #/cliente (convite do lojista ou acesso direto, sem
         // uma entrega específica por trás) — atualizarUiClienteAuth() logo
         // acima já renderizou o conteúdo certo (boas-vindas se deslogado,
-        // "Meus pedidos" se logado).
+        // "Meus pedidos" se logado). Encerra o listener de um link de
+        // rastreio direto anterior, se o cliente tinha aberto um antes de
+        // navegar pra cá — senão ele continua escrevendo por cima deste
+        // mesmo container (bug real: Pedidos/Perfil sendo sobrescritos pela
+        // atualização ao vivo do rastreio antigo).
+        if (rastreioPublicoListenerRef) { rastreioPublicoListenerRef.off(); rastreioPublicoListenerRef = null; }
         return;
     }
 
@@ -10736,7 +11385,7 @@ async function exibirTelaRastreioPublico(token) {
         if (rastreioPublicoListenerRef) rastreioPublicoListenerRef.off();
         rastreioPublicoListenerRef = db.ref(`rastreioPublico/${tokenInfo.rotaId}`);
         rastreioPublicoListenerRef.on('value', (snap) => {
-            renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId, tokenInfo.rotaId);
+            renderConteudoRastreioPublico(snap.val(), tokenInfo.pacoteId, tokenInfo.rotaId, null, token);
         });
     } catch (err) {
         console.warn('Falha ao carregar rastreio público:', err);
@@ -10744,8 +11393,8 @@ async function exibirTelaRastreioPublico(token) {
     }
 }
 
-function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
-    const conteudo = document.getElementById('rastreio-pub-conteudo');
+function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride = null, tokenOverride = tokenRastreioAtual) {
+    const conteudo = conteudoOverride || document.getElementById('rastreio-pub-conteudo');
     if (!conteudo) return;
 
     if (!dados) {
@@ -10969,7 +11618,7 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
         // no card de taxas/confirmação de pagamento abaixo.
 
         if (valorTotalEstimado > 0) {
-            const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId;
+            const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId && pixSubidaClienteAtual.token === tokenOverride;
             if (pixAtivo) {
                 subirHtml += `
                     <div class="rastreio-pub-subir">
@@ -10988,7 +11637,7 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId) {
                         <strong>Taxas desta entrega</strong>
                         ${linhas.join('')}
                         <div class="rastreio-pub-taxa-linha rastreio-pub-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotalEstimado)}</span></div>
-                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pagar taxas</button>
+                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Pagar taxas</button>
                     </div>`;
             }
         } else if (subirStatus === 'pago' || esperaStatus === 'pago') {
@@ -11125,8 +11774,8 @@ async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinata
     };
 }
 
-async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
-    if (!rotaId || !pacoteId || !tokenRastreioAtual) return;
+async function gerarPixSubidaCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
+    if (!rotaId || !pacoteId || !tokenOverride) return;
     if (btn) { btn.disabled = true; btn.innerText = 'Gerando Pix...'; }
 
     try {
@@ -11136,7 +11785,7 @@ async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
 
         let data;
         if (FLEXA_PAYMENTS_PROXY_URL) {
-            data = await chamarPaymentsProxyPublico('/create-pix-subida', { rastreioToken: tokenRastreioAtual });
+            data = await chamarPaymentsProxyPublico('/create-pix-subida', { rastreioToken: tokenOverride });
         } else if (FLEXA_MP_TEST_TOKEN) {
             // Estimativa só pro teste local funcionar sem backend — o valor
             // real sempre vem recalculado do servidor em produção.
@@ -11156,14 +11805,18 @@ async function gerarPixSubidaCliente(rotaId, pacoteId, btn) {
             paymentId: data.paymentId ? String(data.paymentId) : '',
             pacoteId,
             rotaId,
+            token: tokenOverride,
             pixCode,
             qrCodeBase64: data.qrCodeBase64 || '',
             valor: data.valor || TAXA_SUBIR_FIXA
         };
-        const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
-        renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
-        iniciarPollingPixSubidaCliente();
-        iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId);
+        const container = obterContainerRastreioCliente(tokenOverride);
+        if (container) {
+            const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
+            renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
+        }
+        iniciarPollingPixSubidaCliente(tokenOverride);
+        iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId, tokenOverride);
     } catch (err) {
         console.warn('Falha ao gerar Pix das taxas da entrega:', err);
         alert(err.message || 'Não foi possível gerar o Pix agora.');
@@ -11191,19 +11844,21 @@ function pararExpiracaoPixSubidaCliente() {
 // de propósito ao prazo real do Pix — escondê-lo ANTES disso faria o botão
 // reaparecer com o Pix anterior ainda válido, arriscando o cliente gerar e
 // pagar um segundo sem perceber que o primeiro ainda estava de pé.
-function iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId) {
+function iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId, tokenOverride = tokenRastreioAtual) {
     pararExpiracaoPixSubidaCliente();
     pixSubidaClienteExpiraTimer = setTimeout(async () => {
         pixSubidaClienteAtual = null;
         pararPollingPixSubidaCliente();
         try {
+            const container = obterContainerRastreioCliente(tokenOverride);
+            if (!container) return;
             const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
-            renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId);
+            renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
         } catch (e) { /* próxima atualização ao vivo do listener corrige sozinha */ }
     }, PIX_SUBIDA_VALIDADE_MS);
 }
 
-function iniciarPollingPixSubidaCliente() {
+function iniciarPollingPixSubidaCliente(tokenOverride = tokenRastreioAtual) {
     pararPollingPixSubidaCliente();
     pixSubidaClientePollTimer = setInterval(async () => {
         if (!pixSubidaClienteAtual?.paymentId) {
@@ -11212,7 +11867,7 @@ function iniciarPollingPixSubidaCliente() {
         }
         try {
             const data = FLEXA_PAYMENTS_PROXY_URL
-                ? await chamarPaymentsProxyPublico('/check-pix-subida', { rastreioToken: tokenRastreioAtual, paymentId: pixSubidaClienteAtual.paymentId })
+                ? await chamarPaymentsProxyPublico('/check-pix-subida', { rastreioToken: tokenOverride, paymentId: pixSubidaClienteAtual.paymentId })
                 : await consultarPagamentoPixTesteClienteLocal(pixSubidaClienteAtual.paymentId);
 
             if (data?.status === 'approved') {
@@ -16509,6 +17164,7 @@ function iniciarListenerHomeEntregador() {
 // the global object, same as before esbuild). Delete this file once the real
 // domain modules replace it.
 export {
+  abrirAbaCliente,
   abrirAjuda,
   abrirChatDaRota,
   abrirCriarRota,
@@ -16532,6 +17188,7 @@ export {
   abrirModalRastrearRotas,
   abrirModalTrackingLoja,
   abrirNotificacao,
+  abrirNotificacoesCliente,
   abrirNovaRotaPeloChip,
   abrirNovoCliente,
   abrirNovoClienteComTelefone,
@@ -16540,10 +17197,13 @@ export {
   abrirPainelListaChat,
   abrirPainelNotificacoes,
   abrirPainelThreadChat,
+  abrirPedidoCliente,
   abrirPrivacidadeLgpd,
+  abrirRastreioPedidoCliente,
   abrirSeletorCliente,
   abrirSeletorImagemChat,
   abrirSheetBuscaRota,
+  abrirSheetPerfilCliente,
   abrirSheetRotaEntregador,
   abrirSheetRotaEntregadorHome,
   abrirSobre,
@@ -16577,6 +17237,7 @@ export {
   alternarClienteAuthTab,
   alternarFormaCobrancaEntrega,
   alternarStatusUsuarioMaster,
+  alternarSubAbaPublicidadeAdmin,
   animarAtivacaoItemMenu,
   aplicarFiltroRotaEntregador,
   aplicarFreteTesteSeConfigurado,
@@ -16674,6 +17335,7 @@ export {
   entSheetNext,
   entSheetPrev,
   enviarChamadoSuporte,
+  enviarChamadoSuporteCliente,
   enviarMensagemChat,
   enviarResetSenhaMaster,
   envioPassaNoFiltro,
@@ -16705,6 +17367,7 @@ export {
   fecharModalRastrearRotas,
   fecharModalRota,
   fecharModalTrackingLoja,
+  fecharNotificacoesCliente,
   fecharPainelNotificacoes,
   fecharSeletorCliente,
   fecharSheetBuscar,
@@ -16930,6 +17593,7 @@ export {
   salvarMetaDiaEntregador,
   salvarNovoCliente,
   salvarPerfil,
+  salvarPerfilCliente,
   salvarRotaNoBanco,
   saveClientes,
   selecionarClienteNoSheet,
@@ -16977,5 +17641,6 @@ export {
   voltarEtapaModalRota,
   voltarListaChats,
   voltarParaDetalhes,
+  voltarParaListaPedidosCliente,
   zerarMetaDiaEntregador,
 };
