@@ -27,6 +27,25 @@ service firebase.storage {
         && request.resource.size < 10 * 1024 * 1024;
     }
 
+    // Documentos de verificação do entregador — comprovante de endereço,
+    // CNH, documento do veículo (2026-10-08, pedido do dono: prevenir
+    // roubo/furto/golpe limitando quem pode aceitar rotas a quem já
+    // verificou a documentação). Bem mais sensível que chamados (são
+    // documentos de identidade), por isso a leitura aqui é SÓ do dono —
+    // diferente de chamados, não relaxa pra "qualquer autenticado". O
+    // painel master não precisa de permissão de leitura aqui: ele enxerga o
+    // arquivo pela downloadURL com token que o PRÓPRIO entregador gerou no
+    // upload e que fica salva em usuarios/{uid}/documentos/{tipo}/url (ver
+    // database.rules.json) — esse token já embute a autorização,
+    // independente da regra de "read" abaixo.
+    match /documentosEntregador/{uid}/{arquivo} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png)');
+    }
+
     // Tudo o mais fica bloqueado por padrão.
     match /{allPaths=**} {
       allow read, write: if false;

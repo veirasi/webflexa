@@ -65,9 +65,6 @@ let rotaEntSheetTouchStartY = 0;
 // sem precisar reabrir a rota.
 let rotaEntSheetEsperaListenerRef = null;
 let rotaEntSheetEsperaListenerChave = '';
-// Pix da cobrança na entrega (ver project-flexa-cobranca-entrega-dinheiro)
-let pixCobrancaEntregaAtual = null;
-let pixCobrancaEntregaPollTimer = null;
 let lojistaLogoCache = {};
 let rotaEntregadorProgresso = {};
 let rotaSwipeStartX = 0;
@@ -82,7 +79,6 @@ let filtroEnviosAtivo = 'TODOS';
 // mexer na lógica de filtragem em si.
 let filtroEnviosChipAtivo = 'TODOS';
 let filtroRotasAtivo = 'BUSCANDO';
-let dashboardRotasSincronizadas = false;
 let adminUsersCache = null;
 let modoAdmin = false;
 let presencaRef = null;
@@ -93,6 +89,11 @@ let entregadorHomeListenerRef = null;
 let entregadorHomeListenerCb = null;
 let entregadorHomeListenerUid = null;
 let entregadorHomeCache = null;
+// Pedido do lojista (2026-10-08): status da rota precisa atualizar ao vivo,
+// sem precisar recarregar a página (ver iniciarListenerRotasLojista).
+let lojistaRotasListenerRef = null;
+let lojistaRotasListenerCb = null;
+let lojistaRotasListenerUid = null;
 let entregadorMetaDiaCache = null;
 let rotasMarketplaceEntregadorCache = [];
 let marketplaceEntregadorListenerRef = null;
@@ -337,6 +338,7 @@ function switchAdminTab(tab) {
     if (tab === 'banners') renderBannersAdmin();
     if (tab === 'ganhos') renderSerieGanhosAdmin();
     if (tab === 'chamados') renderChamadosAdmin();
+    if (tab === 'documentos') renderDocumentosAdmin();
 }
 
 function telaInicialPorTipoUsuario(tipo) {
@@ -388,6 +390,7 @@ function preencherPerfilEntregador() {
     aplicarLinkInstagram(instaEl, dados.instagram || '');
     aplicarFotoComPlaceholder(fotoEl, dados.foto || '');
     if (cnhEl) cnhEl.innerText = (dados.cnh || '--').toString();
+    atualizarBadgeDocumentosEntregador(dados.documentos);
 }
 async function loadClientes() {
     const uid = getUsuarioIdAtual();
@@ -1423,6 +1426,14 @@ function navegar(idTela) {
         if (typeof atualizarLocalColetaDinamico === 'function') atualizarLocalColetaDinamico();
         if (typeof renderRotasTelaPrincipal === 'function') renderRotasTelaPrincipal();
         resetarPainelDetalheRotaDesktop();
+    }
+
+    if (tipo !== 'entregador') {
+        if (telaAlvo === 'view-dash-loja' || telaAlvo === 'view-rotas') {
+            iniciarListenerRotasLojista();
+        } else {
+            pararListenerRotasLojista();
+        }
     }
     if (telaAlvo === 'view-novo-envio') {
         resetarPainelDetalheEnvioDesktop();
@@ -2626,7 +2637,6 @@ firebase.auth().onAuthStateChanged((user) => {
                     // pré-carrega pacotes no modelo novo para este usuário
                     carregarPacotesRaizDoUid(user.uid).catch(() => {});
 
-                    dashboardRotasSincronizadas = false;
                     rotasHomeCache = [];
                     entregadorHomeCache = {};
                     rotasMarketplaceEntregadorCache = [];
@@ -2689,7 +2699,6 @@ firebase.auth().onAuthStateChanged((user) => {
             })
             .catch(() => finalizarSplash(splash));
     } else {
-        dashboardRotasSincronizadas = false;
         rotasHomeCache = [];
         rotasMarketplaceEntregadorCache = [];
         filtroRotaEntregadorOrigem = 'TODAS';
@@ -2700,6 +2709,7 @@ firebase.auth().onAuthStateChanged((user) => {
         pararListenerMarketplaceEntregador();
         pararListenerNotificacoes();
         pararRastreioGpsEntregador();
+        pararListenerRotasLojista();
         if (document.body) document.body.classList.remove('usuario-entregador');
         pararPresencaUsuarioAtual();
 
@@ -2938,17 +2948,11 @@ function renderizarDashboard(user) {
         carregarDividasEntregadorLojistaHome();
     }
 
-    if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
-        dashboardRotasSincronizadas = true;
-        carregarRotasDoBanco()
-            .then((rotasDb) => {
-                rotasHomeCache = Array.isArray(rotasDb) ? rotasDb : [];
-                if (document.getElementById('view-dash-loja')?.classList.contains('active')) {
-                    renderizarDashboard(window.usuarioLogado || user || {});
-                }
-            })
-            .catch(() => {});
-    }
+    // Mantém rotasHomeCache ao vivo (status Buscando/Em rota/Concluída
+    // atualiza sozinho, sem recarregar a página) — ver
+    // iniciarListenerRotasLojista. Primeira chamada aqui já popula o cache
+    // antes mesmo do primeiro navegar('view-dash-loja') completar.
+    iniciarListenerRotasLojista();
 }
 
 function sincronizarSidebarLojaConta(user) {
@@ -3398,6 +3402,50 @@ async function carregarRotasDoBanco() {
         console.warn('Falha ao carregar rotas:', err);
         return [];
     }
+}
+
+// Pedido do lojista (2026-10-08): "tem como atualizar o status da rota sem
+// precisar atualizar a página?" — antes carregarRotasDoBanco() era um
+// .once('value'), só rodava de novo na troca de tela (navegar()); enquanto o
+// lojista ficava parado na Home ou em "Rotas", o status (Buscando/Em
+// rota/Concluída) nunca mudava sozinho. Mesmo padrão já usado pro dashboard
+// do entregador (ver iniciarListenerHomeEntregador) — aqui escuta só o nó de
+// rotas (mais enxuto que o usuário inteiro: é só o status da rota que
+// precisa ficar ao vivo, não clientes/financeiro/etc).
+function pararListenerRotasLojista() {
+    if (lojistaRotasListenerRef && lojistaRotasListenerCb) {
+        lojistaRotasListenerRef.off('value', lojistaRotasListenerCb);
+    }
+    lojistaRotasListenerRef = null;
+    lojistaRotasListenerCb = null;
+    lojistaRotasListenerUid = null;
+}
+
+function iniciarListenerRotasLojista() {
+    const uid = getUsuarioIdAtual();
+    if (!uid || obterTipoUsuarioAtual() === 'entregador') return;
+
+    if (lojistaRotasListenerRef && lojistaRotasListenerUid === uid) return;
+
+    pararListenerRotasLojista();
+
+    const ref = db.ref('usuarios/' + uid + '/rotas');
+    const callback = (snap) => {
+        const data = snap.val() || {};
+        rotasHomeCache = Object.keys(data).map((id) => ({ id, ...data[id] })).sort((a, b) => Number(b.criadoEm || 0) - Number(a.criadoEm || 0));
+
+        if (document.getElementById('view-dash-loja')?.classList.contains('active')) {
+            renderizarDashboard(window.usuarioLogado || {});
+        }
+        if (document.getElementById('view-rotas')?.classList.contains('active') && typeof renderRotasTelaPrincipal === 'function') {
+            renderRotasTelaPrincipal();
+        }
+    };
+
+    ref.on('value', callback);
+    lojistaRotasListenerRef = ref;
+    lojistaRotasListenerCb = callback;
+    lojistaRotasListenerUid = uid;
 }
 function montarCidadeUfMarketplace(cidade, uf) {
     const c = (cidade || '').toString().trim();
@@ -4420,9 +4468,8 @@ function fecharSheetRotaEntregador() {
     rotaEntSheetIndex = 0;
     rotaEntSheetRotaAtual = null;
     pararRastreioGpsEntregador();
-    pararPollingPixCobrancaEntrega();
-    pixCobrancaEntregaAtual = null;
     pararListenerEsperaPacote();
+    pararCronometroEsperaEntregador();
 }
 
 // ===== [RASTREIO GPS DO ENTREGADOR] =====
@@ -5035,9 +5082,9 @@ function renderSheetColetaPacotes() {
         <div class=\"ent-sheet-code-box\">
             <label for=\"ent-sheet-coleta-code-input\">Peça o código de coleta ao lojista</label>
             <input id=\"ent-sheet-coleta-code-input\" type=\"text\" placeholder=\"Código de coleta\">
-            <div class=\"ent-sheet-actions-inline\">
-                <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"abrirMapaColetaLoja()\">Ir até a loja</button>
-                <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarColetaPacotes()\">Confirmar coleta</button>
+            <div class=\"flex-btn-row\">
+                <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza\" onclick=\"abrirMapaColetaLoja()\">Ir até a loja</button>
+                <button type=\"button\" class=\"flex-btn flex-btn-primary\" onclick=\"confirmarColetaPacotes()\">Confirmar coleta</button>
             </div>
         </div>
 
@@ -5055,6 +5102,31 @@ function renderSheetColetaPacotes() {
             if (el) el.textContent = enderecoAoVivo;
         });
     }
+}
+
+// Pedido do dono (2026-10-08): o cronômetro de espera precisa ficar
+// visível e ATUALIZANDO tanto pro entregador quanto pro cliente — antes só
+// recalculava quando a sheet inteira re-renderizava por outro motivo (ex:
+// aceitar/recusar subida), então ficava "parado" minutos a fio na tela de
+// quem só estava olhando, sem nenhum outro motivo pra re-renderizar. Atualiza
+// só o texto do cronômetro a cada poucos segundos, sem re-renderizar a sheet
+// inteira (evitaria perder foco de inputs, piscar QR code, etc).
+let cronometroEsperaEntregadorTimer = null;
+function pararCronometroEsperaEntregador() {
+    if (cronometroEsperaEntregadorTimer) {
+        clearInterval(cronometroEsperaEntregadorTimer);
+        cronometroEsperaEntregadorTimer = null;
+    }
+}
+function iniciarCronometroEsperaEntregador(chegouEm) {
+    pararCronometroEsperaEntregador();
+    cronometroEsperaEntregadorTimer = setInterval(() => {
+        const el = document.getElementById('ent-sheet-cronometro-texto');
+        if (!el) { pararCronometroEsperaEntregador(); return; }
+        const minutosDesde = Math.max(0, Math.round((Date.now() - Number(chegouEm)) / 60000));
+        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+        el.textContent = `Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}`;
+    }, 10000);
 }
 
 // Nova versão do sheet de rota do entregador com paginação por pacote
@@ -5146,64 +5218,86 @@ function renderSheetRotaEntregadorConteudo() {
     // enquanto não foi finalizada (ver resolverTaxaEsperaSubidaAntesDeEntregar,
     // chamada na hora de confirmar a entrega).
     const espera = pac?.esperaEntrega || {};
+    const cobranca = pac?.cobrancaEntrega;
+    const cobrancaAtiva = !!cobranca?.ativa;
+    const cobrancaResolvida = !cobrancaAtiva || ['pago', 'pago_pix', 'pago_dinheiro'].includes(cobranca?.status);
     let blocoEspera = '';
-    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada) {
-        if (!espera.chegouEm) {
-            blocoEspera = `<button type=\"button\" class=\"ent-sheet-cheguei-btn\" onclick=\"confirmarCheguei()\"><i data-lucide=\"map-pin\" size=\"14\"></i> Cheguei no local</button>`;
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm) {
+        // Cronômetro de espera — fica sempre visível enquanto aguarda,
+        // igual já era (pedido do dono, 2026-10-04: manter o cronômetro
+        // tanto aqui quanto na tela do cliente).
+        //
+        // BUG CORRIGIDO 2026-10-08 (pedido do dono: "o cronômetro deve parar
+        // quando o cliente informar o tipo de pagamento"): a taxa continuava
+        // contando minuto a minuto mesmo com cliente e entregador já frente
+        // a frente resolvendo o pagamento — o relógio só trava quando o
+        // cliente clica em Pagar (ver escolhaClienteCongeladoEm, gravado por
+        // criarPagamentoPendenciasCliente no backend). Travado, para de
+        // ticar e mostra só que está aguardando a confirmação.
+        const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000));
+        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+        blocoEspera = espera.escolhaClienteCongeladoEm
+            ? `<div class=\"ent-sheet-cronometro\"><i data-lucide=\"clock\" size=\"14\"></i> <span>Aguardando confirmação do pagamento</span></div>`
+            : `<div class=\"ent-sheet-cronometro\"><i data-lucide=\"clock\" size=\"14\"></i> <span id=\"ent-sheet-cronometro-texto\">Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}</span></div>`;
+
+        if (espera.subirStatus === 'pendente') {
+            blocoEspera += `
+                <div class=\"ent-sheet-subir-pedido\">
+                    <span>Cliente pediu entrega até a porta do apartamento</span>
+                    <div class=\"flex-btn-row\">
+                        <button type=\"button\" class=\"flex-btn flex-btn-secondary\" onclick=\"aceitarSolicitacaoSubida()\">Aceitar (+R$ 6,00)</button>
+                        <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza\" onclick=\"recusarSolicitacaoSubida()\">Recusar</button>
+                    </div>
+                </div>`;
         } else {
-            // Cronômetro de espera — fica sempre visível enquanto aguarda,
-            // igual já era (pedido do dono, 2026-10-04: manter o cronômetro
-            // tanto aqui quanto na tela do cliente).
-            const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000));
-            const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
-            blocoEspera = `<div class=\"ent-sheet-cronometro\"><i data-lucide=\"clock\" size=\"14\"></i> Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}</div>`;
+            // Checklist (pedido do dono, 2026-10-04): em vez de vários
+            // avisos soltos, duas linhas que viram verdes conforme cada
+            // etapa confirma. Quem gera e paga o Pix das taxas é o
+            // CLIENTE, na própria tela de rastreio — o entregador só
+            // acompanha, sem nenhuma ação de cobrança aqui.
+            const itensChecklist = [];
+            if (espera.subirStatus === 'aceito' || espera.subirStatus === 'pago') {
+                itensChecklist.push(`<div class=\"ent-sheet-checklist-item done\"><i data-lucide=\"check-circle-2\" size=\"16\"></i><span>Entrega na porta aceita</span></div>`);
+            } else if (espera.subirStatus === 'recusado') {
+                itensChecklist.push(`<div class=\"ent-sheet-checklist-item neg\"><i data-lucide=\"x-circle\" size=\"16\"></i><span>Você recusou entregar na porta dessa vez</span></div>`);
+            } else if (espera.subirStatus === 'dispensado') {
+                itensChecklist.push(`<div class=\"ent-sheet-checklist-item neg\"><i data-lucide=\"x-circle\" size=\"16\"></i><span>Cliente optou por não pedir entrega na porta</span></div>`);
+            }
 
-            if (espera.subirStatus === 'pendente') {
-                blocoEspera += `
-                    <div class=\"ent-sheet-subir-pedido\">
-                        <span>Cliente pediu entrega até a porta do apartamento</span>
-                        <div class=\"ent-sheet-actions-inline\">
-                            <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"aceitarSolicitacaoSubida()\">Aceitar (+R$ 6,00)</button>
-                            <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"recusarSolicitacaoSubida()\">Recusar</button>
-                        </div>
-                    </div>`;
-            } else {
-                // Checklist (pedido do dono, 2026-10-04): em vez de vários
-                // avisos soltos, duas linhas que viram verdes conforme cada
-                // etapa confirma. Quem gera e paga o Pix das taxas é o
-                // CLIENTE, na própria tela de rastreio — o entregador só
-                // acompanha, sem nenhuma ação de cobrança aqui.
-                const itensChecklist = [];
-                if (espera.subirStatus === 'aceito' || espera.subirStatus === 'pago') {
-                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item done\"><i data-lucide=\"check-circle-2\" size=\"16\"></i><span>Entrega na porta aceita</span></div>`);
-                } else if (espera.subirStatus === 'recusado') {
-                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item neg\"><i data-lucide=\"x-circle\" size=\"16\"></i><span>Você recusou entregar na porta dessa vez</span></div>`);
-                }
+            const valorEsperaPendente = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+            const valorSubidaPendente = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+            const valorPendenteTotal = Number((valorEsperaPendente + valorSubidaPendente).toFixed(2));
+            const taxaJaPaga = valorPendenteTotal <= 0 && (espera.subirStatus === 'pago' || espera.esperaStatus === 'pago');
+            // Pedido do dono (2026-10-08): quando tem cobrança na entrega
+            // ativa, o valor das taxas já aparece COMBINADO com o produto no
+            // card de renderBlocoCobrancaEntrega logo abaixo — mostrar de
+            // novo aqui, separado, duplicava o mesmo valor em dois lugares
+            // diferentes da tela (bug reportado pelo dono com print).
+            if (valorPendenteTotal > 0 && !cobrancaAtiva) {
+                itensChecklist.push(`<div class=\"ent-sheet-checklist-item\"><i data-lucide=\"clock\" size=\"16\"></i><span>Aguardando pagamento das taxas (${precoParaMoeda(valorPendenteTotal)})</span></div>`);
+            } else if (taxaJaPaga && !cobrancaAtiva) {
+                itensChecklist.push(`<div class=\"ent-sheet-checklist-item done\"><i data-lucide=\"check-circle-2\" size=\"16\"></i><span>Taxas pagas via Pix</span></div>`);
+            }
 
-                const valorEsperaPendente = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-                const valorSubidaPendente = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-                const valorPendenteTotal = Number((valorEsperaPendente + valorSubidaPendente).toFixed(2));
-                const taxaJaPaga = valorPendenteTotal <= 0 && (espera.subirStatus === 'pago' || espera.esperaStatus === 'pago');
-                if (valorPendenteTotal > 0) {
-                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item\"><i data-lucide=\"clock\" size=\"16\"></i><span>Aguardando pagamento das taxas (${precoParaMoeda(valorPendenteTotal)})</span></div>`);
-                } else if (taxaJaPaga) {
-                    itensChecklist.push(`<div class=\"ent-sheet-checklist-item done\"><i data-lucide=\"check-circle-2\" size=\"16\"></i><span>Taxas pagas via Pix</span></div>`);
-                }
-
-                if (itensChecklist.length) {
-                    blocoEspera += `<div class=\"ent-sheet-checklist\">${itensChecklist.join('')}</div>`;
-                }
+            if (itensChecklist.length) {
+                blocoEspera += `<div class=\"ent-sheet-checklist\">${itensChecklist.join('')}</div>`;
             }
         }
     }
 
-    // Fica ouvindo o pedido de subida enquanto ele ainda pode mudar sem ação
-    // sua: antes de responder (pendente) e depois de aceitar, esperando o
-    // cliente pagar via Pix (ver checarPixSubida/finalizarPixSubidaComoPago,
-    // que gravam subirStatus:'pago' do lado de fora, sem o entregador clicar
-    // em nada) — só para de ouvir quando o desfecho já é definitivo
-    // (recusado/pago) ou a taxa já foi finalizada por outro caminho.
-    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && espera.subirStatus !== 'recusado' && espera.subirStatus !== 'pago') {
+    // Fica ouvindo o pedido de subida E a cobrança na entrega enquanto
+    // qualquer um dos dois ainda pode mudar sem ação sua: subida antes de
+    // responder (pendente) e depois de aceitar, esperando o cliente pagar
+    // via Pix (ver checarPagamentoPendenciasCliente no backend, que grava
+    // subirStatus:'pago' do lado de fora, sem o entregador clicar em nada);
+    // cobrança enquanto o cliente ainda não escolheu/pagou a forma dela. Só
+    // para de ouvir quando os DOIS já estão definitivos (BUG CORRIGIDO
+    // 2026-10-08: antes só considerava a subida — se ela resolvia primeiro
+    // 'recusado'/'pago', parava de ouvir mesmo com a cobrança ainda pendente,
+    // e a escolha do cliente podia nunca aparecer aqui sem recarregar).
+    const subidaAindaPodeMudar = espera.subirStatus !== 'recusado' && espera.subirStatus !== 'dispensado' && espera.subirStatus !== 'pago';
+    const cobrancaAindaPodeMudar = cobrancaAtiva && !cobrancaResolvida;
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && (subidaAindaPodeMudar || cobrancaAindaPodeMudar)) {
         gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
     } else {
         pararListenerEsperaPacote();
@@ -5212,14 +5306,23 @@ function renderSheetRotaEntregadorConteudo() {
     // Coleta reversa (perna 2, "devolução" na loja) usa rótulos diferentes —
     // é o LOJISTA quem confirma o recebimento aqui, não repassa a ninguém.
     const ehColetaReversaLabel = pac?.tipoFluxo === 'coleta_reversa';
-    const codeBox = `
+    // Pedido do dono (2026-10-08): "Cheguei no local" some assim que
+    // clicado, e o código de confirmação (com Confirmar entrega/Cancelar)
+    // só aparece depois que a cobrança na entrega (se existir) já foi
+    // resolvida — nunca os três juntos na tela (poluição visual, e o botão
+    // Confirmar entrega nem funcionava ainda com cobrança pendente).
+    const codeBox = (!espera.chegouEm)
+        ? `<button type=\"button\" class=\"flex-btn flex-btn-secondary\" onclick=\"confirmarCheguei()\"><i data-lucide=\"map-pin\" size=\"16\"></i> Cheguei no local</button>`
+        : (cobrancaAtiva && !cobrancaResolvida)
+            ? `${blocoEspera}<p class=\"ent-sheet-cobranca-pendente-aviso\">Resolva a cobrança acima para liberar a confirmação da entrega.</p>`
+            : `
         <div class=\"ent-sheet-code-box\">
             ${blocoEspera}
             <label for=\"ent-sheet-code-input\">${ehColetaReversaLabel ? 'Confirme a devolução (código com o lojista)' : 'Confirme a entrega'}</label>
             <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
             <div class=\"ent-sheet-actions-stack\">
-                <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarEntregaPacoteAtual()\">${ehColetaReversaLabel ? 'Confirmar devolução' : 'Confirmar entrega'}</button>
-                <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
+                <button type=\"button\" class=\"flex-btn flex-btn-primary\" onclick=\"confirmarEntregaPacoteAtual()\">${ehColetaReversaLabel ? 'Confirmar devolução' : 'Confirmar entrega'}</button>
+                <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
             </div>
         </div>
     `;
@@ -5233,8 +5336,8 @@ function renderSheetRotaEntregadorConteudo() {
             <label for=\"ent-sheet-code-input\">Confirme a retirada (código com o cliente)</label>
             <input id=\"ent-sheet-code-input\" type=\"text\" placeholder=\"Código de confirmação\" value=\"${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || '')}\" oninput=\"atualizarCodigoConfirmacaoAtual(this.value)\">
             <div class=\"ent-sheet-actions-stack\">
-                <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarRetiradaPacoteAtual()\">Confirmar retirada</button>
-                <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
+                <button type=\"button\" class=\"flex-btn flex-btn-primary\" onclick=\"confirmarRetiradaPacoteAtual()\">Confirmar retirada</button>
+                <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza\" onclick=\"cancelarCorridaPacoteAtual()\">Cancelar</button>
             </div>
         </div>
     `;
@@ -5253,7 +5356,7 @@ function renderSheetRotaEntregadorConteudo() {
     if (emFaseRetirada) {
         footerPrincipal = bloqueado
             ? codeBoxRetirada
-            : `<button class=\"ent-sheet-primary\" onclick=\"iniciarRetiradaPacoteAtual(this)\"><span>Iniciar corrida (retirada)</span><span class=\"ent-sheet-arrow\" style=\"font-size:22px;\">›</span></button>`;
+            : `<button type=\"button\" class=\"flex-btn flex-btn-primary\" onclick=\"iniciarRetiradaPacoteAtual(this)\">Iniciar corrida (retirada) <i data-lucide=\"arrow-right\" size=\"16\"></i></button>`;
     } else if (devolucaoStatus === 'DEVOLUCAO_SOLICITADA') {
         footerPrincipal = `<div class=\"ent-sheet-status-ok ent-sheet-status-aguardando\"><i data-lucide=\"clock\"></i> Aguardando o lojista confirmar a devolução</div>`;
     } else if (devolucaoStatus === 'DEVOLUCAO_CONFIRMADA') {
@@ -5273,7 +5376,7 @@ function renderSheetRotaEntregadorConteudo() {
     } else if (finalizado) {
         footerPrincipal = statusOk;
     } else {
-        footerPrincipal = `<button class=\"ent-sheet-primary\" onclick=\"iniciarCorridaPacoteAtual(this)\"><span>Iniciar Corrida</span><span class=\"ent-sheet-arrow\" style=\"font-size:22px;\">›</span></button>`;
+        footerPrincipal = `<button type=\"button\" class=\"flex-btn flex-btn-primary\" onclick=\"iniciarCorridaPacoteAtual(this)\">Iniciar Corrida <i data-lucide=\"arrow-right\" size=\"16\"></i></button>`;
     }
     const podeSolicitarDevolucao = !emFaseRetirada && !devolucaoStatus && !finalizado;
 
@@ -5304,7 +5407,7 @@ function renderSheetRotaEntregadorConteudo() {
             ${obs ? `<div class=\"ent-sheet-obs\"><i data-lucide=\"alert-triangle\" size=\"16\"></i><div><span class=\"ent-sheet-obs-label\">Atenção</span><p>${escaparHtmlMarketplace(obs)}</p></div></div>` : ''}
         </div>
 
-        ${renderBlocoCobrancaEntrega(pac)}
+        ${(espera.chegouEm && !emFaseRetirada) ? renderBlocoCobrancaEntrega(pac) : ''}
 
         <div class=\"ent-sheet-footer\">
             ${footerPrincipal}
@@ -5317,6 +5420,11 @@ function renderSheetRotaEntregadorConteudo() {
     </div>
     `;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.escolhaClienteCongeladoEm) {
+        iniciarCronometroEsperaEntregador(espera.chegouEm);
+    } else {
+        pararCronometroEsperaEntregador();
+    }
 }
 
 // ===================== [DEVOLUÇÃO POR FALHA DE ENTREGA] =====================
@@ -5340,11 +5448,11 @@ function renderSheetMotivoDevolucao(pac) {
         <button type=\"button\" class=\"ent-sheet-close-btn\" onclick=\"fecharSheetRotaEntregador()\">&times;</button>
         <strong style=\"display:block; font-size:16px; margin-bottom:12px; color:#0f172a;\">Por que não conseguiu entregar?</strong>
         <div class=\"ent-sheet-motivo-lista\">
-            ${podeClienteNaoPagou ? `<button type=\"button\" class=\"ent-sheet-btn-ghost ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_nao_pagou')\">Cliente não pagou</button>` : ''}
-            <button type=\"button\" class=\"ent-sheet-btn-ghost ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_ausente')\">Cliente não está em casa</button>
-            <button type=\"button\" class=\"ent-sheet-btn-ghost ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('endereco_nao_encontrado')\">Endereço não encontrado</button>
-            <button type=\"button\" class=\"ent-sheet-btn-ghost ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_recusou')\">Cliente recusou o pedido</button>
-            <button type=\"button\" class=\"ent-sheet-btn-ghost ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('outro')\">Outro motivo</button>
+            ${podeClienteNaoPagou ? `<button type=\"button\" class=\"flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_nao_pagou')\">Cliente não pagou</button>` : ''}
+            <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_ausente')\">Cliente não está em casa</button>
+            <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('endereco_nao_encontrado')\">Endereço não encontrado</button>
+            <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('cliente_recusou')\">Cliente recusou o pedido</button>
+            <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn\" onclick=\"solicitarDevolucaoPacoteAtual('outro')\">Outro motivo</button>
         </div>
         <button class=\"ent-sheet-link\" onclick=\"renderSheetRotaEntregadorConteudo()\">Cancelar</button>
     </div>
@@ -5434,9 +5542,9 @@ function renderBlocoDevolucaoConfirmada(pac) {
     <div class=\"ent-sheet-code-box\">
         <label for=\"ent-sheet-devolucao-code-input\">Código de devolução (informado pelo lojista)</label>
         <input id=\"ent-sheet-devolucao-code-input\" type=\"text\" placeholder=\"Código de devolução\">
-        <div class=\"ent-sheet-actions-inline\">
-            <button type=\"button\" class=\"ent-sheet-btn-ghost\" onclick=\"abrirMapaColetaLoja()\">Ir até a loja</button>
-            <button type=\"button\" class=\"ent-sheet-primary small\" onclick=\"confirmarCodigoDevolucaoPacoteAtual()\">Confirmar devolução</button>
+        <div class=\"flex-btn-row\">
+            <button type=\"button\" class=\"flex-btn flex-btn-secondary cinza\" onclick=\"abrirMapaColetaLoja()\">Ir até a loja</button>
+            <button type=\"button\" class=\"flex-btn flex-btn-primary\" onclick=\"confirmarCodigoDevolucaoPacoteAtual()\">Confirmar devolução</button>
         </div>
     </div>`;
 }
@@ -6150,9 +6258,27 @@ function gerenciarListenerEsperaPacote(rotaId, pacoteId) {
         const dados = snap.val() || {};
         const pacAtual = rotaEntSheetPacotes[rotaEntSheetIndex];
         if (!pacAtual || obterIdPacoteConfirmacao(pacAtual) !== pacoteId) return;
-        if ((dados.subirStatus || null) === (pacAtual.esperaEntrega?.subirStatus || null)) return;
-        pacAtual.esperaEntrega = { ...(pacAtual.esperaEntrega || {}), subirStatus: dados.subirStatus || null };
-        renderSheetRotaEntregadorConteudo();
+        let mudou = false;
+        if ((dados.subirStatus || null) !== (pacAtual.esperaEntrega?.subirStatus || null)) {
+            pacAtual.esperaEntrega = { ...(pacAtual.esperaEntrega || {}), subirStatus: dados.subirStatus || null };
+            mudou = true;
+        }
+        // Cobrança na entrega escolhida/paga pelo CLIENTE (2026-10-08): o
+        // entregador não tem nenhum botão que gere esses dois campos — só
+        // o backend, a partir da escolha do cliente — então aqui é só
+        // refletir na tela, sem nenhuma lógica própria de decisão.
+        const cobrancaAtual = pacAtual.cobrancaEntrega;
+        if (cobrancaAtual?.ativa) {
+            if (dados.cobrancaEscolha && dados.cobrancaEscolha !== cobrancaAtual.escolhaCliente) {
+                pacAtual.cobrancaEntrega = { ...cobrancaAtual, escolhaCliente: dados.cobrancaEscolha };
+                mudou = true;
+            }
+            if (dados.cobrancaStatus === 'pago' && cobrancaAtual.status !== 'pago') {
+                pacAtual.cobrancaEntrega = { ...pacAtual.cobrancaEntrega, status: 'pago' };
+                mudou = true;
+            }
+        }
+        if (mudou) renderSheetRotaEntregadorConteudo();
     });
 }
 
@@ -6448,6 +6574,8 @@ async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) 
             await renderRotasMarketplaceEntregador(true);
         } else if (motivo === 'flash_pendente') {
             alert('Você tem uma entrega Flash/Expresso pendente (prazo de 2h) — finalize essa entrega antes de aceitar outra rota. Veja a aba Rotas > Entregas.');
+        } else if (motivo === 'documentos_pendentes') {
+            alert('Seus documentos ainda não foram aprovados pela Flex — envie comprovante de endereço, CNH e documento do veículo em Perfil > Documentos e aguarde a aprovação.');
         } else {
             console.warn('Erro ao aceitar rota marketplace:', err);
             alert('Nao foi possivel aceitar essa rota agora. Tente novamente.');
@@ -9562,210 +9690,57 @@ async function criarPagamentoPixCobrancaEntregaTesteLocal(pac, rotaId, valorOver
     };
 }
 
-async function gerarPixCobrancaEntrega(valorOverride) {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const cobranca = pac?.cobrancaEntrega;
-    if (!rotaObj || !cobranca?.ativa || cobranca.status !== 'pendente') return;
-
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const envioId = obterIdPacoteConfirmacao(pac);
-    if (!lojistaUid || !envioId) return;
-
-    // valorOverride é usado no pagamento misto (ver confirmarPagamentoMistoCobranca):
-    // cobra só a diferença depois de já registrar o que veio em dinheiro.
-    const valorPix = Number.isFinite(Number(valorOverride)) && Number(valorOverride) > 0
-        ? Number(valorOverride)
-        : Number(cobranca.valor || 0);
-
-    const btn = document.getElementById('ent-sheet-pix-gerar-btn');
-    if (btn) { btn.disabled = true; btn.innerText = 'Gerando Pix...'; }
-
-    try {
-        let data;
-        if (FLEXA_PAYMENTS_PROXY_URL) {
-            data = await chamarPaymentsProxy('/create-pix-cobranca', { tenantId: lojistaUid, rotaId: rotaObj.id, envioId, valor: valorPix });
-        } else if (FLEXA_MP_TEST_TOKEN) {
-            data = await criarPagamentoPixCobrancaEntregaTesteLocal(pac, rotaObj.id, valorPix);
-        } else {
-            throw new Error('Pagamento não configurado: defina FLEXA_PAYMENTS_PROXY_URL (produção) ou FLEXA_MP_TEST_TOKEN (só teste local).');
-        }
-
-        const pixCode = normalizarCodigoPix(data.pixCode || '');
-        if (!pixCode) throw new Error('Mercado Pago não retornou código Pix.');
-
-        pixCobrancaEntregaAtual = {
-            paymentId: data.paymentId ? String(data.paymentId) : '',
-            envioId,
-            lojistaUid,
-            rotaId: rotaObj.id,
-            pixCode,
-            qrCodeBase64: data.qrCodeBase64 || '',
-            valor: data.valor || valorPix
-        };
-
-        renderSheetRotaEntregadorConteudo();
-        iniciarPollingPixCobrancaEntrega();
-    } catch (err) {
-        console.warn('Falha ao gerar Pix de cobrança na entrega:', err);
-
-        // Mesma escotilha de teste usada em rota e devolução — sem Cloud Function
-        // deployada, o navegador não consegue chamar a API do Mercado Pago direto
-        // (CORS/rede). Ver feedback_flexa_test_mode_escape_hatches.
-        if (!FLEXA_PAYMENTS_PROXY_URL && mercadoPagoAmbienteAtual === 'teste') {
-            const simular = confirm(
-                'Não foi possível gerar o Pix de cobrança (ambiente TESTE).\n\n' +
-                'Detalhe: ' + (err?.message || 'erro desconhecido') + '\n\n' +
-                'Deseja simular esse Pix como pago para continuar testando o fluxo?'
-            );
-            if (simular) {
-                await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valorPix, envioId);
-                await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-                    'cobrancaEntrega/status': 'pago',
-                    'cobrancaEntrega/pagoEm': Date.now()
-                }).catch((e) => console.warn('Falha ao persistir cobrança simulada como paga:', e));
-                pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: 'pago', pagoEm: Date.now() };
-                renderSheetRotaEntregadorConteudo();
-                return;
-            }
-        }
-
-        alert(err.message || 'Não foi possível gerar o Pix agora.');
-        if (btn) { btn.disabled = false; btn.innerText = 'Gerar Pix'; }
-    }
-}
-
-function pararPollingPixCobrancaEntrega() {
-    if (pixCobrancaEntregaPollTimer) {
-        clearInterval(pixCobrancaEntregaPollTimer);
-        pixCobrancaEntregaPollTimer = null;
-    }
-}
-
-// O Pix da cobrança na entrega é pago pelo CLIENTE e cai como CRÉDITO NA
-// CARTEIRA DO LOJISTA (não do entregador — o produto é dele, o entregador só
-// intermedeia a cobrança; ver project-flexa-cobranca-entrega-dinheiro, decisão
-// do dono 2026-08-16). Em produção (FLEXA_PAYMENTS_PROXY_URL) quem credita é o
-// backend, em /check-pix-cobranca. No modo teste local (sem Cloud Function) tem
-// que creditar aqui mesmo, pelo mesmo motivo dos outros pagamentos em modo
-// teste (ver feedback_flexa_test_mode_escape_hatches).
-async function creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId) {
-    if (!lojistaUid || !Number.isFinite(valor) || valor <= 0) return;
-    try {
-        const resultado = await ajustarSaldoUsuario(lojistaUid, valor);
-        if (!resultado.ok) return;
-        await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
-            protocolo: gerarProtocoloTransacao(),
-            tipo: 'CREDITO',
-            metodo: 'pix',
-            valor,
-            descricao: `Cobrança na entrega recebida via Pix (pedido #${envioId}) [TESTE]`,
-            remetente: 'Cliente (Pix simulado — ambiente teste)',
-            destinatario: 'Carteira da loja',
-            criadoEm: Date.now()
-        });
-    } catch (err) {
-        console.warn('Falha ao creditar lojista pela cobrança via Pix (teste local):', err);
-    }
-}
-
-// Desfecho de "pago" da cobrança-na-entrega — compartilhado entre o polling
-// (pagamento realmente aprovado no Mercado Pago) e o botão de simulação em
-// ambiente teste (ver simularAprovacaoCobrancaEntregaTeste), já que um Pix de
-// TESTE nunca é aceito por um banco de verdade — não tem como um usuário
-// pagar de verdade pra testar o resto do fluxo. Ver
-// feedback_flexa_test_mode_escape_hatches.
-async function finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor) {
-    const agora = Date.now();
-
-    if (!FLEXA_PAYMENTS_PROXY_URL) {
-        // Modo teste local: o backend não rodou, então credita o lojista e
-        // persiste o desfecho aqui mesmo (produção já fez isso no backend).
-        await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId);
-        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-            'cobrancaEntrega/status': 'pago',
-            'cobrancaEntrega/pagoEm': agora
-        }).catch((err) => console.warn('Falha ao persistir cobrança paga via Pix (teste local):', err));
-    }
-
-    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
-    if (pac) pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: 'pago', pagoEm: agora };
-    pixCobrancaEntregaAtual = null;
-    renderSheetRotaEntregadorConteudo();
-}
-
-function iniciarPollingPixCobrancaEntrega() {
-    pararPollingPixCobrancaEntrega();
-    pixCobrancaEntregaPollTimer = setInterval(async () => {
-        if (!pixCobrancaEntregaAtual?.paymentId) {
-            pararPollingPixCobrancaEntrega();
-            return;
-        }
-        try {
-            const data = FLEXA_PAYMENTS_PROXY_URL
-                ? await chamarPaymentsProxy('/check-pix-cobranca', { tenantId: pixCobrancaEntregaAtual.lojistaUid, paymentId: pixCobrancaEntregaAtual.paymentId })
-                : await consultarPagamentoPixTesteClienteLocal(pixCobrancaEntregaAtual.paymentId);
-
-            const statusEl = document.getElementById('ent-sheet-pix-status');
-            if (data?.status === 'approved') {
-                pararPollingPixCobrancaEntrega();
-                const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
-                await finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor);
-            } else if (statusEl) {
-                statusEl.innerText = 'Aguardando pagamento do cliente...';
-            }
-        } catch (err) {
-            console.warn('Falha ao consultar status do Pix de cobrança:', err);
-        }
-    }, 4000);
-}
-
-// Um Pix gerado com credencial de TESTE do Mercado Pago nunca é aceito por um
-// banco de verdade (nenhum dinheiro real existe pra completar), então o
-// polling acima nunca chegaria a "approved" sozinho — sem isto, o teste fica
-// travado pra sempre em "Aguardando pagamento". Só aparece quando o ambiente
-// é confirmadamente 'teste'.
-async function simularAprovacaoCobrancaEntregaTeste() {
-    if (!pixCobrancaEntregaAtual) return;
-    if (!window.confirm('Simular esse Pix de cobrança como pago? Isso só deve ser usado em ambiente de TESTE.')) return;
-    const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
-    pararPollingPixCobrancaEntrega();
-    try {
-        await finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor);
-    } catch (err) {
-        console.warn('Falha ao simular cobrança paga:', err);
-        alert('Não foi possível simular o pagamento agora. Tente novamente.');
-    }
-}
-
-function copiarCodigoPixCobrancaEntrega() {
-    if (!pixCobrancaEntregaAtual?.pixCode) return;
-    navigator.clipboard?.writeText(pixCobrancaEntregaAtual.pixCode).then(() => {
-        const feedback = document.getElementById('ent-sheet-pix-copy-feedback');
-        if (feedback) feedback.innerText = 'Código copiado!';
-        notificarSucesso('Código Pix copiado!');
-    }).catch(() => notificarErro('Não foi possível copiar automaticamente.'));
-}
-
 // ===================== [DINHEIRO / MISTO DA COBRANÇA NA ENTREGA] =====================
-// Confirma o recebimento quando SÓ dinheiro está habilitado pra esse envio
-// (nenhum split necessário). Ver confirmarPagamentoMistoCobranca pro caso em
-// que dinheiro E Pix estão habilitados juntos.
+// Confirma o recebimento em dinheiro (único botão de ação do entregador
+// pra cobrança na entrega — ver renderBlocoCobrancaEntrega: ele nunca gera
+// Pix, só o cliente gera, do lado dele).
 // SEGURANÇA (2026-09-27): o valor recebido em dinheiro agora é sempre
-// validado pelo servidor contra cobrancaEntrega.valor persistido (mesma
-// checagem que /create-pix-cobranca já faz pro Pix) — antes o navegador do
-// entregador podia reportar qualquer valor pra qualquer lojista.
+// validado pelo servidor contra cobrancaEntrega.valor persistido — antes o
+// navegador do entregador podia reportar qualquer valor pra qualquer
+// lojista.
+// Pedido do dono (2026-10-08): confirma o recebimento em dinheiro de TUDO
+// que estiver pendente nesta entrega — taxa de espera + entrega na porta
+// (se houver) junto da cobrança do pedido — nunca só a cobrança sozinha,
+// porque agora o cliente pode ter combinado tudo num valor só pra entregar
+// em mãos (ver renderConteudoRastreioPublico). O valor real que vira
+// dívida/pago é sempre recalculado no servidor, nunca confia no que é
+// mostrado aqui.
 async function confirmarRecebimentoDinheiro() {
     const rotaObj = rotaEntSheetRotaAtual;
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     const cobranca = pac?.cobrancaEntrega;
     if (!rotaObj || !cobranca?.ativa || cobranca.status !== 'pendente') return;
 
-    const valor = Number(cobranca.valor || 0);
-    if (!Number.isFinite(valor) || valor <= 0) return;
+    const espera = pac?.esperaEntrega || {};
+    // BUG CORRIGIDO 2026-10-08 (achado pelo dono em teste ao vivo): quando o
+    // cliente já declarou "vou pagar em dinheiro" pela tela dele, o valor
+    // fica CONGELADO no instante da declaração (ver
+    // criarPagamentoPendenciasCliente no backend) — recalcular "ao vivo"
+    // aqui cobraria um valor MAIOR do que o cliente viu e combinou entregar,
+    // só porque a taxa de espera cresce minuto a minuto enquanto o
+    // entregador demora pra confirmar. Só recalcula ao vivo quando é o
+    // ENTREGADOR quem está resolvendo direto, sem declaração prévia do
+    // cliente (aí "agora" é o momento certo de verdade).
+    const dinheiroCongelado = cobranca.escolhaCliente === 'dinheiro' && espera.escolhaClienteCongeladoEm;
+    let valorEspera;
+    let valorSubida;
+    let valorCobranca;
+    if (dinheiroCongelado) {
+        valorEspera = espera.esperaStatus === 'pago' ? 0 : Number(espera.valorEsperaCongelado || 0);
+        valorSubida = espera.subirStatus === 'pago' ? 0 : Number(espera.valorSubidaCongelado || 0);
+        valorCobranca = Number(cobranca.valorCongelado ?? cobranca.valor ?? 0);
+    } else {
+        const minutosDesde = espera.chegouEm ? Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000)) : 0;
+        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+        valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+        valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+        valorCobranca = Number(cobranca.valor || 0);
+    }
+    const valorTotal = Number((valorEspera + valorSubida + valorCobranca).toFixed(2));
+    if (!Number.isFinite(valorTotal) || valorTotal <= 0) return;
 
     const confirmado = window.confirm(
-        `Confirmar que recebeu ${precoParaMoeda(valor)} em dinheiro do cliente? Esse valor vira dívida sua com a plataforma até a próxima rota concluída (liquidação automática).`
+        `Confirmar que recebeu ${precoParaMoeda(valorTotal)} em dinheiro do cliente? O valor do pedido (${precoParaMoeda(valorCobranca)}) vira dívida sua com a plataforma até a próxima rota concluída (liquidação automática) — eventuais taxas de espera/entrega na porta (${precoParaMoeda(valorEspera + valorSubida)}) já são suas, sem dívida nenhuma.`
     );
     if (!confirmado) return;
 
@@ -9780,90 +9755,12 @@ async function confirmarRecebimentoDinheiro() {
             envioId
         });
         const agora = Date.now();
-        pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro: Number(data?.valor ?? valor), valorPix: 0, pagoEm: agora };
+        pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro: Number(data?.valor ?? valorCobranca), valorPix: 0, pagoEm: agora };
+        if (valorEspera > 0) pac.esperaEntrega = { ...espera, esperaStatus: 'pago', valorEsperaPago: valorEspera, esperaPagoEm: agora };
+        if (valorSubida > 0) pac.esperaEntrega = { ...pac.esperaEntrega, subirStatus: 'pago', subidaPagoEm: agora };
         renderSheetRotaEntregadorConteudo();
     } catch (err) {
         console.warn('Falha ao confirmar recebimento em dinheiro:', err);
-        alert('Não foi possível registrar o recebimento agora. Tente novamente.');
-    }
-}
-
-// Atualiza só o texto "Restante no Pix" ao digitar — não grava nada ainda,
-// é puramente visual até o entregador clicar em confirmar.
-function atualizarRestantePixCobranca(valorDigitado) {
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const total = Number(pac?.cobrancaEntrega?.valor || 0);
-    let dinheiro = parseMoedaParaNumero(valorDigitado || 0);
-    if (!Number.isFinite(dinheiro) || dinheiro < 0) dinheiro = 0;
-    if (dinheiro > total) dinheiro = total;
-    const restante = Number((total - dinheiro).toFixed(2));
-    const label = document.getElementById('ent-sheet-cobranca-restante-label');
-    if (label) label.innerText = restante > 0 ? `Restante no Pix: ${precoParaMoeda(restante)}` : 'Dinheiro cobre o total — nenhum Pix necessário.';
-}
-
-// Pagamento misto: dinheiro e Pix habilitados juntos pro mesmo envio. O
-// entregador digita quanto recebeu em dinheiro; o resto (se sobrar) vira um
-// Pix cobrado só da diferença. Ver project-flexa-cobranca-entrega-dinheiro
-// (pedido do dono 2026-08-16).
-async function confirmarPagamentoMistoCobranca() {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const cobranca = pac?.cobrancaEntrega;
-    if (!rotaObj || !cobranca?.ativa || cobranca.status !== 'pendente') return;
-
-    const total = Number(cobranca.valor || 0);
-    const input = document.getElementById('ent-sheet-cobranca-dinheiro-input');
-    let valorDinheiro = parseMoedaParaNumero(input?.value || 0);
-    if (!Number.isFinite(valorDinheiro) || valorDinheiro < 0) valorDinheiro = 0;
-    if (valorDinheiro > total) {
-        alert(`O valor em dinheiro não pode ser maior que o total da cobrança (${precoParaMoeda(total)}).`);
-        return;
-    }
-    const valorPix = Number((total - valorDinheiro).toFixed(2));
-
-    if (valorDinheiro > 0) {
-        const aviso = valorPix > 0
-            ? `Confirmar que recebeu ${precoParaMoeda(valorDinheiro)} em dinheiro do cliente? O restante de ${precoParaMoeda(valorPix)} vai ser cobrado via Pix a seguir. O valor em dinheiro vira dívida sua com a plataforma até a próxima rota concluída (liquidação automática).`
-            : `Confirmar que recebeu ${precoParaMoeda(valorDinheiro)} em dinheiro do cliente? Esse valor vira dívida sua com a plataforma até a próxima rota concluída (liquidação automática).`;
-        if (!window.confirm(aviso)) return;
-    } else if (valorPix <= 0) {
-        alert('Digite quanto foi recebido em dinheiro, ou gere o Pix pelo valor cheio.');
-        return;
-    }
-
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const uidEntregador = getUsuarioIdAtual();
-    const envioId = obterIdPacoteConfirmacao(pac);
-    const agora = Date.now();
-
-    try {
-        if (valorPix <= 0) {
-            // Dinheiro cobriu o total — mesma rota seguida pelo fluxo "só
-            // dinheiro" (plano de segurança 2026-09-27): o servidor recalcula o
-            // valor a partir de cobrancaEntrega.valor persistido e credita a
-            // dívida do entregador, nunca confia no que este app mandar.
-            const data = await chamarPaymentsProxy('/confirmar-cobranca-dinheiro', { tenantId: lojistaUid, rotaId: rotaObj.id, envioId });
-            pac.cobrancaEntrega = { ...cobranca, status: 'pago', valorDinheiro: Number(data?.valor ?? total), valorPix: 0, pagoEm: agora };
-            renderSheetRotaEntregadorConteudo();
-            return;
-        }
-
-        // Sobrou parte em Pix: registra a dívida do valor já recebido em
-        // dinheiro (escrita na própria conta, autorizada) e grava o valor
-        // pra não perder o registro se o app fechar no meio — o teto do Pix
-        // em si já é sempre revalidado no servidor (/create-pix-cobranca).
-        const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
-        if (!resultadoDivida.ok) throw new Error('Falha ao registrar dívida.');
-        if (lojistaUid && envioId) {
-            await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-                'cobrancaEntrega/valorDinheiro': valorDinheiro,
-                'cobrancaEntrega/valorPix': valorPix
-            });
-        }
-        pac.cobrancaEntrega = { ...cobranca, valorDinheiro, valorPix };
-        await gerarPixCobrancaEntrega(valorPix);
-    } catch (err) {
-        console.warn('Falha ao confirmar pagamento misto da cobrança:', err);
         alert('Não foi possível registrar o recebimento agora. Tente novamente.');
     }
 }
@@ -9887,60 +9784,62 @@ function renderBlocoCobrancaEntrega(pac) {
         return `<div class="ent-sheet-cobranca-box ent-sheet-cobranca-ok"><i data-lucide="check-circle-2"></i> ${precoParaMoeda(cobranca.valor)} recebidos em dinheiro</div>`;
     }
 
+    // Pedido do dono (2026-10-08): o cliente também escolhe forma de
+    // pagamento na tela dele agora, pro valor TOTAL da entrega (cobrança do
+    // pedido + eventuais taxas de espera/entrega na porta, tudo combinado —
+    // ver renderConteudoRastreioPublico). "Pix" já finaliza sozinho quando
+    // aprova; "dinheiro" é só a intenção do cliente — o entregador ainda
+    // precisa confirmar que recebeu de verdade (mesmo botão de sempre),
+    // senão o cliente sozinho criaria uma dívida real sem nunca ter
+    // entregado nada.
+    const espera = pac?.esperaEntrega || {};
+    // Mesmo congelamento de confirmarRecebimentoDinheiro logo acima — uma vez
+    // declarado, o valor exibido aqui NUNCA cresce enquanto espera a
+    // confirmação, senão mostraria um número diferente do que o cliente viu.
+    const dinheiroCongeladoDisplay = cobranca.escolhaCliente === 'dinheiro' && espera.escolhaClienteCongeladoEm;
+    let valorEsperaDisplay;
+    let valorSubidaDisplay;
+    let valorCobrancaDisplay;
+    if (dinheiroCongeladoDisplay) {
+        valorEsperaDisplay = espera.esperaStatus === 'pago' ? 0 : Number(espera.valorEsperaCongelado || 0);
+        valorSubidaDisplay = espera.subirStatus === 'pago' ? 0 : Number(espera.valorSubidaCongelado || 0);
+        valorCobrancaDisplay = Number(cobranca.valorCongelado ?? cobranca.valor ?? 0);
+    } else {
+        const minutosDesdeDisplay = espera.chegouEm ? Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 60000)) : 0;
+        const minutosCobradosDisplay = Math.max(0, minutosDesdeDisplay - TAXA_ESPERA_GRACE_MIN);
+        valorEsperaDisplay = espera.esperaStatus === 'pago' ? 0 : Number((minutosCobradosDisplay * TAXA_ESPERA_POR_MIN).toFixed(2));
+        valorSubidaDisplay = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+        valorCobrancaDisplay = Number(cobranca.valor || 0);
+    }
+    const valorTotalDisplay = Number((valorEsperaDisplay + valorSubidaDisplay + valorCobrancaDisplay).toFixed(2));
+    if (cobranca.escolhaCliente === 'dinheiro') {
+        return `
+        <div class="ent-sheet-cobranca-box">
+            <strong>Cliente vai pagar ${precoParaMoeda(valorTotalDisplay)} em dinheiro na entrega</strong>
+            <div class="flex-btn-row">
+                <button type="button" class="flex-btn flex-btn-secondary" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button>
+            </div>
+        </div>`;
+    }
+    if (cobranca.escolhaCliente === 'pix') {
+        return `<div class="ent-sheet-cobranca-box"><strong>Cliente escolheu pagar ${precoParaMoeda(valorTotalDisplay)} via Pix</strong><div class="ent-sheet-pix-status">Aguardando o cliente pagar...</div></div>`;
+    }
+
+    // Pedido do dono (2026-10-08, BUG CORRIGIDO): o entregador NÃO gera mais
+    // Pix nenhum daqui — só o cliente gera, na tela de rastreio (ver
+    // pagarPendenciasCliente) — senão os dois podiam criar cobranças
+    // separadas pro MESMO valor ao mesmo tempo (entregador clica "Gerar
+    // Pix" enquanto o cliente já tinha acabado de pagar por outro Pix, ou
+    // vice-versa — exatamente o "pagamento duplicado" reportado pelo dono).
+    // "Recebi em dinheiro" continua disponível como atalho pro caso real de
+    // o cliente simplesmente entregar o dinheiro em mãos sem nunca abrir o
+    // link de rastreio — mas nunca mais lado a lado com um botão de Pix.
     const formasAceitas = Array.isArray(cobranca.formasAceitas) ? cobranca.formasAceitas : [];
-    const podeGerarPix = formasAceitas.includes('pix');
     const podeReceberDinheiro = formasAceitas.includes('dinheiro');
-    const envioIdAtual = obterIdPacoteConfirmacao(pac);
-    const pixAtivo = pixCobrancaEntregaAtual && pixCobrancaEntregaAtual.envioId === envioIdAtual;
-
-    if (pixAtivo) {
-        const valorDinheiroJaRecebido = Number(cobranca.valorDinheiro) > 0 ? Number(cobranca.valorDinheiro) : 0;
-        return `
-        <div class="ent-sheet-cobranca-box">
-            <strong>Cobrar ${precoParaMoeda(pixCobrancaEntregaAtual.valor || cobranca.valor)} do cliente via Pix</strong>
-            ${valorDinheiroJaRecebido > 0 ? `<p class="ent-sheet-pix-status" style="margin-top:2px;">${precoParaMoeda(valorDinheiroJaRecebido)} já recebidos em dinheiro</p>` : ''}
-            ${pixCobrancaEntregaAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixCobrancaEntregaAtual.qrCodeBase64}" alt="QR Code Pix">` : ''}
-            <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixCobrancaEntregaAtual.pixCode)}</textarea>
-            <div class="ent-sheet-actions-inline">
-                <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixCobrancaEntrega()">Copiar código Pix</button>
-            </div>
-            <div id="ent-sheet-pix-status" class="ent-sheet-pix-status">Aguardando pagamento do cliente...</div>
-            <div id="ent-sheet-pix-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
-            ${mercadoPagoAmbienteAtual === 'teste' ? `<button type="button" class="ent-sheet-link" onclick="simularAprovacaoCobrancaEntregaTeste()">Simular pagamento aprovado (teste)</button>` : ''}
-        </div>`;
-    }
-
-    // Só uma forma aceita pra esse envio — fluxo direto, sem split.
-    if (podeReceberDinheiro && !podeGerarPix) {
-        return `
-        <div class="ent-sheet-cobranca-box">
-            <strong>Cobrar ${precoParaMoeda(cobranca.valor)} em dinheiro na entrega</strong>
-            <div class="ent-sheet-actions-inline">
-                <button type="button" class="ent-sheet-primary small" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button>
-            </div>
-        </div>`;
-    }
-    if (podeGerarPix && !podeReceberDinheiro) {
-        return `
-        <div class="ent-sheet-cobranca-box">
-            <strong>Cobrar ${precoParaMoeda(cobranca.valor)} do cliente via Pix</strong>
-            <div class="ent-sheet-actions-inline">
-                <button type="button" id="ent-sheet-pix-gerar-btn" class="ent-sheet-btn-ghost" onclick="gerarPixCobrancaEntrega()">Gerar Pix</button>
-            </div>
-        </div>`;
-    }
-
-    // As duas formas aceitas: entregador informa o split (pagamento misto —
-    // dinheiro + o restante automaticamente vira Pix).
     return `
     <div class="ent-sheet-cobranca-box">
-        <strong>Cobrar ${precoParaMoeda(cobranca.valor)} do cliente na entrega</strong>
-        <label for="ent-sheet-cobranca-dinheiro-input" style="display:block; margin-top:8px; font-size:12px; font-weight:700; color:#475569;">Recebido em dinheiro (deixe 0 se for tudo no Pix)</label>
-        <input id="ent-sheet-cobranca-dinheiro-input" type="text" inputmode="decimal" placeholder="R$ 0,00" oninput="atualizarRestantePixCobranca(this.value)">
-        <p id="ent-sheet-cobranca-restante-label" class="ent-sheet-pix-status">Restante no Pix: ${precoParaMoeda(cobranca.valor)}</p>
-        <div class="ent-sheet-actions-inline">
-            <button type="button" class="ent-sheet-primary small" onclick="confirmarPagamentoMistoCobranca()">Confirmar recebimento</button>
-        </div>
+        <strong>Aguardando o cliente escolher a forma de pagamento (${precoParaMoeda(valorTotalDisplay)})</strong>
+        ${podeReceberDinheiro ? `<div class="flex-btn-row"><button type="button" class="flex-btn flex-btn-secondary" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button></div>` : ''}
     </div>`;
 }
 
@@ -10326,9 +10225,11 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
             let codigoRetirada = '';
             let pontoGeo = null;
             let enderecoDestino = null;
+            let cobrancaPac = null;
             try {
                 const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once('value');
                 const pac = snap.val() || {};
+                cobrancaPac = pac.cobrancaEntrega || null;
                 destinatario = (pac.destinatario || destinatario).toString();
                 whatsappCliente = normalizarWhatsapp(pac.whatsapp || '');
                 // Endereço estruturado (rua/uf não existem soltos no pacote, só
@@ -10403,7 +10304,18 @@ async function criarLinksRastreioParaRota(rota, uidLojista) {
                     pacoteId
                 };
             }
-            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino };
+            // Espelho mínimo da cobrança na entrega (2026-10-08): só o que a
+            // tela pública precisa pra oferecer a escolha de pagamento ao
+            // cliente (ativa/valor/formas aceitas) — nunca o status real,
+            // que só o backend grava (ver criarPagamentoPendenciasCliente/
+            // checarPagamentoPendenciasCliente), pra não confiar em nada
+            // vindo do navegador do cliente na hora de creditar/validar.
+            const cobrancaPublica = cobrancaPac?.ativa ? {
+                cobrancaAtiva: true,
+                cobrancaValor: Number(cobrancaPac.valor) || 0,
+                cobrancaFormas: Array.isArray(cobrancaPac.formasAceitas) ? cobrancaPac.formasAceitas : []
+            } : {};
+            pacotesMapa[pacoteId] = { destinatario, destinoChave, status: 'BUSCANDO', ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino, ...cobrancaPublica };
         }
 
         updates[`rastreioPublico/${rota.id}`] = {
@@ -10445,6 +10357,16 @@ let rastreioPublicoListenerRef = null;
 // um estado a mais nessa mesma tela.
 let clienteAuthApp = null;
 let clienteAuthListenerAtivo = false;
+// BUG CORRIGIDO 2026-10-08 (achado pelo dono: a tela de boas-vindas pra
+// deslogado aparecia TODA VEZ que a página carregava, mesmo com o cliente
+// logado): o comentário original já sabia que auth2.currentUser fica null
+// por um instante — e "corrigia" chamando atualizarUiClienteAuth() nesse
+// instante errado ANTES de corrigir de novo quando o listener resolvia, o
+// que já causava esse "pisca" de boas-vindas em TODA carga de página. Esta
+// flag marca se o primeiro onAuthStateChanged já disparou — enquanto não
+// disparou, atualizarUiClienteAuth() não decide nada (nem logado nem
+// deslogado), só espera.
+let clienteAuthEstadoResolvido = false;
 function obterClienteAuthApp() {
     if (!clienteAuthApp) {
         clienteAuthApp = firebase.initializeApp(firebase.app().options, 'clienteAuth');
@@ -10453,16 +10375,12 @@ function obterClienteAuthApp() {
 }
 function obterClienteAuth() {
     const auth2 = obterClienteAuthApp().auth();
-    // A sessão persistida (localStorage) dessa instância só termina de ser
-    // restaurada de forma ASSÍNCRONA — auth2.currentUser continua null por um
-    // instante logo após dar reload na página, mesmo com uma conta já
-    // logada. Sem esse listener, atualizarUiClienteAuth() (chamada na carga
-    // da tela) sempre achava "deslogado" nesse primeiro instante e nunca
-    // corrigia depois, então o botão Entrar/Cadastre-se ficava preso mesmo
-    // com o cliente logado.
     if (!clienteAuthListenerAtivo) {
         clienteAuthListenerAtivo = true;
-        auth2.onAuthStateChanged(() => atualizarUiClienteAuth());
+        auth2.onAuthStateChanged(() => {
+            clienteAuthEstadoResolvido = true;
+            atualizarUiClienteAuth();
+        });
     }
     return auth2;
 }
@@ -10543,6 +10461,14 @@ async function cadastrarClienteRastreio() {
     const senha = (document.getElementById('cliente-auth-senha')?.value || '').trim();
 
     if (!nome || !whatsapp || !email || !senha) return alert('Preencha todos os campos.');
+
+    // Pedido do dono (2026-10-08): "validar senha do lojista e do cliente
+    // também" — mesma regra já aplicada no cadastro de loja/entregador (ver
+    // senhaEhForte): mínimo 6 caracteres, com letra e número.
+    if (!senhaEhForte(senha)) {
+        alert('A senha precisa ter pelo menos 6 caracteres, com letras e números.');
+        return;
+    }
 
     const auth2 = obterClienteAuth();
     const db2 = obterClienteDb();
@@ -10630,7 +10556,7 @@ async function completarCadastroClienteRastreio() {
     const comp = (document.getElementById('cliente-auth-completar-comp')?.value || '').trim();
 
     if (!nome || !novaSenha) return alert('Preencha nome e a nova senha.');
-    if (novaSenha.length < 6) return alert('A nova senha precisa ter pelo menos 6 caracteres.');
+    if (!senhaEhForte(novaSenha)) return alert('A senha precisa ter pelo menos 6 caracteres, com letras e números.');
 
     try {
         const dadosAntes = (await db2.ref('usuarios/' + user.uid).once('value')).val() || {};
@@ -10709,6 +10635,18 @@ function atualizarUiClienteAuth() {
     const appNav = document.getElementById('cliente-app-nav');
     if (!logado || !deslogado) return;
 
+    // Garante que o listener de obterClienteAuth já foi anexado (primeira
+    // chamada da sessão) sem ainda decidir nada com base em .currentUser —
+    // enquanto o Firebase não restaurou a sessão persistida de verdade,
+    // currentUser fica null mesmo pra quem está logado. Só mostra alguma UI
+    // (logada OU deslogada) depois que clienteAuthEstadoResolvido vira true
+    // (ver obterClienteAuth) — antes disso, não mexe em nada, deixa o
+    // placeholder de carregamento (ver exibirTelaRastreioPublico) na tela.
+    const auth2 = obterClienteAuth();
+    if (!clienteAuthEstadoResolvido) {
+        return;
+    }
+
     const limparEstadoCliente = () => {
         clienteDadosAtual = null;
         clienteEnderecoAtual = null;
@@ -10725,7 +10663,7 @@ function atualizarUiClienteAuth() {
         if (appNav) appNav.style.display = 'none';
     };
 
-    const user = obterClienteAuth().currentUser;
+    const user = auth2.currentUser;
     if (!user) {
         limparEstadoCliente();
         logado.style.display = 'none';
@@ -11030,14 +10968,24 @@ async function carregarPedidoOrigemCliente(token) {
         ]);
         const rotaPublica = rotaSnap.val();
         if (!rotaPublica) throw new Error('Rota de rastreio não encontrada.');
+        const pacoteAutenticado = pacoteSnap?.val?.() || {};
+        const itemCacheExistente = clientePedidosCache.find((item) => String(item.token) === token) || {};
         const pedido = {
             token,
-            ...(clientePedidosCache.find((item) => String(item.token) === token) || {}),
+            ...itemCacheExistente,
             tokenInfo,
             rotaPublica,
             pacotePublico: rotaPublica?.pacotes?.[tokenInfo.pacoteId] || {},
-            pacote: pacoteSnap?.val?.() || {},
-            lojistaNome: rotaPublica.lojaNome || 'Loja'
+            pacote: pacoteAutenticado,
+            lojistaNome: rotaPublica.lojaNome || 'Loja',
+            // BUG CORRIGIDO 2026-10-08 (achado pelo dono): o pedido de ORIGEM
+            // (aberto direto pelo link, antes da lista de Meus Pedidos
+            // terminar de carregar) nunca tinha criadoEm — só a entrada do
+            // índice pedidosPorCliente tem isso, e aqui a gente nem busca
+            // esse índice (só token -> rota/pacote). Cai pro criadoEm real do
+            // próprio pacote (gravado na criação do envio), em vez de
+            // mostrar "--" na data.
+            criadoEm: itemCacheExistente.criadoEm || pacoteAutenticado.criadoEm || null
         };
         if (obterPedidoOrigemCliente() !== token) return;
         clientePedidoOrigemCache = pedido;
@@ -11125,6 +11073,13 @@ function renderDetalhePedidoCliente(item) {
     const minutosEspera = chegouEm && rotaAtiva ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
     const taxaEsperaValor = Number(espera.valorEsperaPago || 0) || (minutosEspera * TAXA_ESPERA_POR_MIN);
     const taxaPortaValor = (subirStatus === 'aceito' || subirStatus === 'pago') ? TAXA_SUBIR_FIXA : 0;
+    // Cobrança na entrega (valor do produto, quando a loja marcou pra
+    // cobrar na hora) — pedido do dono (2026-10-08): essa pendência também
+    // precisa aparecer aqui, igual já aparece na tela de rastreio ao vivo
+    // (mesmos campos-espelho, ver renderConteudoRastreioPublico).
+    const cobrancaAtiva = !!(publico.cobrancaAtiva || pacote.cobrancaEntrega?.ativa);
+    const cobrancaPaga = (publico.cobrancaStatus || pacote.cobrancaEntrega?.status) === 'pago';
+    const valorCobranca = cobrancaAtiva ? Number(publico.cobrancaValor ?? pacote.cobrancaEntrega?.valor ?? 0) : 0;
     // O link de rastreio só existe depois que a rota já foi paga pelo lojista
     // (ver comentário em criarLinksRastreioParaRota: "lojista pagou/confirmou
     // o frete") — então, se o pedido chegou até aqui, o frete sempre já está
@@ -11133,17 +11088,47 @@ function renderDetalhePedidoCliente(item) {
     const pagamentoLinhas = [
         `<div class="cliente-detail-row"><span>Frete</span>${linhaValorTag(Number(pacote.valorFrete || 0), 'pago', 'Pago')}</div>`
     ];
+    const pagaEspera = esperaStatus === 'pago';
     if (taxaEsperaValor > 0) {
-        const pagaEspera = esperaStatus === 'pago';
         pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Taxa de espera</span>${linhaValorTag(taxaEsperaValor, pagaEspera ? 'pago' : 'pendente', pagaEspera ? 'Pago' : 'Pendente')}</div>`);
     }
+    const pagaPorta = subirStatus === 'pago';
     if (taxaPortaValor > 0) {
-        const pagaPorta = subirStatus === 'pago';
         pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Taxa de entrega na porta</span>${linhaValorTag(taxaPortaValor, pagaPorta ? 'pago' : 'pendente', pagaPorta ? 'Pago' : 'Pendente')}</div>`);
+    }
+    if (valorCobranca > 0) {
+        pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Valor do produto</span>${linhaValorTag(valorCobranca, cobrancaPaga ? 'pago' : 'pendente', cobrancaPaga ? 'Pago' : 'Pendente')}</div>`);
+    }
+    // Pedido do dono (2026-10-08): junta todas as pendências numa linha de
+    // total só — o pagamento de verdade (Pix ou dinheiro) acontece na tela
+    // de rastreio ao vivo (um Pix/declaração só pra tudo, ver
+    // pagarPendenciasCliente), aqui é só o resumo + atalho pra ir pagar.
+    // Usa o valor CONGELADO (ver renderConteudoRastreioPublico) quando o
+    // cliente já declarou dinheiro e NADA foi confirmado ainda — senão esse
+    // total cresceria ao vivo com a taxa de espera, diferente do que foi
+    // combinado.
+    // BUG CORRIGIDO 2026-10-08 (achado pelo dono com print): cobrancaEscolha
+    // nunca é limpo depois que o pagamento é CONFIRMADO (só no cancelamento,
+    // ver cancelarEscolhaPagamentoCliente) — então, sem essa checagem, o
+    // card continuava mostrando o valor congelado como "Total pendente"
+    // pra sempre, mesmo depois do entregador confirmar o recebimento em
+    // dinheiro (ou do Pix aprovar). "Nada confirmado ainda" é a mesma trava
+    // que o backend usa pra decidir se ainda dá pra cancelar.
+    const nadaConfirmadoAinda = !pagaEspera && !pagaPorta && !cobrancaPaga;
+    const totalCongeladoMirror = Number(publico.valorTotalCongelado);
+    const totalPendente = (nadaConfirmadoAinda && publico.cobrancaEscolha === 'dinheiro' && Number.isFinite(totalCongeladoMirror))
+        ? totalCongeladoMirror
+        : Number(((pagaEspera ? 0 : taxaEsperaValor) + (pagaPorta ? 0 : taxaPortaValor) + (cobrancaPaga ? 0 : valorCobranca)).toFixed(2));
+    if (totalPendente > 0) {
+        pagamentoLinhas.push(`<div class="cliente-detail-row cliente-detail-row-total"><span>Total pendente</span><strong>${precoParaMoeda(totalPendente)}</strong></div>`);
     }
     const dataTxt = item.criadoEm ? new Date(Number(item.criadoEm)).toLocaleDateString('pt-BR') : '--';
     const codigo = pacote.codigo || publico.codigo || item.pacoteId || item.token?.slice(0, 8) || '--';
     const token = item.token || '';
+    // Pedido do dono (2026-10-08): "Acompanhar pedido" só faz sentido
+    // enquanto ainda há algo pra acompanhar ou pagar — pedido já
+    // concluído/cancelado não tem mais rota ao vivo nem pendência nenhuma.
+    const mostrarAcompanhar = token && status.classe !== 'concluido' && status.classe !== 'cancelado';
     conteudo.innerHTML = `
         <button type="button" class="cliente-back-button" onclick="voltarParaListaPedidosCliente()"><i data-lucide="arrow-left" size="17"></i> Pedidos</button>
         <div class="cliente-detail-card">
@@ -11159,8 +11144,9 @@ function renderDetalhePedidoCliente(item) {
                 <h2>Pagamento</h2>
                 ${pagamentoLinhas.join('')}
             </div>
+            ${(totalPendente > 0 && token) ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="wallet" size="17"></i> Pagar agora</button>` : ''}
         </div>
-        ${token ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="map-pin" size="17"></i> Acompanhar pedido</button>` : ''}`;
+        ${mostrarAcompanhar ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="map-pin" size="17"></i> Acompanhar pedido</button>` : ''}`;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -11407,11 +11393,20 @@ async function exibirTelaRastreioPublico(token) {
         // Link genérico #/cliente (convite do lojista ou acesso direto, sem
         // uma entrega específica por trás) — atualizarUiClienteAuth() logo
         // acima já renderizou o conteúdo certo (boas-vindas se deslogado,
-        // "Meus pedidos" se logado). Encerra o listener de um link de
-        // rastreio direto anterior, se o cliente tinha aberto um antes de
-        // navegar pra cá — senão ele continua escrevendo por cima deste
-        // mesmo container (bug real: Pedidos/Perfil sendo sobrescritos pela
-        // atualização ao vivo do rastreio antigo).
+        // "Meus pedidos" se logado), OU ainda não decidiu nada (sessão
+        // persistida ainda restaurando, ver clienteAuthEstadoResolvido) —
+        // nesse caso mostra um placeholder neutro em vez de deixar a tela
+        // em branco ou herdar conteúdo de uma navegação anterior, até o
+        // onAuthStateChanged chamar atualizarUiClienteAuth() nela mesma de
+        // novo com a resposta certa.
+        if (!clienteAuthEstadoResolvido) {
+            conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando...</div>';
+        }
+        // Encerra o listener de um link de rastreio direto anterior, se o
+        // cliente tinha aberto um antes de navegar pra cá — senão ele
+        // continua escrevendo por cima deste mesmo container (bug real:
+        // Pedidos/Perfil sendo sobrescritos pela atualização ao vivo do
+        // rastreio antigo).
         if (rastreioPublicoListenerRef) { rastreioPublicoListenerRef.off(); rastreioPublicoListenerRef = null; }
         return;
     }
@@ -11435,6 +11430,27 @@ async function exibirTelaRastreioPublico(token) {
         console.warn('Falha ao carregar rastreio público:', err);
         conteudo.innerHTML = '<div class="rastreio-pub-erro">Não foi possível carregar o rastreio agora. Tente novamente em instantes.</div>';
     }
+}
+
+// Mesmo cronômetro ao vivo de iniciarCronometroEsperaEntregador, só que pro
+// lado do CLIENTE — pedido do dono (2026-10-08): precisa ficar visível e
+// atualizando pros dois lados, não só pro entregador.
+let cronometroEsperaClienteTimer = null;
+function pararCronometroEsperaCliente() {
+    if (cronometroEsperaClienteTimer) {
+        clearInterval(cronometroEsperaClienteTimer);
+        cronometroEsperaClienteTimer = null;
+    }
+}
+function iniciarCronometroEsperaCliente(chegouEm) {
+    pararCronometroEsperaCliente();
+    cronometroEsperaClienteTimer = setInterval(() => {
+        const el = document.getElementById('rastreio-pub-cronometro-texto');
+        if (!el) { pararCronometroEsperaCliente(); return; }
+        const minutosDesde = Math.max(0, Math.round((Date.now() - Number(chegouEm)) / 60000));
+        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+        el.textContent = `Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}`;
+    }, 10000);
 }
 
 function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride = null, tokenOverride = tokenRastreioAtual) {
@@ -11597,18 +11613,50 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride
         ? `<div class="rastreio-pub-subir"><p><i data-lucide="clock" size="16"></i> O entregador chegou e vai te aguardar por até 5 minutos, sem nenhum custo. Depois desse tempo, cada minuto extra de espera passa a gerar uma taxa de ${precoParaMoeda(TAXA_ESPERA_POR_MIN)}.</p></div>`
         : '';
 
-    // Estimativa do que ainda falta pagar (espera + entrega na porta) —
-    // usada tanto pra decidir se o código de confirmação fica visível
-    // quanto pro card de taxas logo abaixo. O valor real que vai pro Pix é
-    // sempre recalculado no servidor (/create-pix-subida), nunca confia no
-    // que é calculado aqui.
+    // Estimativa do que ainda falta pagar (espera + entrega na porta +
+    // cobrança na entrega, pedido do dono 2026-10-08: tudo numa pendência
+    // combinada só) — usada tanto pra decidir se o código de confirmação
+    // fica visível quanto pro card de pagamento logo abaixo. O valor real
+    // que vai pro Pix é sempre recalculado no servidor
+    // (/criar-pagamento-pendencias-cliente), nunca confia no que é
+    // calculado aqui.
     const subirStatus = pacoteInfo.subirStatus || null;
     const esperaStatus = pacoteInfo.esperaStatus || null;
     const minutosDesde = pacoteInfo.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteInfo.chegouEm)) / 60000)) : 0;
     const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
     const valorEsperaEstimado = esperaStatus === 'pago' ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
     const valorSubidaEstimado = subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-    const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
+    const cobrancaAtivaInfo = !!pacoteInfo.cobrancaAtiva;
+    const cobrancaJaPaga = pacoteInfo.cobrancaStatus === 'pago';
+    const valorCobrancaPendente = (cobrancaAtivaInfo && !cobrancaJaPaga) ? (Number(pacoteInfo.cobrancaValor) || 0) : 0;
+    const formasCobranca = Array.isArray(pacoteInfo.cobrancaFormas) ? pacoteInfo.cobrancaFormas : [];
+    const aceitaDinheiroPendencias = valorCobrancaPendente > 0 && formasCobranca.includes('dinheiro');
+    const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado + valorCobrancaPendente).toFixed(2));
+    // BUG CORRIGIDO 2026-10-08 (achado pelo dono em teste ao vivo, 2
+    // rodadas): assim que o cliente clica em Pagar (dinheiro OU Pix), o
+    // valor fica CONGELADO no backend (ver criarPagamentoPendenciasCliente)
+    // — mas valorTotalEstimado aqui continua recalculando AO VIVO
+    // (esperaStatus/subirStatus/cobrancaStatus só mudam quando o pagamento
+    // de fato confirma), então sem isso o PRÓPRIO cliente veria o valor
+    // combinado crescer na tela dele enquanto aguarda a confirmação — e,
+    // numa rodada de teste real, a carência estourava DURANTE o pagamento e
+    // sobrava uma pendência nova (ex: R$1) que nunca tinha entrado em
+    // nenhum Pix nem declaração. Usa o espelho travado quando ele existir —
+    // pra QUALQUER forma, não só dinheiro.
+    const valorTotalCongeladoMirror = Number(pacoteInfo.valorTotalCongelado);
+    const pendenciaCongeladaCliente = Number.isFinite(valorTotalCongeladoMirror);
+    const valorExibidoPendencia = pendenciaCongeladaCliente ? valorTotalCongeladoMirror : valorTotalEstimado;
+    // Cronômetro de espera (pedido do dono, 2026-10-08): mesmo texto/mesma
+    // lógica do lado do entregador (ver iniciarCronometroEsperaEntregador).
+    // BUG CORRIGIDO (pedido do dono: "o cronômetro deve parar quando o
+    // cliente informar o tipo de pagamento"): uma vez congelado, para de
+    // ticar e mostra só que está aguardando a confirmação — contador vivo
+    // (iniciarCronometroEsperaCliente) só roda enquanto ainda não congelou.
+    const cronometroClienteHtml = entregadorPresenteParaTaxas
+        ? (pendenciaCongeladaCliente
+            ? `<div class="rastreio-pub-cronometro"><i data-lucide="clock" size="14"></i> <span>Aguardando confirmação do pagamento</span></div>`
+            : `<div class="rastreio-pub-cronometro"><i data-lucide="clock" size="14"></i> <span id="rastreio-pub-cronometro-texto">Aguardando há ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min já geram taxa)` : ''}</span></div>`)
+        : '';
 
     // Código de confirmação, sempre visível na própria tela (bug corrigido
     // 2026-09-26: antes só ia na mensagem de WhatsApp — se o cliente
@@ -11639,6 +11687,17 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride
     // tela). Quem pediu entrega na porta primeiro cai no fluxo de pagar pra
     // ver o código, nunca o contrário.
     const subidaComprometida = subirStatus === 'pendente' || subirStatus === 'aceito';
+    // Pedido do dono (2026-10-08, BUG CORRIGIDO): o botão de pagar e o
+    // pedido de entrega na porta ficavam ativos AO MESMO TEMPO — o cliente
+    // podia pagar a cobrança do produto e, antes de terminar, também pedir
+    // entrega na porta, gerando DUAS cobranças separadas pro mesmo pedido.
+    // Agora a entrega na porta precisa estar RESOLVIDA (aceita, recusada,
+    // dispensada pelo cliente, ou já fechada via código liberado) antes do
+    // card de pagamento aparecer — assim o total que o cliente paga já
+    // inclui a taxa de entrega na porta, se ela existir, nunca uma segunda
+    // cobrança depois.
+    const subidaResolvida = pacoteInfo.codigoLiberado || (!!subirStatus && subirStatus !== 'pendente');
+    const codigoAbertoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora da entrega</small></div>`;
     let codigoHtml = '';
     if (ehColetaReversaTexto) {
         if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
@@ -11646,71 +11705,148 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride
         }
     } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO' && pacoteInfo.entregadorChegou) {
         if (pacoteInfo.codigoLiberado) {
-            codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora da entrega</small></div>`;
+            codigoHtml = codigoAbertoHtml;
         } else if (valorTotalEstimado > 0) {
-            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu código</small></div>`;
+            // Pedido do dono (2026-10-08): código travado até a PENDÊNCIA
+            // COMBINADA (taxas + cobrança do pedido) zerar — dinheiro deixou
+            // de ser exceção aqui (BUG CORRIGIDO: antes escolher dinheiro já
+            // destravava o código na hora, mas dinheiro agora é só uma
+            // declaração do cliente, ver pagarPendenciasCliente — só a
+            // confirmação de verdade do entregador zera o valor pendente).
+            const msgPendencia = pacoteInfo.cobrancaEscolha === 'dinheiro'
+                ? `Aguarde o entregador confirmar o recebimento (${precoParaMoeda(valorExibidoPendencia)}) para ver seu código`
+                : `Pague o valor pendente (${precoParaMoeda(valorExibidoPendencia)}) para ver seu código`;
+            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>${msgPendencia}</small></div>`;
         } else if (subidaComprometida) {
             codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>Seu código aparece aqui assim que a entrega na porta for confirmada</small></div>`;
+        } else if (subirStatus) {
+            // 'recusado' ou 'dispensado' — a entrega na porta já foi
+            // resolvida (de um jeito que não gera taxa) e não há mais nada
+            // pendente: o código abre direto, sem precisar do clique extra
+            // de "Gerar código" (esse clique só existe pra fechar a opção de
+            // pedir entrega na porta depois — aqui ela já está fechada).
+            codigoHtml = codigoAbertoHtml;
         } else {
-            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="key-round" size="26"></i><small>Ainda dentro do tempo de carência — se gerar o código agora, não vai mais poder pedir entrega na porta depois</small><button type="button" class="btn-main" onclick="liberarCodigoSemTaxaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Gerar código</button></div>`;
+            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="key-round" size="26"></i><small>Ainda dentro do tempo de carência — se gerar o código agora, não vai mais poder pedir entrega na porta depois</small><button type="button" class="flex-btn flex-btn-primary" onclick="liberarCodigoSemTaxaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Gerar código</button></div>`;
         }
     }
 
-    // Taxas da entrega (espera + entrega na porta combinadas, pedido do
-    // dono, 2026-10-04): tudo nesta MESMA tela — o cliente pede a entrega
-    // até a porta aqui, acompanha o aceite aqui, e paga aqui (um Pix só pra
-    // tudo que estiver pendente), pra não ter duas cobranças em duas telas
-    // diferentes. O entregador só aceita/recusa o pedido e confirma a
-    // entrega — não mexe em Pix nenhum.
+    // Pedido de entrega na porta em si (perguntar/aguardar aceite) —
+    // independente do pagamento, que fica no card combinado logo abaixo.
+    // Pedido do dono (2026-10-08): agora é uma escolha explícita Sim/Não —
+    // "Não" fecha a opção de vez (igual recusado) e libera o card de
+    // pagamento na hora, sem taxa de entrega na porta nenhuma.
     let subirHtml = '';
     if (rotaId && entregadorPresenteParaTaxas) {
-        // Pedido de subida em si (perguntar/aguardar aceite) — independente
-        // do pagamento, que fica no card combinado logo abaixo. Se o cliente
-        // já gerou o código de graça (ver codigoHtml acima), pedir entrega
-        // na porta agora não faz mais sentido — ele já tem o código em mãos
-        // havia tempo, então essa opção simplesmente some (reforçado no
-        // servidor pelo .validate de subirStatus em database.rules.json).
+        // Se o cliente já gerou o código de graça (ver codigoHtml acima),
+        // pedir entrega na porta agora não faz mais sentido — ele já tem o
+        // código em mãos havia tempo, então essa opção simplesmente some
+        // (reforçado no servidor pelo .validate de subirStatus em
+        // database.rules.json).
         if (!subirStatus && !pacoteInfo.codigoLiberado) {
             subirHtml += `
                 <div class="rastreio-pub-subir">
                     <p>O entregador chegou! Precisa que ele entregue até a porta do seu apartamento?</p>
-                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                    <div class="flex-btn-row">
+                        <button type="button" id="rastreio-pub-subida-sim-btn" class="flex-btn flex-btn-secondary" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Sim (+${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                        <button type="button" id="rastreio-pub-subida-nao-btn" class="flex-btn flex-btn-secondary cinza" onclick="dispensarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Não</button>
+                    </div>
                 </div>`;
         } else if (subirStatus === 'pendente') {
             subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar...</div>`;
         } else if (subirStatus === 'recusado') {
             subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que não vai poder entregar na porta dessa vez.</div>`;
         }
-        // 'aceito' e 'pago' não têm mensagem própria aqui — ficam refletidos
-        // no card de taxas/confirmação de pagamento abaixo.
+        // 'aceito', 'dispensado' e 'pago' não têm mensagem própria aqui —
+        // ficam refletidos no card de pagamento combinado abaixo.
+    }
 
-        if (valorTotalEstimado > 0) {
-            const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId && pixSubidaClienteAtual.token === tokenOverride;
-            if (pixAtivo) {
-                subirHtml += `
-                    <div class="rastreio-pub-subir">
-                        <p><i data-lucide="check-circle-2" size="16"></i> Pague as taxas da entrega (${precoParaMoeda(pixSubidaClienteAtual.valor)}) via Pix:</p>
-                        ${pixSubidaClienteAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixSubidaClienteAtual.qrCodeBase64}" alt="QR Code Pix">` : ''}
-                        <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixSubidaClienteAtual.pixCode)}</textarea>
-                        <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixSubidaCliente()">Copiar código Pix</button>
-                        <div id="rastreio-pub-pix-status" class="ent-sheet-pix-status">Aguardando confirmação do pagamento...</div>
-                    </div>`;
-            } else {
-                const linhas = [];
-                if (valorEsperaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Espera</span><span>${precoParaMoeda(valorEsperaEstimado)}</span></div>`);
-                if (valorSubidaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubidaEstimado)}</span></div>`);
-                subirHtml += `
-                    <div class="rastreio-pub-subir rastreio-pub-taxas-card">
-                        <strong>Taxas desta entrega</strong>
-                        ${linhas.join('')}
-                        <div class="rastreio-pub-taxa-linha rastreio-pub-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotalEstimado)}</span></div>
-                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Pagar taxas</button>
-                    </div>`;
+    // ===== [PAGAMENTO COMBINADO NA ENTREGA — CLIENTE] (2026-10-08) =====
+    // Pedido do dono: uma cobrança só, somando tudo que estiver pendente
+    // (taxa de espera + taxa de entrega na porta + valor do produto quando
+    // há cobrança na entrega) — nunca cartões/Pix separados pro mesmo
+    // pedido. Dinheiro só aparece como opção quando a cobrança do PRODUTO
+    // aceita espécie (aceitaDinheiroPendencias) — taxas sozinhas continuam
+    // Pix-only, pro entregador nunca precisar negociar troco por um valor
+    // pequeno de taxa. Só aparece depois que a entrega na porta já estiver
+    // RESOLVIDA (subidaResolvida) — nunca ao mesmo tempo que a pergunta
+    // acima, pra nunca existir uma segunda cobrança depois.
+    let pagamentoPendenciasHtml = '';
+    if (cobrancaAtivaInfo && !entregadorPresenteParaTaxas && !cobrancaJaPaga) {
+        // Informativo, antes do entregador chegar — ainda não dá pra pagar
+        // nada (pedido do dono: a cobrança só faz sentido perto da entrega
+        // de verdade), mas o cliente já sabe que vai ter esse custo.
+        pagamentoPendenciasHtml = `<div class="rastreio-pub-subir"><p><i data-lucide="wallet" size="16"></i> Este pedido tem ${precoParaMoeda(valorCobrancaPendente)} a pagar na entrega (dinheiro ou Pix).</p></div>`;
+    } else if (rotaId && pacoteInfo.entregadorChegou && subidaResolvida) {
+        // BUG CORRIGIDO 2026-10-08 (achado pelo dono em teste ao vivo): antes
+        // exigia "entregadorPresenteParaTaxas" (status ainda não ENTREGUE)
+        // pra mostrar este card — mas se sobrar uma pendência (ex: a
+        // carência estourou 1 min DURANTE o pagamento, ver congelamento
+        // acima) depois que a entrega já foi confirmada, o cliente ficava
+        // sem NENHUMA forma de pagar esse resto (o card simplesmente
+        // sumia). Agora só exige que o entregador tenha chegado (pra nunca
+        // aparecer um card de pagamento sem nunca ter existido pendência) e
+        // que a subida já esteja resolvida — continua pagável mesmo depois
+        // da entrega confirmada.
+        const escolha = pacoteInfo.cobrancaEscolha || null;
+        const pixAtivo = pagamentoPendenciasClienteAtual && pagamentoPendenciasClienteAtual.pacoteId === pacoteId && pagamentoPendenciasClienteAtual.token === tokenOverride;
+        const btnCancelar = `<button type="button" class="flex-btn flex-btn-secondary cinza" onclick="cancelarPagamentoPendenciasCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Cancelar</button>`;
+        if (valorTotalEstimado <= 0) {
+            pararPollingPagamentoPendenciasCliente();
+            pararExpiracaoPagamentoPendenciasCliente();
+            if (subirStatus === 'pago' || esperaStatus === 'pago' || cobrancaJaPaga) {
+                pagamentoPendenciasHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Pagamento confirmado! Obrigado.</div>`;
             }
-        } else if (subirStatus === 'pago' || esperaStatus === 'pago') {
-            pararPollingPixSubidaCliente();
-            pararExpiracaoPixSubidaCliente();
-            subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! Obrigado.</div>`;
+        } else if (escolha === 'dinheiro') {
+            // Só uma declaração (ver pagarPendenciasCliente) — o valor
+            // continua pendente até o entregador confirmar que recebeu de
+            // verdade, por isso não some daqui nem destrava o código.
+            // Pedido do dono (2026-10-08): "deve ter um botão cancelar no
+            // meio do pagamento" — caso tenha clicado sem querer ou mudado
+            // de ideia, volta pra escolha de forma.
+            pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir">
+                    <p><i data-lucide="banknote" size="16"></i> Você escolheu pagar ${precoParaMoeda(valorExibidoPendencia)} em dinheiro — entregue o valor direto ao entregador.</p>
+                    <div class="flex-btn-row">${btnCancelar}</div>
+                </div>`;
+        } else if (pixAtivo) {
+            pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir">
+                    <p><i data-lucide="check-circle-2" size="16"></i> Pague ${precoParaMoeda(pagamentoPendenciasClienteAtual.valor)} via Pix:</p>
+                    ${pagamentoPendenciasClienteAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pagamentoPendenciasClienteAtual.qrCodeBase64}" alt="QR Code Pix">` : ''}
+                    <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pagamentoPendenciasClienteAtual.pixCode)}</textarea>
+                    <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="copiarCodigoPagamentoPendenciasCliente()">Copiar código Pix</button>
+                    <div id="rastreio-pub-pagamento-pix-status" class="ent-sheet-pix-status">Aguardando confirmação do pagamento...</div>
+                    <div class="flex-btn-row">${btnCancelar}</div>
+                </div>`;
+        } else if (escolha === 'pix') {
+            // Escolheu Pix antes (ver escolha acima), mas o estado local
+            // (QR/código) se perdeu — ex: recarregou a página ou abriu em
+            // outro aparelho. Nunca oferece gerar um SEGUNDO Pix direto
+            // (seria um pagamento duplicado) — só cancelar e escolher de
+            // novo, o que gera um Pix novo de propósito.
+            pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir rastreio-pub-subir-aguardando">
+                    <p><i data-lucide="clock" size="16"></i> Você já escolheu pagar ${precoParaMoeda(valorExibidoPendencia)} via Pix. Se perdeu o código, cancele e gere um novo.</p>
+                    <div class="flex-btn-row">${btnCancelar}</div>
+                </div>`;
+        } else {
+            const linhas = [];
+            if (valorEsperaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Taxa de espera</span><span>${precoParaMoeda(valorEsperaEstimado)}</span></div>`);
+            if (valorSubidaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubidaEstimado)}</span></div>`);
+            if (valorCobrancaPendente > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Valor do produto</span><span>${precoParaMoeda(valorCobrancaPendente)}</span></div>`);
+            const radioName = `rastreio-pub-forma-${pacoteId}`;
+            pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir rastreio-pub-taxas-card">
+                    <strong>Pagamento desta entrega</strong>
+                    ${linhas.join('')}
+                    <div class="rastreio-pub-taxa-linha rastreio-pub-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotalEstimado)}</span></div>
+                    <div class="rastreio-pub-forma-escolha">
+                        ${aceitaDinheiroPendencias ? `<label class="rastreio-pub-forma-opcao"><input type="radio" name="${radioName}" value="dinheiro" checked><span>Dinheiro</span></label>` : ''}
+                        <label class="rastreio-pub-forma-opcao"><input type="radio" name="${radioName}" value="pix"${aceitaDinheiroPendencias ? '' : ' checked'}><span>Pix</span></label>
+                    </div>
+                    <button type="button" class="flex-btn flex-btn-primary" onclick="pagarPendenciasCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Pagar</button>
+                </div>`;
         }
     }
 
@@ -11733,22 +11869,54 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride
             ${paradaInfoHtml}
             ${(distTxt || durTxt) ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(' • '))}</div>` : ''}
             ${esperaAvisoHtml}
+            ${cronometroClienteHtml}
             ${subirHtml}
+            ${pagamentoPendenciasHtml}
             ${codigoHtml}
         </div>
     `;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (entregadorPresenteParaTaxas && pacoteInfo.chegouEm && !pendenciaCongeladaCliente) {
+        iniciarCronometroEsperaCliente(pacoteInfo.chegouEm);
+    } else {
+        pararCronometroEsperaCliente();
+    }
 }
 
 function solicitarSubidaCliente(rotaId, pacoteId, btn) {
     if (!rotaId || !pacoteId) return;
+    const outroBtn = document.getElementById('rastreio-pub-subida-nao-btn');
+    const textoOriginal = btn?.innerText;
     if (btn) { btn.disabled = true; btn.innerText = 'Enviando...'; }
+    if (outroBtn) outroBtn.disabled = true;
     db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({
         subirStatus: 'pendente',
         subirSolicitadoEm: Date.now()
     }).catch(() => {
         alert('Não foi possível enviar o pedido agora. Tente de novo.');
-        if (btn) { btn.disabled = false; btn.innerText = `Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})`; }
+        if (btn) { btn.disabled = false; btn.innerText = textoOriginal || `Sim (+${precoParaMoeda(TAXA_SUBIR_FIXA)})`; }
+        if (outroBtn) outroBtn.disabled = false;
+    });
+}
+
+// Pedido do dono (2026-10-08): "Não" fecha de vez a opção de entrega na
+// porta pra esse pacote — mesma ideia de "recusado" (nenhuma taxa de subida
+// nunca vai existir aqui), só que a decisão partiu do CLIENTE, não do
+// entregador. Isso resolve o pedido explícito: antes dessa escolha existir,
+// o card de pagamento combinado (ver subidaResolvida) ficava liberado em
+// paralelo com esse convite, deixando o cliente pagar e DEPOIS ainda pedir
+// entrega na porta, gerando uma segunda cobrança pro mesmo pedido.
+function dispensarSubidaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId) return;
+    const outroBtn = document.getElementById('rastreio-pub-subida-sim-btn');
+    if (btn) { btn.disabled = true; }
+    if (outroBtn) outroBtn.disabled = true;
+    db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({
+        subirStatus: 'dispensado'
+    }).catch(() => {
+        alert('Não foi possível registrar agora. Tente de novo.');
+        if (btn) btn.disabled = false;
+        if (outroBtn) outroBtn.disabled = false;
     });
 }
 
@@ -11766,29 +11934,33 @@ function liberarCodigoSemTaxaCliente(rotaId, pacoteId, btn) {
     });
 }
 
-// ===================== [PIX DA TAXA DE ENTREGA NA PORTA — CLIENTE] =====================
-// Pedido do dono (2026-10-03): antes dessa taxa dependia do cliente "confessar"
-// ter pago em dinheiro (ou virava dívida do lojista pro entregador) — o
-// cliente podia simplesmente se negar e o prejuízo ficava com o entregador.
-// Agora, depois que o entregador aceita (subirStatus:'aceito'), o cliente
-// paga um Pix de verdade direto pra plataforma, que credita o entregador
-// quando aprovado (ver /create-pix-subida e /check-pix-subida no backend).
+// ===================== [PAGAMENTO COMBINADO NA ENTREGA — CLIENTE] =====================
+// Pedido do dono (2026-10-08): uma cobrança só, juntando tudo que estiver
+// pendente nesta entrega — taxa de espera + taxa de entrega na porta +
+// valor do produto quando há cobrança na entrega (dinheiro ou Pix) — nunca
+// telas/Pix separados pro mesmo pedido (antes eram dois fluxos distintos:
+// Pix das taxas e escolha da cobrança). Dinheiro é só a DECLARAÇÃO do
+// cliente (ver criarPagamentoPendenciasCliente no backend): quem finaliza de
+// verdade é o ENTREGADOR, confirmando que recebeu fisicamente (ver
+// confirmarRecebimentoDinheiro, lado entregador) — senão o cliente sozinho
+// poderia "declarar" pago sem nunca ter entregado nada. Pix já paga tudo de
+// uma vez direto pra plataforma.
 // Esta tela NÃO tem nenhuma sessão Firebase Auth — a prova de identidade
 // pro backend é o próprio tokenRastreioAtual (mesmo token que já abre essa
 // tela), por isso usa chamarPaymentsProxyPublico (sem Bearer) em vez de
 // chamarPaymentsProxy.
-let pixSubidaClienteAtual = null;
-let pixSubidaClientePollTimer = null;
-let pixSubidaClienteExpiraTimer = null;
+let pagamentoPendenciasClienteAtual = null;
+let pagamentoPendenciasClientePollTimer = null;
+let pagamentoPendenciasClienteExpiraTimer = null;
 // Pedido do dono (2026-10-04): o QR/código fica na tela até o cliente pagar
 // OU até 30 min passarem (mesmo prazo de date_of_expiration que
 // criarPagamentoPixMp já grava no Mercado Pago) — NUNCA some antes disso.
-// Escondê-lo mais cedo (ex: 2,5 min) faria o botão "Pagar taxa" reaparecer
+// Escondê-lo mais cedo (ex: 2,5 min) faria o botão "Pagar" reaparecer
 // enquanto o Pix anterior ainda é válido, e o cliente podia gerar e pagar um
-// SEGUNDO Pix sem perceber que o primeiro ainda estava de pé — pagando a
-// taxa duas vezes. Mantendo os dois prazos iguais, nunca existe uma janela
-// em que um Pix válido fica invisível.
-const PIX_SUBIDA_VALIDADE_MS = 30 * 60 * 1000;
+// SEGUNDO Pix sem perceber que o primeiro ainda estava de pé — pagando duas
+// vezes. Mantendo os dois prazos iguais, nunca existe uma janela em que um
+// Pix válido fica invisível.
+const PIX_PENDENCIAS_VALIDADE_MS = 30 * 60 * 1000;
 
 async function chamarPaymentsProxyPublico(caminho, payload) {
     if (!FLEXA_PAYMENTS_PROXY_URL) {
@@ -11809,113 +11981,122 @@ async function chamarPaymentsProxyPublico(caminho, payload) {
     return data;
 }
 
-// Mesmo padrão de criarPagamentoPixCobrancaEntregaTesteLocal (fallback só
-// pra teste local sem Cloud Function deployada, ver
-// feedback_flexa_test_mode_escape_hatches) — chama a API do Mercado Pago
-// direto do navegador com o token de TESTE. Como quem credita o entregador é
-// o backend (/check-pix-subida), esse Pix de teste nunca "aprova" sozinho —
-// e, a pedido do dono (2026-10-04), não existe mais nenhum botão de simular
-// aprovação pra essa cobrança; testar o pagamento de verdade agora depende
-// de FLEXA_PAYMENTS_PROXY_URL estar deployado e um Pix real ser pago.
-async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEstimado) {
-    const valor = Number(valorEstimado) > 0 ? Number(valorEstimado) : TAXA_SUBIR_FIXA;
-    const nomeCliente = (nomeDestinatario || 'Cliente Flex').toString().trim() || 'Cliente Flex';
-    const partes = nomeCliente.split(/\s+/).filter(Boolean);
-    const firstName = partes[0] || 'Cliente';
-    const lastName = partes.slice(1).join(' ') || 'Flex';
-
-    const resp = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + FLEXA_MP_TEST_TOKEN,
-            'Content-Type': 'application/json',
-            'X-Idempotency-Key': gerarIdempotencyKeyTesteLocal()
-        },
-        body: JSON.stringify({
-            transaction_amount: Number(valor.toFixed(2)),
-            description: 'Flex - taxas da entrega (pedido ' + pacoteId + ') [TESTE LOCAL]',
-            payment_method_id: 'pix',
-            payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
-            date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            external_reference: 'taxas:' + rotaId + ':' + pacoteId
-        })
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-        const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || ('HTTP ' + resp.status);
-        throw new Error('Mercado Pago: ' + detalhe);
-    }
-    const tx = data?.point_of_interaction?.transaction_data || {};
-    return {
-        paymentId: data?.id ? String(data.id) : '',
-        status: data?.status || 'pending',
-        pixCode: tx.qr_code || '',
-        qrCodeBase64: tx.qr_code_base64 || '',
-        valor
-    };
-}
-
-async function gerarPixSubidaCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
+async function pagarPendenciasCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
     if (!rotaId || !pacoteId || !tokenOverride) return;
-    if (btn) { btn.disabled = true; btn.innerText = 'Gerando Pix...'; }
+    const formaEl = document.querySelector(`input[name="rastreio-pub-forma-${pacoteId}"]:checked`);
+    const forma = formaEl?.value || 'pix';
+    if (btn) { btn.disabled = true; btn.innerText = forma === 'dinheiro' ? 'Registrando...' : 'Gerando Pix...'; }
 
     try {
-        const snapAtual = await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).once('value');
-        const pacoteAtual = snapAtual.val() || {};
-        const nomeDestinatario = pacoteAtual.destinatario || '';
-
         let data;
         if (FLEXA_PAYMENTS_PROXY_URL) {
-            data = await chamarPaymentsProxyPublico('/create-pix-subida', { rastreioToken: tokenOverride });
+            data = await chamarPaymentsProxyPublico('/criar-pagamento-pendencias-cliente', { rastreioToken: tokenOverride, forma });
+        } else if (forma === 'dinheiro') {
+            data = { forma: 'dinheiro' };
         } else if (FLEXA_MP_TEST_TOKEN) {
             // Estimativa só pro teste local funcionar sem backend — o valor
-            // real sempre vem recalculado do servidor em produção.
+            // real sempre vem recalculado do servidor em produção (ver
+            // feedback_flexa_test_mode_escape_hatches). Reaproveita o mesmo
+            // helper de teste local da cobrança-na-entrega do lado do
+            // entregador (criarPagamentoPixCobrancaEntregaTesteLocal), só que
+            // com o valor somado de tudo que estiver pendente.
+            const snapAtual = await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).once('value');
+            const pacoteAtual = snapAtual.val() || {};
             const minutosDesde = pacoteAtual.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteAtual.chegouEm)) / 60000)) : 0;
             const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
             const valorEspera = pacoteAtual.esperaStatus === 'pago' ? 0 : minutosCobrados * TAXA_ESPERA_POR_MIN;
             const valorSubida = pacoteAtual.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-            data = await criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEspera + valorSubida);
+            const valorCobranca = (pacoteAtual.cobrancaAtiva && pacoteAtual.cobrancaStatus !== 'pago') ? (Number(pacoteAtual.cobrancaValor) || 0) : 0;
+            const pacFalso = { id: pacoteId, destinatario: pacoteAtual.destinatario, cobrancaEntrega: { ativa: true, valor: valorEspera + valorSubida + valorCobranca } };
+            data = { forma: 'pix', ...(await criarPagamentoPixCobrancaEntregaTesteLocal(pacFalso, rotaId)) };
         } else {
             throw new Error('Pagamento não configurado.');
+        }
+
+        if (forma === 'dinheiro') {
+            await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: 'dinheiro' }).catch(() => {});
+            const container = obterContainerRastreioCliente(tokenOverride);
+            if (container) {
+                const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
+                renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
+            }
+            return;
         }
 
         const pixCode = normalizarCodigoPix(data.pixCode || '');
         if (!pixCode) throw new Error('Mercado Pago não retornou código Pix Copia e Cola.');
 
-        pixSubidaClienteAtual = {
+        pagamentoPendenciasClienteAtual = {
             paymentId: data.paymentId ? String(data.paymentId) : '',
             pacoteId,
             rotaId,
             token: tokenOverride,
             pixCode,
             qrCodeBase64: data.qrCodeBase64 || '',
-            valor: data.valor || TAXA_SUBIR_FIXA
+            valor: data.valor || 0
         };
+        // Mesmo espelho do dinheiro (ver acima) — em produção o backend já
+        // escreveu isso (criarPagamentoPendenciasCliente), essa chamada aqui
+        // só cobre o modo teste local (sem proxy), onde ninguém mais grava.
+        // A trava de escrita única faz a 2ª tentativa (produção) ser
+        // silenciosamente ignorada, sem problema.
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: 'pix', valorTotalCongelado: pagamentoPendenciasClienteAtual.valor }).catch(() => {});
         const container = obterContainerRastreioCliente(tokenOverride);
         if (container) {
             const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
             renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
         }
-        iniciarPollingPixSubidaCliente(tokenOverride);
-        iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId, tokenOverride);
+        iniciarPollingPagamentoPendenciasCliente(tokenOverride);
+        iniciarExpiracaoPagamentoPendenciasCliente(rotaId, pacoteId, tokenOverride);
     } catch (err) {
-        console.warn('Falha ao gerar Pix das taxas da entrega:', err);
-        alert(err.message || 'Não foi possível gerar o Pix agora.');
-        if (btn) { btn.disabled = false; btn.innerText = 'Pagar taxas'; }
+        console.warn('Falha ao processar pagamento das pendências da entrega:', err);
+        alert(err.message || 'Não foi possível processar o pagamento agora. Tente de novo.');
+        if (btn) { btn.disabled = false; btn.innerText = 'Pagar'; }
     }
 }
 
-function pararPollingPixSubidaCliente() {
-    if (pixSubidaClientePollTimer) {
-        clearInterval(pixSubidaClientePollTimer);
-        pixSubidaClientePollTimer = null;
+// Pedido do dono (2026-10-08): "deve ter um botão cancelar no meio de
+// pagamento (às vezes clicou sem querer ou mudou de ideia) e escolher
+// novamente o meio de pagamento". A escolha/congelamento são write-once no
+// espelho público (ver database.rules.json) — o navegador não consegue
+// desfazer sozinho, por isso sempre passa pelo backend (ver
+// cancelarEscolhaPagamentoCliente, que usa o Admin SDK pra ignorar essa
+// trava). Sem FLEXA_PAYMENTS_PROXY_URL (só teste local), só limpa o estado
+// local — o espelho continua travado, mesma limitação de sempre em modo
+// teste sem Cloud Function deployada.
+async function cancelarPagamentoPendenciasCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
+    if (!rotaId || !pacoteId || !tokenOverride) return;
+    if (btn) { btn.disabled = true; btn.innerText = 'Cancelando...'; }
+    try {
+        if (FLEXA_PAYMENTS_PROXY_URL) {
+            await chamarPaymentsProxyPublico('/cancelar-escolha-pagamento-cliente', { rastreioToken: tokenOverride });
+        }
+        pagamentoPendenciasClienteAtual = null;
+        pararPollingPagamentoPendenciasCliente();
+        pararExpiracaoPagamentoPendenciasCliente();
+        const container = obterContainerRastreioCliente(tokenOverride);
+        if (container) {
+            const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
+            renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
+        }
+    } catch (err) {
+        console.warn('Falha ao cancelar escolha de pagamento:', err);
+        alert(err.message || 'Não foi possível cancelar agora. Tente de novo.');
+        if (btn) { btn.disabled = false; btn.innerText = 'Cancelar'; }
     }
 }
 
-function pararExpiracaoPixSubidaCliente() {
-    if (pixSubidaClienteExpiraTimer) {
-        clearTimeout(pixSubidaClienteExpiraTimer);
-        pixSubidaClienteExpiraTimer = null;
+function pararPollingPagamentoPendenciasCliente() {
+    if (pagamentoPendenciasClientePollTimer) {
+        clearInterval(pagamentoPendenciasClientePollTimer);
+        pagamentoPendenciasClientePollTimer = null;
+    }
+}
+
+function pararExpiracaoPagamentoPendenciasCliente() {
+    if (pagamentoPendenciasClienteExpiraTimer) {
+        clearTimeout(pagamentoPendenciasClienteExpiraTimer);
+        pagamentoPendenciasClienteExpiraTimer = null;
     }
 }
 
@@ -11925,52 +12106,53 @@ function pararExpiracaoPixSubidaCliente() {
 // de propósito ao prazo real do Pix — escondê-lo ANTES disso faria o botão
 // reaparecer com o Pix anterior ainda válido, arriscando o cliente gerar e
 // pagar um segundo sem perceber que o primeiro ainda estava de pé.
-function iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId, tokenOverride = tokenRastreioAtual) {
-    pararExpiracaoPixSubidaCliente();
-    pixSubidaClienteExpiraTimer = setTimeout(async () => {
-        pixSubidaClienteAtual = null;
-        pararPollingPixSubidaCliente();
+function iniciarExpiracaoPagamentoPendenciasCliente(rotaId, pacoteId, tokenOverride = tokenRastreioAtual) {
+    pararExpiracaoPagamentoPendenciasCliente();
+    pagamentoPendenciasClienteExpiraTimer = setTimeout(async () => {
+        pagamentoPendenciasClienteAtual = null;
+        pararPollingPagamentoPendenciasCliente();
         try {
             const container = obterContainerRastreioCliente(tokenOverride);
             if (!container) return;
             const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once('value');
             renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
         } catch (e) { /* próxima atualização ao vivo do listener corrige sozinha */ }
-    }, PIX_SUBIDA_VALIDADE_MS);
+    }, PIX_PENDENCIAS_VALIDADE_MS);
 }
 
-function iniciarPollingPixSubidaCliente(tokenOverride = tokenRastreioAtual) {
-    pararPollingPixSubidaCliente();
-    pixSubidaClientePollTimer = setInterval(async () => {
-        if (!pixSubidaClienteAtual?.paymentId) {
-            pararPollingPixSubidaCliente();
+function iniciarPollingPagamentoPendenciasCliente(tokenOverride = tokenRastreioAtual) {
+    pararPollingPagamentoPendenciasCliente();
+    pagamentoPendenciasClientePollTimer = setInterval(async () => {
+        if (!pagamentoPendenciasClienteAtual?.paymentId) {
+            pararPollingPagamentoPendenciasCliente();
             return;
         }
         try {
             const data = FLEXA_PAYMENTS_PROXY_URL
-                ? await chamarPaymentsProxyPublico('/check-pix-subida', { rastreioToken: tokenOverride, paymentId: pixSubidaClienteAtual.paymentId })
-                : await consultarPagamentoPixTesteClienteLocal(pixSubidaClienteAtual.paymentId);
+                ? await chamarPaymentsProxyPublico('/checar-pagamento-pendencias-cliente', { rastreioToken: tokenOverride, paymentId: pagamentoPendenciasClienteAtual.paymentId })
+                : await consultarPagamentoPixTesteClienteLocal(pagamentoPendenciasClienteAtual.paymentId);
 
             if (data?.status === 'approved') {
-                // Quem credita o entregador e grava subirStatus:'pago' é o
-                // backend (/check-pix-subida) — aqui só para de perguntar; o
-                // listener ao vivo de rastreioPublico (já ativo nesta tela)
-                // atualiza a UI assim que essa escrita chegar.
-                pararPollingPixSubidaCliente();
-                pararExpiracaoPixSubidaCliente();
+                // Quem credita o entregador/a loja e grava os status de
+                // 'pago' é o backend (/checar-pagamento-pendencias-cliente)
+                // — aqui só para de perguntar; o listener ao vivo de
+                // rastreioPublico (já ativo nesta tela) atualiza a UI assim
+                // que a escrita chegar.
+                pararPollingPagamentoPendenciasCliente();
+                pararExpiracaoPagamentoPendenciasCliente();
             } else {
-                const statusEl = document.getElementById('rastreio-pub-pix-status');
+                const statusEl = document.getElementById('rastreio-pub-pagamento-pix-status');
                 if (statusEl) statusEl.innerText = 'Aguardando confirmação do pagamento...';
             }
         } catch (err) {
-            console.warn('Falha ao consultar status do Pix da taxa de entrega na porta:', err);
+            console.warn('Falha ao consultar status do Pix das pendências da entrega:', err);
         }
     }, 4000);
 }
 
-function copiarCodigoPixSubidaCliente() {
-    if (!pixSubidaClienteAtual?.pixCode) return;
-    navigator.clipboard?.writeText(pixSubidaClienteAtual.pixCode).then(() => {
+function copiarCodigoPagamentoPendenciasCliente() {
+    if (!pagamentoPendenciasClienteAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pagamentoPendenciasClienteAtual.pixCode).then(() => {
         notificarSucesso('Código Pix copiado!');
     }).catch(() => notificarErro('Não foi possível copiar automaticamente.'));
 }
@@ -12430,6 +12612,138 @@ async function fecharChamadoAdmin(uid, chamadoId) {
     }
 }
 
+// ===== [REVISÃO DE DOCUMENTOS DO ENTREGADOR — PAINEL MASTER] (2026-10-08) =====
+// Pedido do dono: comprovante de endereço, CNH e documento do veículo
+// enviados pelo entregador (ver enviarDocumentoEntregador) ficam aqui pra
+// aprovação — só depois que os 3 estiverem 'aprovado' o entregador consegue
+// aceitar rota no marketplace (bloqueio de verdade em
+// /aceitar-rota-marketplace no backend; aqui é só a tela de revisão).
+let adminDocumentosFiltroStatus = 'pendente';
+const DOCUMENTO_STATUS_LABEL_ADMIN = { nao_enviado: 'Não enviado', pendente: 'Em análise', aprovado: 'Aprovado', rejeitado: 'Rejeitado' };
+const DOCUMENTO_STATUS_CLASSE_ADMIN = { nao_enviado: 'status--', pendente: 'status-buscando', aprovado: 'status-concluido', rejeitado: 'status-cancelado' };
+
+function filtrarDocumentosAdminPorStatus(status, btn) {
+    adminDocumentosFiltroStatus = status;
+    document.querySelectorAll('#admin-documentos-tabs .admin-chip').forEach((b) => b.classList.toggle('active', b === btn));
+    renderDocumentosAdmin();
+}
+
+async function renderDocumentosAdmin() {
+    const wrap = document.getElementById('admin-documentos-lista');
+    if (!wrap) return;
+    wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
+
+    try {
+        let dataUsers = adminUsersCache;
+        if (!dataUsers) {
+            const snap = await db.ref('usuarios').once('value');
+            dataUsers = snap.val() || {};
+            adminUsersCache = dataUsers;
+        }
+
+        const entregadores = Object.keys(dataUsers)
+            .filter((uid) => {
+                const tipo = normalizarTexto(dataUsers[uid]?.tipo || '');
+                return tipo === 'entregador' || tipo === 'entrega';
+            })
+            .map((uid) => ({ uid, nome: (dataUsers[uid]?.nome || 'Entregador').toString(), documentos: dataUsers[uid]?.documentos || {} }));
+
+        const statusDoc = (ent, chave) => ent.documentos[chave]?.status || 'nao_enviado';
+        const temPendente = (ent) => DOCUMENTOS_ENTREGADOR_TIPOS.some((t) => statusDoc(ent, t.chave) === 'pendente');
+        const todosAprovados = (ent) => DOCUMENTOS_ENTREGADOR_TIPOS.every((t) => statusDoc(ent, t.chave) === 'aprovado');
+        const temRejeitado = (ent) => DOCUMENTOS_ENTREGADOR_TIPOS.some((t) => statusDoc(ent, t.chave) === 'rejeitado');
+
+        let filtrados = entregadores;
+        if (adminDocumentosFiltroStatus === 'pendente') filtrados = entregadores.filter(temPendente);
+        else if (adminDocumentosFiltroStatus === 'aprovado') filtrados = entregadores.filter(todosAprovados);
+        else if (adminDocumentosFiltroStatus === 'rejeitado') filtrados = entregadores.filter(temRejeitado);
+
+        filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
+
+        if (!filtrados.length) {
+            wrap.innerHTML = '<p class="admin-subtle">Nenhum entregador por aqui.</p>';
+            return;
+        }
+
+        wrap.innerHTML = filtrados.map((ent) => montarDocumentoAdminHtml(ent)).join('');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (err) {
+        console.warn('Falha ao carregar documentos de entregadores:', err);
+        wrap.innerHTML = '<p class="admin-subtle">Não foi possível carregar os documentos agora.</p>';
+    }
+}
+
+function montarDocumentoAdminHtml(ent) {
+    const uidEsc = escaparHtmlMarketplace(ent.uid);
+    const linhasHtml = DOCUMENTOS_ENTREGADOR_TIPOS.map((tipo) => {
+        const d = ent.documentos[tipo.chave] || {};
+        const status = d.status || 'nao_enviado';
+        const classe = DOCUMENTO_STATUS_CLASSE_ADMIN[status] || 'status--';
+        const label = DOCUMENTO_STATUS_LABEL_ADMIN[status] || status;
+        const linkHtml = d.url
+            ? `<a href="${escaparHtmlMarketplace(d.url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="paperclip" size="13"></i> ${escaparHtmlMarketplace(d.nomeArquivo || 'arquivo')}</a>`
+            : '<span class="admin-subtle">Nenhum arquivo enviado</span>';
+        const motivoHtml = (status === 'rejeitado' && d.motivoRejeicao)
+            ? `<p class="admin-chamado-resposta" style="background:#fef2f2; color:#b91c1c;">Motivo: ${escaparHtmlMarketplace(d.motivoRejeicao)}</p>`
+            : '';
+        const acoesHtml = d.url
+            ? `<div class="admin-chamado-btns">
+                    <button type="button" class="admin-chip" onclick="aprovarDocumentoEntregadorAdmin('${uidEsc}', '${tipo.chave}')">Aprovar</button>
+                    <button type="button" class="admin-chip danger" onclick="rejeitarDocumentoEntregadorAdmin('${uidEsc}', '${tipo.chave}')">Rejeitar</button>
+               </div>`
+            : '';
+        return `
+            <div class="admin-doc-linha">
+                <div class="admin-doc-linha-head">
+                    <strong>${escaparHtmlMarketplace(tipo.label)}</strong>
+                    <span class="status-chip ${classe}">${escaparHtmlMarketplace(label)}</span>
+                </div>
+                ${linkHtml}
+                ${motivoHtml}
+                ${acoesHtml}
+            </div>`;
+    }).join('');
+
+    return `
+        <div class="admin-chamado-card">
+            <div class="admin-chamado-head">
+                <div><strong>${escaparHtmlMarketplace(ent.nome)}</strong> <span class="admin-chip">entregador</span></div>
+            </div>
+            ${linhasHtml}
+        </div>
+    `;
+}
+
+async function aprovarDocumentoEntregadorAdmin(uid, chave) {
+    try {
+        await db.ref(`usuarios/${uid}/documentos/${chave}`).update({ status: 'aprovado', motivoRejeicao: null });
+        if (adminUsersCache?.[uid]) {
+            adminUsersCache[uid].documentos = { ...(adminUsersCache[uid].documentos || {}), [chave]: { ...(adminUsersCache[uid].documentos?.[chave] || {}), status: 'aprovado', motivoRejeicao: null } };
+        }
+        notificarSucesso('Documento aprovado.');
+        renderDocumentosAdmin();
+    } catch (err) {
+        console.warn('Falha ao aprovar documento:', err);
+        alert('Não foi possível aprovar agora. Tente de novo.');
+    }
+}
+
+async function rejeitarDocumentoEntregadorAdmin(uid, chave) {
+    const motivo = (window.prompt('Motivo da rejeição (o entregador vai ver esse texto):') || '').trim();
+    if (!motivo) return;
+    try {
+        await db.ref(`usuarios/${uid}/documentos/${chave}`).update({ status: 'rejeitado', motivoRejeicao: motivo });
+        if (adminUsersCache?.[uid]) {
+            adminUsersCache[uid].documentos = { ...(adminUsersCache[uid].documentos || {}), [chave]: { ...(adminUsersCache[uid].documentos?.[chave] || {}), status: 'rejeitado', motivoRejeicao: motivo } };
+        }
+        notificarSucesso('Documento rejeitado.');
+        renderDocumentosAdmin();
+    } catch (err) {
+        console.warn('Falha ao rejeitar documento:', err);
+        alert('Não foi possível rejeitar agora. Tente de novo.');
+    }
+}
+
 // Pagamento com saldo da carteira (inclui crédito de estornos, ver
 // project-flexa-notificacoes-e-exclusao). Debita o valor e reaproveita
 // confirmarPagamentoRota pra terminar o fluxo (marca envios, salva rota, avança
@@ -12634,10 +12948,16 @@ function abrirModalPerfil() {
         document.getElementById('edit-veiculo-tipo').value = user.veiculoTipo || '';
         document.getElementById('edit-veiculo-marca').value = user.veiculoMarca || '';
         document.getElementById('edit-veiculo-modelo').value = user.veiculoModelo || '';
+        document.getElementById('edit-veiculo-ano').value = user.veiculoAno || '';
         document.getElementById('edit-veiculo-cor').value = user.veiculoCor || '';
         document.getElementById('edit-veiculo-placa').value = user.veiculoPlaca || '';
         aplicarFotoComPlaceholder(document.getElementById('edit-preview-img'), user.foto || '');
     }
+
+    // Bug corrigido (2026-10-08, pedido do dono): o placeholder "@sualoja"
+    // era fixo no HTML, aparecendo até pro entregador (que não tem loja).
+    const instaInput = document.getElementById('edit-instagram');
+    if (instaInput) instaInput.placeholder = ehEntregador ? '@seuinstagram' : '@sualoja';
 
     document.querySelectorAll('.perfil-veiculo-group').forEach((group) => {
         group.style.display = ehEntregador ? 'block' : 'none';
@@ -12719,6 +13039,14 @@ function previewImagem(input) {
     }
 }
 
+// Pedido do dono (2026-10-08): marca/modelo do veículo continuam em texto
+// livre, mas sempre salvos com a primeira letra maiúscula (padronização).
+function capitalizarPrimeiraLetra(valor) {
+    const texto = (valor || '').toString().trim();
+    if (!texto) return '';
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 // Salvar no Firebase
 function salvarPerfil() {
     // 1. Verifica se temos o ID do usuário
@@ -12739,8 +13067,11 @@ function salvarPerfil() {
     if (usuarioEhEntregador()) {
         novosDados.cnh = document.getElementById('edit-cnh').value;
         novosDados.veiculoTipo = document.getElementById('edit-veiculo-tipo').value;
-        novosDados.veiculoMarca = document.getElementById('edit-veiculo-marca').value;
-        novosDados.veiculoModelo = document.getElementById('edit-veiculo-modelo').value;
+        // Pedido do dono (2026-10-08): marca/modelo continuam digitados
+        // manualmente, mas sempre salvos com a primeira letra maiúscula.
+        novosDados.veiculoMarca = capitalizarPrimeiraLetra(document.getElementById('edit-veiculo-marca').value);
+        novosDados.veiculoModelo = capitalizarPrimeiraLetra(document.getElementById('edit-veiculo-modelo').value);
+        novosDados.veiculoAno = document.getElementById('edit-veiculo-ano').value;
         novosDados.veiculoCor = document.getElementById('edit-veiculo-cor').value;
         novosDados.veiculoPlaca = document.getElementById('edit-veiculo-placa').value;
     }
@@ -15117,6 +15448,141 @@ function abrirPagamento() {
     marcarSidebarLojaAtivoFinanceiro();
 }
 
+// ===== [DOCUMENTOS DE VERIFICAÇÃO DO ENTREGADOR] (2026-10-08) =====
+// Pedido do dono: limitar quem pode aceitar rota a quem já teve comprovante
+// de endereço, CNH e documento do veículo aprovados pelo master — previne
+// roubo/furto/golpe. Upload vai pro Firebase Storage (mesmo padrão já usado
+// em chamados/banners, ver backend/storage.rules); só a URL + metadados
+// ficam no Realtime Database. O bloqueio de verdade acontece no SERVIDOR
+// (ver /aceitar-rota-marketplace) — esta tela é só o upload + status.
+const DOCUMENTOS_ENTREGADOR_TIPOS = [
+    { chave: 'comprovanteEndereco', label: 'Comprovante de Endereço', icone: 'home' },
+    { chave: 'cnh', label: 'CNH', icone: 'id-card' },
+    { chave: 'docVeiculo', label: 'Documento do Veículo', icone: 'file-text' }
+];
+
+function abrirModalDocumentosEntregador() {
+    renderDocumentosEntregadorLista();
+    const overlay = document.getElementById('overlay-documentos-entregador');
+    if (overlay) overlay.style.display = 'flex';
+}
+
+function fecharModalDocumentosEntregador() {
+    const overlay = document.getElementById('overlay-documentos-entregador');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function alternarAccordionDocumentoEntregador(chave) {
+    document.getElementById(`acc-doc-${chave}-body`)?.classList.toggle('hidden');
+}
+
+function renderDocumentosEntregadorLista() {
+    const wrap = document.getElementById('documentos-entregador-lista');
+    if (!wrap) return;
+    const docs = (window.usuarioLogado || {}).documentos || {};
+    // Pedido do dono (2026-10-08): tags sempre coloridas, nunca o cinza
+    // neutro de "status--" — "Enviar" (ainda não mandou nada) fica laranja
+    // (mesmo tom de "precisa de ação" já usado em status-buscando); assim
+    // que o arquivo está enviado e salvo (mesmo antes do master revisar),
+    // fica verde "Enviado" — o courier só precisa saber que já mandou, a
+    // distinção fina (em análise/aprovado/rejeitado) é problema do painel
+    // master, que mantém as 3 cores separadas (ver DOCUMENTO_STATUS_*_ADMIN).
+    const STATUS_INFO = {
+        pendente: { label: 'Enviado', classe: 'status-concluido' },
+        aprovado: { label: 'Aprovado', classe: 'status-concluido' },
+        rejeitado: { label: 'Rejeitado', classe: 'status-cancelado' }
+    };
+
+    wrap.innerHTML = DOCUMENTOS_ENTREGADOR_TIPOS.map((tipo) => {
+        const d = docs[tipo.chave] || {};
+        const info = STATUS_INFO[d.status] || { label: 'Enviar', classe: 'status-buscando' };
+        const motivoHtml = (d.status === 'rejeitado' && d.motivoRejeicao)
+            ? `<p class="doc-acc-motivo"><strong>Motivo da rejeição:</strong> ${escaparHtmlMarketplace(d.motivoRejeicao)}</p>`
+            : '';
+        const arquivoHtml = d.url
+            ? `<a href="${escaparHtmlMarketplace(d.url)}" target="_blank" rel="noopener noreferrer" class="doc-acc-arquivo-link"><i data-lucide="paperclip" size="13"></i> ${escaparHtmlMarketplace(d.nomeArquivo || 'Ver arquivo enviado')}</a>`
+            : '';
+        return `
+        <div class="menu-item doc-acc-header" onclick="alternarAccordionDocumentoEntregador('${tipo.chave}')">
+            <div class="item-left"><i data-lucide="${tipo.icone}"></i><span>${tipo.label}</span></div>
+            <span class="status-chip ${info.classe}">${info.label}</span>
+            <i data-lucide="chevron-right" class="arrow" size="18"></i>
+        </div>
+        <div class="doc-acc-body hidden" id="acc-doc-${tipo.chave}-body">
+            <div class="doc-acc-card">
+                ${arquivoHtml}
+                ${motivoHtml}
+                <div class="form-group" style="margin-top:12px; margin-bottom:10px;">
+                    <label>${d.url ? 'Reenviar arquivo' : 'Selecionar arquivo'}</label>
+                    <div class="input-wrapper"><input type="file" id="doc-input-${tipo.chave}" accept="application/pdf,image/jpeg,image/png"></div>
+                </div>
+                <button type="button" id="doc-btn-${tipo.chave}" class="btn-main" style="margin-top:0;" onclick="enviarDocumentoEntregador('${tipo.chave}')">Enviar</button>
+            </div>
+        </div>`;
+    }).join('');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    atualizarBadgeDocumentosEntregador(docs);
+}
+
+function atualizarBadgeDocumentosEntregador(docsOverride) {
+    const badge = document.getElementById('perfil-documentos-badge');
+    if (!badge) return;
+    const docs = docsOverride || (window.usuarioLogado || {}).documentos || {};
+    const todosAprovados = DOCUMENTOS_ENTREGADOR_TIPOS.every((t) => docs[t.chave]?.status === 'aprovado');
+    const algumRejeitado = DOCUMENTOS_ENTREGADOR_TIPOS.some((t) => docs[t.chave]?.status === 'rejeitado');
+    badge.style.display = 'inline-flex';
+    if (todosAprovados) {
+        badge.className = 'status-chip status-concluido';
+        badge.innerText = 'Aprovado';
+    } else if (algumRejeitado) {
+        badge.className = 'status-chip status-cancelado';
+        badge.innerText = 'Revisar';
+    } else {
+        badge.className = 'status-chip status-buscando';
+        badge.innerText = 'Pendente';
+    }
+}
+
+async function enviarDocumentoEntregador(chave) {
+    const uid = getUsuarioIdAtual();
+    if (!uid) { alert('Sessão expirada. Faça login novamente.'); return; }
+    const input = document.getElementById(`doc-input-${chave}`);
+    const arquivo = input?.files?.[0];
+    if (!arquivo) { alert('Selecione um arquivo antes de enviar.'); return; }
+
+    if (arquivo.size > 10 * 1024 * 1024) {
+        alert('Arquivo muito grande (máximo 10MB).');
+        return;
+    }
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(arquivo.type)) {
+        alert('Formato não aceito. Envie PDF, JPG ou PNG.');
+        return;
+    }
+
+    const btn = document.getElementById(`doc-btn-${chave}`);
+    const textoOriginal = btn?.innerText;
+    if (btn) { btn.disabled = true; btn.innerText = 'Enviando...'; }
+
+    try {
+        const extensao = (arquivo.name.split('.').pop() || 'bin').toLowerCase();
+        const storageRef = firebase.storage().ref(`documentosEntregador/${uid}/${chave}-${Date.now()}.${extensao}`);
+        await storageRef.put(arquivo);
+        const url = await storageRef.getDownloadURL();
+
+        const novoRegistro = { url, nomeArquivo: arquivo.name, enviadoEm: Date.now(), status: 'pendente' };
+        await db.ref(`usuarios/${uid}/documentos/${chave}`).update(novoRegistro);
+
+        window.usuarioLogado = window.usuarioLogado || {};
+        window.usuarioLogado.documentos = { ...(window.usuarioLogado.documentos || {}), [chave]: novoRegistro };
+        notificarSucesso('Documento enviado! Aguarde a aprovação.');
+        renderDocumentosEntregadorLista();
+    } catch (err) {
+        console.warn('Falha ao enviar documento do entregador:', err);
+        alert('Não foi possível enviar o documento agora. Tente novamente.');
+        if (btn) { btn.disabled = false; btn.innerText = textoOriginal || 'Enviar'; }
+    }
+}
+
 // Desktop (pedido do dono 2026-10-01): duas coisas que só dá pra acertar
 // medindo de verdade em JS (CSS puro não resolve, ver comentário em
 // styles.css junto de .pagamento-coluna-direita):
@@ -16038,6 +16504,29 @@ function normalizarWhatsapp(valor) {
     return String(valor || '').replace(/\D/g, '');
 }
 
+// Pedido do dono (2026-10-08): validar formato do WhatsApp e da CNH no
+// cadastro — hoje qualquer coisa não-vazia passava. DDD (2) + 8 ou 9
+// dígitos do número é o padrão de telefone brasileiro (fixo/celular antigo
+// vs celular com o 9º dígito); CNH é sempre um número de 11 dígitos. Isso
+// valida só o FORMATO (quantidade de dígitos) — não o dígito verificador
+// oficial da CNH (algoritmo do DENATRAN), que fica de fora de propósito:
+// implementar esse cálculo errado rejeitaria CNHs válidas de verdade, o que
+// é pior do que não validar.
+function validarFormatoWhatsapp(digitos) {
+    return digitos.length === 10 || digitos.length === 11;
+}
+function validarFormatoCnh(digitos) {
+    return digitos.length === 11;
+}
+
+// Pedido do dono (2026-10-08): "qualquer senha tá válida hoje, precisamos
+// criar senhas seguras" — exige letra E número, mínimo 6 caracteres (o
+// Firebase Auth já recusa menos que isso sozinho, mas sem letra+número
+// nenhuma checagem própria existia).
+function senhaEhForte(senha) {
+    return /^(?=.*[A-Za-z])(?=.*\d).{6,}$/.test(senha || '');
+}
+
 function aplicarTipoCadastroNaTela() {
     const labelNome = document.getElementById('label-nome');
     const inputNome = document.getElementById('input-nome');
@@ -16112,14 +16601,37 @@ cadastrarReal = async function cadastrarRealComTipo() {
     const email = (document.querySelector('#form-cadastrar input[type="email"]')?.value || '').trim();
     const whatsapp = normalizarWhatsapp(document.getElementById('input-whatsapp-cad')?.value || '');
     const senha = (document.getElementById('pass-cad')?.value || '').trim();
-    const cnh = (document.getElementById('input-cnh')?.value || '').trim();
+    const senhaConfirmacao = (document.getElementById('pass-conf')?.value || '').trim();
+    const cnh = normalizarWhatsapp(document.getElementById('input-cnh')?.value || '');
 
     if (!nome || !email || !senha || !whatsapp) return alert('Preencha todos os campos, incluindo o WhatsApp — ele é usado pra entrar no app.');
 
-    const ehEntregador = tipoCadastroSelecionado === 'entrega';
-    if (ehEntregador && !cnh) {
-        alert('Preencha o numero da CNH para cadastro de entregador.');
+    // BUG CORRIGIDO 2026-10-08: o campo "Confirmar Senha" existia na tela
+    // mas nunca era checado — dava pra cadastrar com as duas senhas
+    // diferentes sem erro nenhum.
+    if (senha !== senhaConfirmacao) {
+        alert('As senhas digitadas não são iguais.');
         return;
+    }
+    if (!senhaEhForte(senha)) {
+        alert('A senha precisa ter pelo menos 6 caracteres, com letras e números.');
+        return;
+    }
+    if (!validarFormatoWhatsapp(whatsapp)) {
+        alert('Número de WhatsApp inválido. Informe o DDD + número (10 ou 11 dígitos).');
+        return;
+    }
+
+    const ehEntregador = tipoCadastroSelecionado === 'entrega';
+    if (ehEntregador) {
+        if (!cnh) {
+            alert('Preencha o numero da CNH para cadastro de entregador.');
+            return;
+        }
+        if (!validarFormatoCnh(cnh)) {
+            alert('Número de CNH inválido. A CNH tem 11 dígitos, só números.');
+            return;
+        }
     }
 
     try {
@@ -17286,6 +17798,7 @@ export {
   abrirModalClienteAuth,
   abrirModalDetalheEnvio,
   abrirModalDetalheRota,
+  abrirModalDocumentosEntregador,
   abrirModalEndereco,
   abrirModalEnvioDetalhes,
   abrirModalHistorico,
@@ -17336,6 +17849,7 @@ export {
   alternarAbaRotasEntregador,
   alternarAccordionAjuda,
   alternarAccordionDadosConta,
+  alternarAccordionDocumentoEntregador,
   alternarAccordionEndereco,
   alternarAccordionLgpd,
   alternarAccordionSobre,
@@ -17352,6 +17866,7 @@ export {
   aplicarHeaderGlobalEmViewEstatica,
   aplicarPermissoesPorTipoUsuario,
   aplicarTipoCadastroNaTela,
+  aprovarDocumentoEntregadorAdmin,
   ativarAbaChat,
   ativarMenuInferior,
   ativarModoAdminSeNecessario,
@@ -17368,7 +17883,6 @@ export {
   atualizarLocalColetaDinamico,
   atualizarMapaTrackingLoja,
   atualizarPrecoEstimadoAtual,
-  atualizarRestantePixCobranca,
   atualizarPrecosCardsVeiculo,
   atualizarResumoModalDetalheRota,
   atualizarResumoRota,
@@ -17392,6 +17906,7 @@ export {
   caminhoFinanceiroUsuario,
   cancelarCorridaPacoteAtual,
   cancelarEdicaoDestinoEnvio,
+  cancelarPagamentoPendenciasCliente,
   carregarChatsAtivos,
   carregarDadosPagamento,
   carregarExtratoPagamento,
@@ -17416,7 +17931,6 @@ export {
   confirmarEnvioFinal,
   confirmarExclusaoEnvio,
   confirmarExclusaoRota,
-  confirmarPagamentoMistoCobranca,
   confirmarPagamentoRota,
   confirmarRecebimentoDinheiro,
   confirmarRecebimentoTaxaEntregador,
@@ -17424,9 +17938,8 @@ export {
   consultarPagamentoPixMercadoPago,
   consultarPagamentoPixTesteClienteLocal,
   convidarClienteAtualParaApp,
-  copiarCodigoPixCobrancaEntrega,
+  copiarCodigoPagamentoPendenciasCliente,
   copiarCodigoPixDevolucaoLojista,
-  copiarCodigoPixSubidaCliente,
   copiarCodigoPixQuitacaoDivida,
   copiarCodigoPixRota,
   copiarLinkRastreioPacote,
@@ -17438,12 +17951,14 @@ export {
   definirCobrancaEntregaAtiva,
   desfazerExclusaoCliente,
   desistirRotaEntregador,
+  dispensarSubidaCliente,
   detalheRotaParaTexto,
   encerrarListenerMensagensChat,
   entSheetNext,
   entSheetPrev,
   enviarChamadoSuporte,
   enviarChamadoSuporteCliente,
+  enviarDocumentoEntregador,
   enviarMensagemChat,
   enviarResetSenhaMaster,
   envioPassaNoFiltro,
@@ -17465,6 +17980,7 @@ export {
   fecharModalClienteAuth,
   fecharModalDetalheEnvio,
   fecharModalDetalheRota,
+  fecharModalDocumentosEntregador,
   fecharModalEndereco,
   fecharModalEnvioDetalhes,
   fecharModalHistorico,
@@ -17491,6 +18007,7 @@ export {
   filtrarAdminUsuariosPorTipo,
   filtrarBannersAdminPorPublico,
   filtrarChamadosAdminPorStatus,
+  filtrarDocumentosAdminPorStatus,
   finalizarSplash,
   finalizarSwipeEntSheet,
   finalizarSwipePaginaRota,
@@ -17512,9 +18029,7 @@ export {
   gerarIdRota,
   gerarIdempotencyKeyTesteLocal,
   gerarIniciais,
-  gerarPixCobrancaEntrega,
   gerarPixQuitacaoDivida,
-  gerarPixSubidaCliente,
   getChavePacoteRota,
   getClienteById,
   getGeoCliente,
@@ -17638,6 +18153,7 @@ export {
   pagarComPix,
   pagarDevolucaoComSaldo,
   pagarDividaComSaldo,
+  pagarPendenciasCliente,
   pagarRotaComSaldo,
   paginaAnteriorDetalheRota,
   pararListenerGeoTrackingLoja,
@@ -17662,9 +18178,11 @@ export {
   registrarEstadosPacotesRota,
   registrarPresencaUsuario,
   registrarTransacaoFinanceira,
+  rejeitarDocumentoEntregadorAdmin,
   relatarProblemaRota,
   renderClientesSelector,
   renderDashboardMaster,
+  renderDocumentosAdmin,
   renderEnviosHome,
   renderEtapaModalRota,
   renderExtratoPagamento,
@@ -17723,7 +18241,6 @@ export {
   setStatusPagamentoPixRota,
   setTicketPagamentoPixRota,
   setUltimoErroRota,
-  simularAprovacaoCobrancaEntregaTeste,
   simularAprovacaoDevolucaoTeste,
   simularAprovacaoQuitacaoDividaTeste,
   sincronizarDropdownBuscaEntregador,

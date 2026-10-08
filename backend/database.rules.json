@@ -175,6 +175,27 @@
         "chamados": {
           ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'",
           ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'"
+        },
+
+        // Documentos de verificação do entregador — comprovante de
+        // endereço, CNH, documento do veículo (2026-10-08, pedido do dono:
+        // limitar quem aceita rota a quem já foi verificado, prevenindo
+        // roubo/furto/golpe). O dono faz o UPLOAD e só consegue gravar
+        // status:'pendente' (nunca se auto-aprovar); só o MASTER grava
+        // 'aprovado'/'rejeitado' e o motivo da rejeição. Ver
+        // /aceitar-rota-marketplace no backend, que bloqueia aceitar rota
+        // enquanto os 3 tipos não estiverem 'aprovado'.
+        "documentos": {
+          ".read": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'",
+          "$tipoDoc": {
+            "url": { ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'" },
+            "nomeArquivo": { ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'" },
+            "enviadoEm": { ".write": "$uid === auth.uid || root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'" },
+            "status": {
+              ".write": "root.child('usuarios').child(auth.uid).child('tipo').val() === 'master' || ($uid === auth.uid && newData.val() === 'pendente')"
+            },
+            "motivoRejeicao": { ".write": "root.child('usuarios').child(auth.uid).child('tipo').val() === 'master'" }
+          }
         }
       }
     },
@@ -286,7 +307,28 @@
               ".write": true,
               ".validate": "root.child('rastreioPublico').child($rotaId).child('pacotes').child($pacoteId).child('codigoLiberado').val() !== true"
             },
-            "subirSolicitadoEm": { ".write": true }
+            "subirSolicitadoEm": { ".write": true },
+
+            // Cobrança na entrega — escolha do cliente (2026-10-08): mesmo
+            // padrão de escrita sem login do grupo acima. "Quem escolhe
+            // primeiro trava": !data.exists() nega qualquer tentativa de
+            // sobrescrever uma escolha já feita (pelo cliente aqui, via
+            // pagarPendenciasCliente, ou pelo entregador do lado dele —
+            // nesse caso o backend já grava aqui antes do cliente conseguir,
+            // ver /confirmar-cobranca-dinheiro e
+            // /criar-pagamento-pendencias-cliente no backend). cobrancaStatus
+            // (pago) NUNCA é gravável sem login — só o backend confirma
+            // pagamento de verdade, via Admin SDK (que ignora estas regras).
+            "cobrancaEscolha": { ".write": true, ".validate": "!data.exists()" },
+            // Valor total congelado no instante em que o cliente clicou em
+            // Pagar (2026-10-08, ver criarPagamentoPendenciasCliente) — mesmo
+            // padrão write-once de cobrancaEscolha logo acima (reseta junto
+            // dela quando o cliente cancela, ver
+            // cancelarEscolhaPagamentoCliente, que usa Admin SDK e ignora
+            // essa trava). Sem isso, um update() tocando os dois campos de
+            // uma vez falhava inteiro pra quem não tinha nenhum login na
+            // tela (link de rastreio puro, sem conta de cliente aberta).
+            "valorTotalCongelado": { ".write": true, ".validate": "!data.exists()" }
           }
         }
       }

@@ -1338,7 +1338,9 @@ body.lojista-desktop-mode .accordion-save-btn {
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 14px; color: var(--text-main); }
         .input-wrapper { display: flex; align-items: center; background: #ffffff; border: 1.5px solid #f1f5f9; border-radius: 16px; padding: 0 18px; gap: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); min-height: var(--input-height); }
-        input { flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; border: none; color: var(--text-main); outline: none; font-size: 16px; }
+        input, select { flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; border: none; color: var(--text-main); outline: none; font-size: 16px; }
+        select { cursor: pointer; }
+        select:invalid { color: var(--text-sub); }
         .btn-main { width: 100%; background: #da6f18; color: white; border: none; padding: 18px; border-radius: 16px; font-size: 16px; font-weight: 700; cursor: pointer; transition: var(--transition); margin-top: 10px; }
 
         .auth-cadastro-voltar { display: flex; align-items: center; gap: 6px; margin: 0 0 18px; color: var(--text-sub); font-weight: 700; font-size: 13px; cursor: pointer; }
@@ -5901,6 +5903,26 @@ body.lojista-desktop-mode .rota-pix-qr-img {
 .admin-chamado-actions textarea { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; font-size: 13px; font-family: inherit; resize: vertical; margin-bottom: 6px; }
 .admin-chamado-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Documentos de verificação do entregador (2026-10-08) — accordion simples
+   reaproveitando .menu-item pro cabeçalho (já global, não precisa de CSS
+   novo); só o corpo expansível e o card interno precisam de estilo próprio,
+   já que .accordion-* do painel desktop da loja é escopado a
+   body.lojista-desktop-mode e não se aplica aqui. */
+.doc-acc-header { gap: 10px; }
+.doc-acc-header .status-chip { margin-left: auto; }
+.doc-acc-body { background: #fff; }
+.doc-acc-body.hidden { display: none; }
+.doc-acc-card { padding: 14px 4px 18px; border-bottom: 1px solid #eef2f6; }
+.doc-acc-arquivo-link { font-size: 12px; color: #1d4ed8; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
+.doc-acc-motivo { background: #fef2f2; color: #b91c1c; padding: 8px; border-radius: 8px; font-size: 12px; margin: 8px 0 0; }
+
+/* Painel master > Documentos (2026-10-08) — uma linha por tipo de
+   documento dentro do card do entregador (ver montarDocumentoAdminHtml). */
+.admin-doc-linha { padding: 10px 0; border-top: 1px dashed #e2e8f0; }
+.admin-doc-linha:first-of-type { border-top: 1px solid #eef2f6; margin-top: 8px; padding-top: 12px; }
+.admin-doc-linha-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.admin-doc-linha a { font-size: 12px; color: #1d4ed8; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
+
 .info-card a {
     color: #2563eb;
     font-weight: 700;
@@ -7023,6 +7045,29 @@ body.usuario-entregador #entregador-rotas-shell {
 #buscar-sheet-content .sheet-details-body.hidden { display: none; }
 #buscar-sheet-content .sheet-detail-row { font-size: 13px; font-weight: 700; color: var(--text-sub); }
 
+/* ===== Sistema único de botões (pedido do dono, 2026-10-08) =====
+   Antes cada tela/sheet tinha seu próprio botão — .ent-sheet-primary (pill
+   grande), .ent-sheet-cheguei-btn (retângulo escuro, outro raio), .btn-main
+   (laranja grande, outro raio ainda) — virando uma colcha de retalhos visual
+   nos sheets do entregador e do cliente. Agora só duas variantes, mesmo
+   tamanho/raio nos dois: .flex-btn-primary (ação principal da etapa atual,
+   fundo preto) e .flex-btn-secondary (ação de apoio, laranja — ou
+   .flex-btn-secondary.cinza pra Cancelar/ações neutras, sem destaque). */
+.flex-btn {
+    width: 100%; box-sizing: border-box; border: none; border-radius: 14px;
+    padding: 15px 16px; font-weight: 800; font-size: 15px; line-height: 1.2;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    gap: 8px; transition: transform .12s ease, box-shadow .2s ease; text-align: center;
+}
+.flex-btn:active { transform: scale(0.98); }
+.flex-btn-primary { background: #101828; color: #fff; box-shadow: 0 8px 18px rgba(16,24,40,0.22); }
+.flex-btn-primary:hover { box-shadow: 0 10px 22px rgba(16,24,40,0.28); }
+.flex-btn-secondary { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.flex-btn-secondary.cinza { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+.flex-btn:disabled { opacity: .6; cursor: not-allowed; }
+.flex-btn-row { display: flex; gap: 10px; }
+.flex-btn-row .flex-btn { flex: 1; }
+
 /* Entregador sheet novo */
 .ent-sheet { background: #fff; border-radius: 26px; padding: 18px 18px 22px; box-shadow: 0 20px 55px rgba(0,0,0,0.18); }
 /* margin-bottom generoso: mesmo motivo do .sheet-buscar .sheet-handle acima
@@ -7101,6 +7146,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-status-ok i { color: #15803d; }
 .ent-sheet-code-pill { margin-top: 6px; padding: 8px 12px; border-radius: 12px; background: #e0f2fe; color: #0f172a; font-weight: 800; font-size: 12px; display: inline-block; }
 .ent-sheet-cobranca-box { width: 100%; border: 1px solid #fde3c8; border-radius: 16px; background: #fffaf5; padding: 12px; margin-bottom: 12px; box-sizing: border-box; }
+.ent-sheet-cobranca-pendente-aviso { margin: 4px 0 0; padding: 0 2px; font-size: 12px; font-weight: 700; color: #94a3b8; text-align: center; }
 .ent-sheet-cobranca-box strong { display: block; font-size: 14px; color: #0f172a; margin-bottom: 8px; }
 .ent-sheet-cobranca-ok { display: flex; align-items: center; gap: 8px; background: #ecfdf3; border-color: #bbf7d0; color: #15803d; font-weight: 800; font-size: 13px; }
 .ent-sheet-cobranca-ok i { color: #15803d; }
@@ -7112,6 +7158,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-status-aguardando i { color: #b45309; }
 .ent-sheet-motivo-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .ent-sheet-motivo-btn { width: 100%; text-align: left; }
+.flex-btn.ent-sheet-motivo-btn { justify-content: flex-start; }
 
 /* Taxa de espera/subida (2026-09-25) */
 .ent-sheet-cheguei-btn {
@@ -7128,6 +7175,13 @@ body.usuario-entregador #entregador-rotas-shell {
     color: #64748b; margin-bottom: 8px; padding: 0 12px;
 }
 .ent-sheet-cronometro i { color: #94a3b8; }
+/* Mesmo cronômetro discreto, lado do cliente (tela de rastreio) — pedido do
+   dono 2026-10-08: precisa aparecer e atualizar pros dois lados. */
+.rastreio-pub-cronometro {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
+    color: #64748b; margin-top: 10px; padding: 0 4px;
+}
+.rastreio-pub-cronometro i { color: #94a3b8; }
 .ent-sheet-subir-pedido {
     width: 100%; border-radius: 14px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa;
     margin-bottom: 12px; box-sizing: border-box;
@@ -7149,10 +7203,18 @@ body.usuario-entregador #entregador-rotas-shell {
 .ent-sheet-checklist-item.done { background: #ecfdf3; color: #15803d; border-color: #bbf7d0; }
 .ent-sheet-checklist-item.neg { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 
-/* Card combinado de taxas (espera + entrega na porta), tela do cliente — 2026-10-04 */
+/* Card combinado de pagamento (espera + entrega na porta + cobrança do
+   produto, tudo somado numa pendência só), tela do cliente — 2026-10-08 */
 .rastreio-pub-taxas-card strong { display: block; font-size: 14px; color: #0f172a; margin-bottom: 6px; }
 .rastreio-pub-taxas-card .rastreio-pub-taxa-linha { display: flex; justify-content: space-between; font-size: 13px; color: #475569; padding: 2px 0; }
 .rastreio-pub-taxas-card .rastreio-pub-taxa-total { margin-top: 6px; padding-top: 8px; border-top: 1px dashed #fed7aa; font-weight: 800; color: #0f172a; font-size: 14px; }
+.rastreio-pub-forma-escolha { display: flex; gap: 10px; margin: 12px 0; }
+.rastreio-pub-forma-opcao {
+    flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+    background: #fff; border: 1px solid #fed7aa; font-size: 13px; font-weight: 700; color: #0f172a; cursor: pointer;
+}
+.rastreio-pub-forma-opcao input { margin: 0; accent-color: #0f172a; }
+.rastreio-pub-taxas-card .flex-btn { margin-top: 4px; }
 
 .rastreio-pub-codigo {
     margin-top: 12px; padding: 14px; border-radius: 16px; background: #f0fdf4; border: 1px solid #bbf7d0;
@@ -7167,7 +7229,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .rastreio-pub-codigo-bloqueado span { color: #b45309; }
 .rastreio-pub-codigo-bloqueado i { color: #b45309; margin: 6px 0; }
 .rastreio-pub-codigo-bloqueado small { color: #b45309; font-weight: 700; }
-.rastreio-pub-codigo-bloqueado .btn-main { margin-top: 12px; }
+.rastreio-pub-codigo-bloqueado .flex-btn { margin-top: 12px; }
 
 .rastreio-pub-sucesso { text-align: center; padding: 10px 0 4px; }
 .rastreio-pub-sucesso-check { color: #16a34a; display: flex; justify-content: center; margin-bottom: 10px; }
@@ -7178,7 +7240,6 @@ body.usuario-entregador #entregador-rotas-shell {
 
 .rastreio-pub-subir { margin-top: 14px; padding: 14px; border-radius: 16px; background: #fff7ed; border: 1px solid #fed7aa; }
 .rastreio-pub-subir p { font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 10px; }
-.rastreio-pub-subir .btn-main { padding: 12px; font-size: 14px; }
 .rastreio-pub-subir-ok, .rastreio-pub-subir-neg, .rastreio-pub-subir-aguardando {
     display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
     background: transparent; border: none; padding: 0;
@@ -7909,6 +7970,9 @@ body.cliente-app-mode .rastreio-pub-header-row .flexa-brand-logo { width: 64px; 
 .cliente-detail-row > strong { text-align: right; color: #152033; font-size: 11px; font-weight: 800; }
 .cliente-detail-row-value { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .cliente-detail-row-value > strong { color: #152033; font-size: 11px; font-weight: 800; }
+.cliente-detail-row-total { border-bottom: none; padding-top: 10px; margin-top: 4px; border-top: 1px dashed #d8dee8; }
+.cliente-detail-row-total > span { color: #152033; font-size: 11px; }
+.cliente-detail-row-total > strong { font-size: 14px; color: #b45309; }
 .cliente-track-button { width: 100%; min-height: 42px; display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 13px; padding: 10px; border: 0; border-radius: 14px; background: #101828; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
 .cliente-profile-content { margin-top: 8px; padding: 0 2px; }
 body.cliente-app-mode .cliente-profile-content .perfil-section { margin: 5px 0 22px; }

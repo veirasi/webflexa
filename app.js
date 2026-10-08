@@ -22,6 +22,7 @@
     abrirModalClienteAuth: () => abrirModalClienteAuth,
     abrirModalDetalheEnvio: () => abrirModalDetalheEnvio,
     abrirModalDetalheRota: () => abrirModalDetalheRota,
+    abrirModalDocumentosEntregador: () => abrirModalDocumentosEntregador,
     abrirModalEndereco: () => abrirModalEndereco,
     abrirModalEnvioDetalhes: () => abrirModalEnvioDetalhes,
     abrirModalHistorico: () => abrirModalHistorico,
@@ -72,6 +73,7 @@
     alternarAbaRotasEntregador: () => alternarAbaRotasEntregador,
     alternarAccordionAjuda: () => alternarAccordionAjuda,
     alternarAccordionDadosConta: () => alternarAccordionDadosConta,
+    alternarAccordionDocumentoEntregador: () => alternarAccordionDocumentoEntregador,
     alternarAccordionEndereco: () => alternarAccordionEndereco,
     alternarAccordionLgpd: () => alternarAccordionLgpd,
     alternarAccordionSobre: () => alternarAccordionSobre,
@@ -88,6 +90,7 @@
     aplicarHeaderGlobalEmViewEstatica: () => aplicarHeaderGlobalEmViewEstatica,
     aplicarPermissoesPorTipoUsuario: () => aplicarPermissoesPorTipoUsuario,
     aplicarTipoCadastroNaTela: () => aplicarTipoCadastroNaTela,
+    aprovarDocumentoEntregadorAdmin: () => aprovarDocumentoEntregadorAdmin,
     ativarAbaChat: () => ativarAbaChat,
     ativarMenuInferior: () => ativarMenuInferior,
     ativarModoAdminSeNecessario: () => ativarModoAdminSeNecessario,
@@ -105,7 +108,6 @@
     atualizarMapaTrackingLoja: () => atualizarMapaTrackingLoja,
     atualizarPrecoEstimadoAtual: () => atualizarPrecoEstimadoAtual,
     atualizarPrecosCardsVeiculo: () => atualizarPrecosCardsVeiculo,
-    atualizarRestantePixCobranca: () => atualizarRestantePixCobranca,
     atualizarResumoModalDetalheRota: () => atualizarResumoModalDetalheRota,
     atualizarResumoRota: () => atualizarResumoRota,
     atualizarResumoSelecaoRota: () => atualizarResumoSelecaoRota,
@@ -128,6 +130,7 @@
     caminhoFinanceiroUsuario: () => caminhoFinanceiroUsuario,
     cancelarCorridaPacoteAtual: () => cancelarCorridaPacoteAtual,
     cancelarEdicaoDestinoEnvio: () => cancelarEdicaoDestinoEnvio,
+    cancelarPagamentoPendenciasCliente: () => cancelarPagamentoPendenciasCliente,
     carregarChatsAtivos: () => carregarChatsAtivos,
     carregarDadosPagamento: () => carregarDadosPagamento,
     carregarExtratoPagamento: () => carregarExtratoPagamento,
@@ -152,7 +155,6 @@
     confirmarEnvioFinal: () => confirmarEnvioFinal,
     confirmarExclusaoEnvio: () => confirmarExclusaoEnvio,
     confirmarExclusaoRota: () => confirmarExclusaoRota,
-    confirmarPagamentoMistoCobranca: () => confirmarPagamentoMistoCobranca,
     confirmarPagamentoRota: () => confirmarPagamentoRota,
     confirmarRecebimentoDinheiro: () => confirmarRecebimentoDinheiro,
     confirmarRecebimentoTaxaEntregador: () => confirmarRecebimentoTaxaEntregador,
@@ -160,11 +162,10 @@
     consultarPagamentoPixMercadoPago: () => consultarPagamentoPixMercadoPago,
     consultarPagamentoPixTesteClienteLocal: () => consultarPagamentoPixTesteClienteLocal,
     convidarClienteAtualParaApp: () => convidarClienteAtualParaApp,
-    copiarCodigoPixCobrancaEntrega: () => copiarCodigoPixCobrancaEntrega,
+    copiarCodigoPagamentoPendenciasCliente: () => copiarCodigoPagamentoPendenciasCliente,
     copiarCodigoPixDevolucaoLojista: () => copiarCodigoPixDevolucaoLojista,
     copiarCodigoPixQuitacaoDivida: () => copiarCodigoPixQuitacaoDivida,
     copiarCodigoPixRota: () => copiarCodigoPixRota,
-    copiarCodigoPixSubidaCliente: () => copiarCodigoPixSubidaCliente,
     copiarLinkRastreioPacote: () => copiarLinkRastreioPacote,
     creditarSaldoUsuarioAtual: () => creditarSaldoUsuarioAtual,
     criarNotificacao: () => criarNotificacao,
@@ -175,11 +176,13 @@
     desfazerExclusaoCliente: () => desfazerExclusaoCliente,
     desistirRotaEntregador: () => desistirRotaEntregador,
     detalheRotaParaTexto: () => detalheRotaParaTexto,
+    dispensarSubidaCliente: () => dispensarSubidaCliente,
     encerrarListenerMensagensChat: () => encerrarListenerMensagensChat,
     entSheetNext: () => entSheetNext,
     entSheetPrev: () => entSheetPrev,
     enviarChamadoSuporte: () => enviarChamadoSuporte,
     enviarChamadoSuporteCliente: () => enviarChamadoSuporteCliente,
+    enviarDocumentoEntregador: () => enviarDocumentoEntregador,
     enviarMensagemChat: () => enviarMensagemChat,
     enviarResetSenhaMaster: () => enviarResetSenhaMaster,
     envioPassaNoFiltro: () => envioPassaNoFiltro,
@@ -201,6 +204,7 @@
     fecharModalClienteAuth: () => fecharModalClienteAuth,
     fecharModalDetalheEnvio: () => fecharModalDetalheEnvio,
     fecharModalDetalheRota: () => fecharModalDetalheRota,
+    fecharModalDocumentosEntregador: () => fecharModalDocumentosEntregador,
     fecharModalEndereco: () => fecharModalEndereco,
     fecharModalEnvioDetalhes: () => fecharModalEnvioDetalhes,
     fecharModalHistorico: () => fecharModalHistorico,
@@ -227,6 +231,7 @@
     filtrarAdminUsuariosPorTipo: () => filtrarAdminUsuariosPorTipo,
     filtrarBannersAdminPorPublico: () => filtrarBannersAdminPorPublico,
     filtrarChamadosAdminPorStatus: () => filtrarChamadosAdminPorStatus,
+    filtrarDocumentosAdminPorStatus: () => filtrarDocumentosAdminPorStatus,
     finalizarSplash: () => finalizarSplash,
     finalizarSwipeEntSheet: () => finalizarSwipeEntSheet,
     finalizarSwipePaginaRota: () => finalizarSwipePaginaRota,
@@ -248,9 +253,7 @@
     gerarIdRota: () => gerarIdRota,
     gerarIdempotencyKeyTesteLocal: () => gerarIdempotencyKeyTesteLocal,
     gerarIniciais: () => gerarIniciais,
-    gerarPixCobrancaEntrega: () => gerarPixCobrancaEntrega,
     gerarPixQuitacaoDivida: () => gerarPixQuitacaoDivida,
-    gerarPixSubidaCliente: () => gerarPixSubidaCliente,
     getChavePacoteRota: () => getChavePacoteRota,
     getClienteById: () => getClienteById,
     getGeoCliente: () => getGeoCliente,
@@ -374,6 +377,7 @@
     pagarComPix: () => pagarComPix,
     pagarDevolucaoComSaldo: () => pagarDevolucaoComSaldo,
     pagarDividaComSaldo: () => pagarDividaComSaldo,
+    pagarPendenciasCliente: () => pagarPendenciasCliente,
     pagarRotaComSaldo: () => pagarRotaComSaldo,
     paginaAnteriorDetalheRota: () => paginaAnteriorDetalheRota,
     pararListenerGeoTrackingLoja: () => pararListenerGeoTrackingLoja,
@@ -398,9 +402,11 @@
     registrarEstadosPacotesRota: () => registrarEstadosPacotesRota,
     registrarPresencaUsuario: () => registrarPresencaUsuario,
     registrarTransacaoFinanceira: () => registrarTransacaoFinanceira,
+    rejeitarDocumentoEntregadorAdmin: () => rejeitarDocumentoEntregadorAdmin,
     relatarProblemaRota: () => relatarProblemaRota,
     renderClientesSelector: () => renderClientesSelector,
     renderDashboardMaster: () => renderDashboardMaster,
+    renderDocumentosAdmin: () => renderDocumentosAdmin,
     renderEnviosHome: () => renderEnviosHome,
     renderEtapaModalRota: () => renderEtapaModalRota,
     renderExtratoPagamento: () => renderExtratoPagamento,
@@ -459,7 +465,6 @@
     setStatusPagamentoPixRota: () => setStatusPagamentoPixRota,
     setTicketPagamentoPixRota: () => setTicketPagamentoPixRota,
     setUltimoErroRota: () => setUltimoErroRota,
-    simularAprovacaoCobrancaEntregaTeste: () => simularAprovacaoCobrancaEntregaTeste,
     simularAprovacaoDevolucaoTeste: () => simularAprovacaoDevolucaoTeste,
     simularAprovacaoQuitacaoDividaTeste: () => simularAprovacaoQuitacaoDividaTeste,
     sincronizarDropdownBuscaEntregador: () => sincronizarDropdownBuscaEntregador,
@@ -780,8 +785,6 @@
   var rotaEntSheetTouchStartY = 0;
   var rotaEntSheetEsperaListenerRef = null;
   var rotaEntSheetEsperaListenerChave = "";
-  var pixCobrancaEntregaAtual = null;
-  var pixCobrancaEntregaPollTimer = null;
   var lojistaLogoCache = {};
   var rotaEntregadorProgresso = {};
   var rotaSwipeStartX = 0;
@@ -789,7 +792,6 @@
   var filtroEnviosAtivo = "TODOS";
   var filtroEnviosChipAtivo = "TODOS";
   var filtroRotasAtivo = "BUSCANDO";
-  var dashboardRotasSincronizadas = false;
   var adminUsersCache = null;
   var modoAdmin = false;
   var presencaRef = null;
@@ -800,6 +802,9 @@
   var entregadorHomeListenerCb = null;
   var entregadorHomeListenerUid = null;
   var entregadorHomeCache = null;
+  var lojistaRotasListenerRef = null;
+  var lojistaRotasListenerCb = null;
+  var lojistaRotasListenerUid = null;
   var entregadorMetaDiaCache = null;
   var rotasMarketplaceEntregadorCache = [];
   var marketplaceEntregadorListenerRef = null;
@@ -967,6 +972,7 @@
     if (tab === "banners") renderBannersAdmin();
     if (tab === "ganhos") renderSerieGanhosAdmin();
     if (tab === "chamados") renderChamadosAdmin();
+    if (tab === "documentos") renderDocumentosAdmin();
   }
   function telaInicialPorTipoUsuario(tipo) {
     return tipo === "entregador" ? "view-dash-entregador" : "view-dash-loja";
@@ -1008,6 +1014,7 @@
     aplicarLinkInstagram(instaEl, dados.instagram || "");
     aplicarFotoComPlaceholder(fotoEl, dados.foto || "");
     if (cnhEl) cnhEl.innerText = (dados.cnh || "--").toString();
+    atualizarBadgeDocumentosEntregador(dados.documentos);
   }
   async function loadClientes() {
     const uid = getUsuarioIdAtual();
@@ -1840,6 +1847,13 @@
       if (typeof atualizarLocalColetaDinamico === "function") atualizarLocalColetaDinamico();
       if (typeof renderRotasTelaPrincipal === "function") renderRotasTelaPrincipal();
       resetarPainelDetalheRotaDesktop();
+    }
+    if (tipo !== "entregador") {
+      if (telaAlvo === "view-dash-loja" || telaAlvo === "view-rotas") {
+        iniciarListenerRotasLojista();
+      } else {
+        pararListenerRotasLojista();
+      }
     }
     if (telaAlvo === "view-novo-envio") {
       resetarPainelDetalheEnvioDesktop();
@@ -2809,7 +2823,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
           usuarioLogado = window.usuarioLogado;
           carregarPacotesRaizDoUid(user.uid).catch(() => {
           });
-          dashboardRotasSincronizadas = false;
           rotasHomeCache = [];
           entregadorHomeCache = {};
           rotasMarketplaceEntregadorCache = [];
@@ -2859,7 +2872,6 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         finalizarSplash(splash);
       }).catch(() => finalizarSplash(splash));
     } else {
-      dashboardRotasSincronizadas = false;
       rotasHomeCache = [];
       rotasMarketplaceEntregadorCache = [];
       filtroRotaEntregadorOrigem = "TODAS";
@@ -2870,6 +2882,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       pararListenerMarketplaceEntregador();
       pararListenerNotificacoes();
       pararRastreioGpsEntregador();
+      pararListenerRotasLojista();
       if (document.body) document.body.classList.remove("usuario-entregador");
       pararPresencaUsuarioAtual();
       if (modoAdmin) {
@@ -3077,16 +3090,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       carregarBannersPorPublico("lojista", "banner-lojista-home");
       carregarDividasEntregadorLojistaHome();
     }
-    if (!dashboardRotasSincronizadas && getUsuarioIdAtual()) {
-      dashboardRotasSincronizadas = true;
-      carregarRotasDoBanco().then((rotasDb) => {
-        rotasHomeCache = Array.isArray(rotasDb) ? rotasDb : [];
-        if (document.getElementById("view-dash-loja")?.classList.contains("active")) {
-          renderizarDashboard(window.usuarioLogado || user || {});
-        }
-      }).catch(() => {
-      });
-    }
+    iniciarListenerRotasLojista();
   }
   function sincronizarSidebarLojaConta(user) {
     const avatar = document.getElementById("loja-sidebar-avatar");
@@ -3470,6 +3474,35 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       console.warn("Falha ao carregar rotas:", err);
       return [];
     }
+  }
+  function pararListenerRotasLojista() {
+    if (lojistaRotasListenerRef && lojistaRotasListenerCb) {
+      lojistaRotasListenerRef.off("value", lojistaRotasListenerCb);
+    }
+    lojistaRotasListenerRef = null;
+    lojistaRotasListenerCb = null;
+    lojistaRotasListenerUid = null;
+  }
+  function iniciarListenerRotasLojista() {
+    const uid = getUsuarioIdAtual();
+    if (!uid || obterTipoUsuarioAtual() === "entregador") return;
+    if (lojistaRotasListenerRef && lojistaRotasListenerUid === uid) return;
+    pararListenerRotasLojista();
+    const ref = db.ref("usuarios/" + uid + "/rotas");
+    const callback = (snap) => {
+      const data = snap.val() || {};
+      rotasHomeCache = Object.keys(data).map((id) => ({ id, ...data[id] })).sort((a, b) => Number(b.criadoEm || 0) - Number(a.criadoEm || 0));
+      if (document.getElementById("view-dash-loja")?.classList.contains("active")) {
+        renderizarDashboard(window.usuarioLogado || {});
+      }
+      if (document.getElementById("view-rotas")?.classList.contains("active") && typeof renderRotasTelaPrincipal === "function") {
+        renderRotasTelaPrincipal();
+      }
+    };
+    ref.on("value", callback);
+    lojistaRotasListenerRef = ref;
+    lojistaRotasListenerCb = callback;
+    lojistaRotasListenerUid = uid;
   }
   function montarCidadeUfMarketplace(cidade, uf) {
     const c = (cidade || "").toString().trim();
@@ -4243,9 +4276,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     rotaEntSheetIndex = 0;
     rotaEntSheetRotaAtual = null;
     pararRastreioGpsEntregador();
-    pararPollingPixCobrancaEntrega();
-    pixCobrancaEntregaAtual = null;
     pararListenerEsperaPacote();
+    pararCronometroEsperaEntregador();
   }
   var geoRastreioWatchId = null;
   var geoRastreioUltimoEnvio = 0;
@@ -4708,9 +4740,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         <div class="ent-sheet-code-box">
             <label for="ent-sheet-coleta-code-input">Pe\xE7a o c\xF3digo de coleta ao lojista</label>
             <input id="ent-sheet-coleta-code-input" type="text" placeholder="C\xF3digo de coleta">
-            <div class="ent-sheet-actions-inline">
-                <button type="button" class="ent-sheet-btn-ghost" onclick="abrirMapaColetaLoja()">Ir at\xE9 a loja</button>
-                <button type="button" class="ent-sheet-primary small" onclick="confirmarColetaPacotes()">Confirmar coleta</button>
+            <div class="flex-btn-row">
+                <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="abrirMapaColetaLoja()">Ir at\xE9 a loja</button>
+                <button type="button" class="flex-btn flex-btn-primary" onclick="confirmarColetaPacotes()">Confirmar coleta</button>
             </div>
         </div>
 
@@ -4725,6 +4757,26 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         if (el) el.textContent = enderecoAoVivo;
       });
     }
+  }
+  var cronometroEsperaEntregadorTimer = null;
+  function pararCronometroEsperaEntregador() {
+    if (cronometroEsperaEntregadorTimer) {
+      clearInterval(cronometroEsperaEntregadorTimer);
+      cronometroEsperaEntregadorTimer = null;
+    }
+  }
+  function iniciarCronometroEsperaEntregador(chegouEm) {
+    pararCronometroEsperaEntregador();
+    cronometroEsperaEntregadorTimer = setInterval(() => {
+      const el = document.getElementById("ent-sheet-cronometro-texto");
+      if (!el) {
+        pararCronometroEsperaEntregador();
+        return;
+      }
+      const minutosDesde = Math.max(0, Math.round((Date.now() - Number(chegouEm)) / 6e4));
+      const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+      el.textContent = `Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}`;
+    }, 1e4);
   }
   function renderSheetRotaEntregadorConteudo() {
     const content = document.getElementById("rotas-entregador-sheet-content");
@@ -4765,59 +4817,62 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     ).join("");
     const enderecoExtra = [complemento].filter(Boolean).join(" \u2022 ");
     const espera = pac?.esperaEntrega || {};
+    const cobranca = pac?.cobrancaEntrega;
+    const cobrancaAtiva = !!cobranca?.ativa;
+    const cobrancaResolvida = !cobrancaAtiva || ["pago", "pago_pix", "pago_dinheiro"].includes(cobranca?.status);
     let blocoEspera = "";
-    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada) {
-      if (!espera.chegouEm) {
-        blocoEspera = `<button type="button" class="ent-sheet-cheguei-btn" onclick="confirmarCheguei()"><i data-lucide="map-pin" size="14"></i> Cheguei no local</button>`;
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm) {
+      const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4));
+      const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+      blocoEspera = espera.escolhaClienteCongeladoEm ? `<div class="ent-sheet-cronometro"><i data-lucide="clock" size="14"></i> <span>Aguardando confirma\xE7\xE3o do pagamento</span></div>` : `<div class="ent-sheet-cronometro"><i data-lucide="clock" size="14"></i> <span id="ent-sheet-cronometro-texto">Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}</span></div>`;
+      if (espera.subirStatus === "pendente") {
+        blocoEspera += `
+                <div class="ent-sheet-subir-pedido">
+                    <span>Cliente pediu entrega at\xE9 a porta do apartamento</span>
+                    <div class="flex-btn-row">
+                        <button type="button" class="flex-btn flex-btn-secondary" onclick="aceitarSolicitacaoSubida()">Aceitar (+R$ 6,00)</button>
+                        <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="recusarSolicitacaoSubida()">Recusar</button>
+                    </div>
+                </div>`;
       } else {
-        const minutosDesde = Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4));
-        const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
-        blocoEspera = `<div class="ent-sheet-cronometro"><i data-lucide="clock" size="14"></i> Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}</div>`;
-        if (espera.subirStatus === "pendente") {
-          blocoEspera += `
-                    <div class="ent-sheet-subir-pedido">
-                        <span>Cliente pediu entrega at\xE9 a porta do apartamento</span>
-                        <div class="ent-sheet-actions-inline">
-                            <button type="button" class="ent-sheet-primary small" onclick="aceitarSolicitacaoSubida()">Aceitar (+R$ 6,00)</button>
-                            <button type="button" class="ent-sheet-btn-ghost" onclick="recusarSolicitacaoSubida()">Recusar</button>
-                        </div>
-                    </div>`;
-        } else {
-          const itensChecklist = [];
-          if (espera.subirStatus === "aceito" || espera.subirStatus === "pago") {
-            itensChecklist.push(`<div class="ent-sheet-checklist-item done"><i data-lucide="check-circle-2" size="16"></i><span>Entrega na porta aceita</span></div>`);
-          } else if (espera.subirStatus === "recusado") {
-            itensChecklist.push(`<div class="ent-sheet-checklist-item neg"><i data-lucide="x-circle" size="16"></i><span>Voc\xEA recusou entregar na porta dessa vez</span></div>`);
-          }
-          const valorEsperaPendente = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
-          const valorSubidaPendente = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-          const valorPendenteTotal = Number((valorEsperaPendente + valorSubidaPendente).toFixed(2));
-          const taxaJaPaga = valorPendenteTotal <= 0 && (espera.subirStatus === "pago" || espera.esperaStatus === "pago");
-          if (valorPendenteTotal > 0) {
-            itensChecklist.push(`<div class="ent-sheet-checklist-item"><i data-lucide="clock" size="16"></i><span>Aguardando pagamento das taxas (${precoParaMoeda(valorPendenteTotal)})</span></div>`);
-          } else if (taxaJaPaga) {
-            itensChecklist.push(`<div class="ent-sheet-checklist-item done"><i data-lucide="check-circle-2" size="16"></i><span>Taxas pagas via Pix</span></div>`);
-          }
-          if (itensChecklist.length) {
-            blocoEspera += `<div class="ent-sheet-checklist">${itensChecklist.join("")}</div>`;
-          }
+        const itensChecklist = [];
+        if (espera.subirStatus === "aceito" || espera.subirStatus === "pago") {
+          itensChecklist.push(`<div class="ent-sheet-checklist-item done"><i data-lucide="check-circle-2" size="16"></i><span>Entrega na porta aceita</span></div>`);
+        } else if (espera.subirStatus === "recusado") {
+          itensChecklist.push(`<div class="ent-sheet-checklist-item neg"><i data-lucide="x-circle" size="16"></i><span>Voc\xEA recusou entregar na porta dessa vez</span></div>`);
+        } else if (espera.subirStatus === "dispensado") {
+          itensChecklist.push(`<div class="ent-sheet-checklist-item neg"><i data-lucide="x-circle" size="16"></i><span>Cliente optou por n\xE3o pedir entrega na porta</span></div>`);
+        }
+        const valorEsperaPendente = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+        const valorSubidaPendente = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+        const valorPendenteTotal = Number((valorEsperaPendente + valorSubidaPendente).toFixed(2));
+        const taxaJaPaga = valorPendenteTotal <= 0 && (espera.subirStatus === "pago" || espera.esperaStatus === "pago");
+        if (valorPendenteTotal > 0 && !cobrancaAtiva) {
+          itensChecklist.push(`<div class="ent-sheet-checklist-item"><i data-lucide="clock" size="16"></i><span>Aguardando pagamento das taxas (${precoParaMoeda(valorPendenteTotal)})</span></div>`);
+        } else if (taxaJaPaga && !cobrancaAtiva) {
+          itensChecklist.push(`<div class="ent-sheet-checklist-item done"><i data-lucide="check-circle-2" size="16"></i><span>Taxas pagas via Pix</span></div>`);
+        }
+        if (itensChecklist.length) {
+          blocoEspera += `<div class="ent-sheet-checklist">${itensChecklist.join("")}</div>`;
         }
       }
     }
-    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && espera.subirStatus !== "recusado" && espera.subirStatus !== "pago") {
+    const subidaAindaPodeMudar = espera.subirStatus !== "recusado" && espera.subirStatus !== "dispensado" && espera.subirStatus !== "pago";
+    const cobrancaAindaPodeMudar = cobrancaAtiva && !cobrancaResolvida;
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && (subidaAindaPodeMudar || cobrancaAindaPodeMudar)) {
       gerenciarListenerEsperaPacote(rotaObj.id, obterIdPacoteConfirmacao(pac));
     } else {
       pararListenerEsperaPacote();
     }
     const ehColetaReversaLabel = pac?.tipoFluxo === "coleta_reversa";
-    const codeBox = `
+    const codeBox = !espera.chegouEm ? `<button type="button" class="flex-btn flex-btn-secondary" onclick="confirmarCheguei()"><i data-lucide="map-pin" size="16"></i> Cheguei no local</button>` : cobrancaAtiva && !cobrancaResolvida ? `${blocoEspera}<p class="ent-sheet-cobranca-pendente-aviso">Resolva a cobran\xE7a acima para liberar a confirma\xE7\xE3o da entrega.</p>` : `
         <div class="ent-sheet-code-box">
             ${blocoEspera}
             <label for="ent-sheet-code-input">${ehColetaReversaLabel ? "Confirme a devolu\xE7\xE3o (c\xF3digo com o lojista)" : "Confirme a entrega"}</label>
             <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
             <div class="ent-sheet-actions-stack">
-                <button type="button" class="ent-sheet-primary small" onclick="confirmarEntregaPacoteAtual()">${ehColetaReversaLabel ? "Confirmar devolu\xE7\xE3o" : "Confirmar entrega"}</button>
-                <button type="button" class="ent-sheet-btn-ghost" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
+                <button type="button" class="flex-btn flex-btn-primary" onclick="confirmarEntregaPacoteAtual()">${ehColetaReversaLabel ? "Confirmar devolu\xE7\xE3o" : "Confirmar entrega"}</button>
+                <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
             </div>
         </div>
     `;
@@ -4826,8 +4881,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             <label for="ent-sheet-code-input">Confirme a retirada (c\xF3digo com o cliente)</label>
             <input id="ent-sheet-code-input" type="text" placeholder="C\xF3digo de confirma\xE7\xE3o" value="${escaparHtmlMarketplace(estadoAtual.codigoConfirmacao || "")}" oninput="atualizarCodigoConfirmacaoAtual(this.value)">
             <div class="ent-sheet-actions-stack">
-                <button type="button" class="ent-sheet-primary small" onclick="confirmarRetiradaPacoteAtual()">Confirmar retirada</button>
-                <button type="button" class="ent-sheet-btn-ghost" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
+                <button type="button" class="flex-btn flex-btn-primary" onclick="confirmarRetiradaPacoteAtual()">Confirmar retirada</button>
+                <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="cancelarCorridaPacoteAtual()">Cancelar</button>
             </div>
         </div>
     `;
@@ -4838,7 +4893,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const devolucaoStatus = emFaseRetirada ? "" : pac?.devolucaoStatus || "";
     let footerPrincipal;
     if (emFaseRetirada) {
-      footerPrincipal = bloqueado ? codeBoxRetirada : `<button class="ent-sheet-primary" onclick="iniciarRetiradaPacoteAtual(this)"><span>Iniciar corrida (retirada)</span><span class="ent-sheet-arrow" style="font-size:22px;">\u203A</span></button>`;
+      footerPrincipal = bloqueado ? codeBoxRetirada : `<button type="button" class="flex-btn flex-btn-primary" onclick="iniciarRetiradaPacoteAtual(this)">Iniciar corrida (retirada) <i data-lucide="arrow-right" size="16"></i></button>`;
     } else if (devolucaoStatus === "DEVOLUCAO_SOLICITADA") {
       footerPrincipal = `<div class="ent-sheet-status-ok ent-sheet-status-aguardando"><i data-lucide="clock"></i> Aguardando o lojista confirmar a devolu\xE7\xE3o</div>`;
     } else if (devolucaoStatus === "DEVOLUCAO_CONFIRMADA") {
@@ -4854,7 +4909,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     } else if (finalizado) {
       footerPrincipal = statusOk;
     } else {
-      footerPrincipal = `<button class="ent-sheet-primary" onclick="iniciarCorridaPacoteAtual(this)"><span>Iniciar Corrida</span><span class="ent-sheet-arrow" style="font-size:22px;">\u203A</span></button>`;
+      footerPrincipal = `<button type="button" class="flex-btn flex-btn-primary" onclick="iniciarCorridaPacoteAtual(this)">Iniciar Corrida <i data-lucide="arrow-right" size="16"></i></button>`;
     }
     const podeSolicitarDevolucao = !emFaseRetirada && !devolucaoStatus && !finalizado;
     content.innerHTML = `
@@ -4884,7 +4939,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             ${obs ? `<div class="ent-sheet-obs"><i data-lucide="alert-triangle" size="16"></i><div><span class="ent-sheet-obs-label">Aten\xE7\xE3o</span><p>${escaparHtmlMarketplace(obs)}</p></div></div>` : ""}
         </div>
 
-        ${renderBlocoCobrancaEntrega(pac)}
+        ${espera.chegouEm && !emFaseRetirada ? renderBlocoCobrancaEntrega(pac) : ""}
 
         <div class="ent-sheet-footer">
             ${footerPrincipal}
@@ -4897,6 +4952,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     </div>
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
+    if (!emFaseRetirada && bloqueado && !finalizado && !espera.finalizada && espera.chegouEm && !espera.escolhaClienteCongeladoEm) {
+      iniciarCronometroEsperaEntregador(espera.chegouEm);
+    } else {
+      pararCronometroEsperaEntregador();
+    }
   }
   function iniciarFluxoDevolucao() {
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
@@ -4913,11 +4973,11 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         <button type="button" class="ent-sheet-close-btn" onclick="fecharSheetRotaEntregador()">&times;</button>
         <strong style="display:block; font-size:16px; margin-bottom:12px; color:#0f172a;">Por que n\xE3o conseguiu entregar?</strong>
         <div class="ent-sheet-motivo-lista">
-            ${podeClienteNaoPagou ? `<button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_nao_pagou')">Cliente n\xE3o pagou</button>` : ""}
-            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_ausente')">Cliente n\xE3o est\xE1 em casa</button>
-            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('endereco_nao_encontrado')">Endere\xE7o n\xE3o encontrado</button>
-            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_recusou')">Cliente recusou o pedido</button>
-            <button type="button" class="ent-sheet-btn-ghost ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('outro')">Outro motivo</button>
+            ${podeClienteNaoPagou ? `<button type="button" class="flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_nao_pagou')">Cliente n\xE3o pagou</button>` : ""}
+            <button type="button" class="flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_ausente')">Cliente n\xE3o est\xE1 em casa</button>
+            <button type="button" class="flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('endereco_nao_encontrado')">Endere\xE7o n\xE3o encontrado</button>
+            <button type="button" class="flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('cliente_recusou')">Cliente recusou o pedido</button>
+            <button type="button" class="flex-btn flex-btn-secondary cinza ent-sheet-motivo-btn" onclick="solicitarDevolucaoPacoteAtual('outro')">Outro motivo</button>
         </div>
         <button class="ent-sheet-link" onclick="renderSheetRotaEntregadorConteudo()">Cancelar</button>
     </div>
@@ -4991,9 +5051,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     <div class="ent-sheet-code-box">
         <label for="ent-sheet-devolucao-code-input">C\xF3digo de devolu\xE7\xE3o (informado pelo lojista)</label>
         <input id="ent-sheet-devolucao-code-input" type="text" placeholder="C\xF3digo de devolu\xE7\xE3o">
-        <div class="ent-sheet-actions-inline">
-            <button type="button" class="ent-sheet-btn-ghost" onclick="abrirMapaColetaLoja()">Ir at\xE9 a loja</button>
-            <button type="button" class="ent-sheet-primary small" onclick="confirmarCodigoDevolucaoPacoteAtual()">Confirmar devolu\xE7\xE3o</button>
+        <div class="flex-btn-row">
+            <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="abrirMapaColetaLoja()">Ir at\xE9 a loja</button>
+            <button type="button" class="flex-btn flex-btn-primary" onclick="confirmarCodigoDevolucaoPacoteAtual()">Confirmar devolu\xE7\xE3o</button>
         </div>
     </div>`;
   }
@@ -5552,9 +5612,23 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       const dados = snap.val() || {};
       const pacAtual = rotaEntSheetPacotes[rotaEntSheetIndex];
       if (!pacAtual || obterIdPacoteConfirmacao(pacAtual) !== pacoteId) return;
-      if ((dados.subirStatus || null) === (pacAtual.esperaEntrega?.subirStatus || null)) return;
-      pacAtual.esperaEntrega = { ...pacAtual.esperaEntrega || {}, subirStatus: dados.subirStatus || null };
-      renderSheetRotaEntregadorConteudo();
+      let mudou = false;
+      if ((dados.subirStatus || null) !== (pacAtual.esperaEntrega?.subirStatus || null)) {
+        pacAtual.esperaEntrega = { ...pacAtual.esperaEntrega || {}, subirStatus: dados.subirStatus || null };
+        mudou = true;
+      }
+      const cobrancaAtual = pacAtual.cobrancaEntrega;
+      if (cobrancaAtual?.ativa) {
+        if (dados.cobrancaEscolha && dados.cobrancaEscolha !== cobrancaAtual.escolhaCliente) {
+          pacAtual.cobrancaEntrega = { ...cobrancaAtual, escolhaCliente: dados.cobrancaEscolha };
+          mudou = true;
+        }
+        if (dados.cobrancaStatus === "pago" && cobrancaAtual.status !== "pago") {
+          pacAtual.cobrancaEntrega = { ...pacAtual.cobrancaEntrega, status: "pago" };
+          mudou = true;
+        }
+      }
+      if (mudou) renderSheetRotaEntregadorConteudo();
     });
   }
   function pararListenerEsperaPacote() {
@@ -5790,6 +5864,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         await renderRotasMarketplaceEntregador(true);
       } else if (motivo === "flash_pendente") {
         alert("Voc\xEA tem uma entrega Flash/Expresso pendente (prazo de 2h) \u2014 finalize essa entrega antes de aceitar outra rota. Veja a aba Rotas > Entregas.");
+      } else if (motivo === "documentos_pendentes") {
+        alert("Seus documentos ainda n\xE3o foram aprovados pela Flex \u2014 envie comprovante de endere\xE7o, CNH e documento do ve\xEDculo em Perfil > Documentos e aguarde a aprova\xE7\xE3o.");
       } else {
         console.warn("Erro ao aceitar rota marketplace:", err);
         alert("Nao foi possivel aceitar essa rota agora. Tente novamente.");
@@ -8248,156 +8324,31 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       valor
     };
   }
-  async function gerarPixCobrancaEntrega(valorOverride) {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const cobranca = pac?.cobrancaEntrega;
-    if (!rotaObj || !cobranca?.ativa || cobranca.status !== "pendente") return;
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const envioId = obterIdPacoteConfirmacao(pac);
-    if (!lojistaUid || !envioId) return;
-    const valorPix = Number.isFinite(Number(valorOverride)) && Number(valorOverride) > 0 ? Number(valorOverride) : Number(cobranca.valor || 0);
-    const btn = document.getElementById("ent-sheet-pix-gerar-btn");
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = "Gerando Pix...";
-    }
-    try {
-      let data;
-      if (FLEXA_PAYMENTS_PROXY_URL) {
-        data = await chamarPaymentsProxy("/create-pix-cobranca", { tenantId: lojistaUid, rotaId: rotaObj.id, envioId, valor: valorPix });
-      } else if (FLEXA_MP_TEST_TOKEN) {
-        data = await criarPagamentoPixCobrancaEntregaTesteLocal(pac, rotaObj.id, valorPix);
-      } else {
-        throw new Error("Pagamento n\xE3o configurado: defina FLEXA_PAYMENTS_PROXY_URL (produ\xE7\xE3o) ou FLEXA_MP_TEST_TOKEN (s\xF3 teste local).");
-      }
-      const pixCode = normalizarCodigoPix(data.pixCode || "");
-      if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix.");
-      pixCobrancaEntregaAtual = {
-        paymentId: data.paymentId ? String(data.paymentId) : "",
-        envioId,
-        lojistaUid,
-        rotaId: rotaObj.id,
-        pixCode,
-        qrCodeBase64: data.qrCodeBase64 || "",
-        valor: data.valor || valorPix
-      };
-      renderSheetRotaEntregadorConteudo();
-      iniciarPollingPixCobrancaEntrega();
-    } catch (err) {
-      console.warn("Falha ao gerar Pix de cobran\xE7a na entrega:", err);
-      if (!FLEXA_PAYMENTS_PROXY_URL && mercadoPagoAmbienteAtual === "teste") {
-        const simular = confirm(
-          "N\xE3o foi poss\xEDvel gerar o Pix de cobran\xE7a (ambiente TESTE).\n\nDetalhe: " + (err?.message || "erro desconhecido") + "\n\nDeseja simular esse Pix como pago para continuar testando o fluxo?"
-        );
-        if (simular) {
-          await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valorPix, envioId);
-          await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-            "cobrancaEntrega/status": "pago",
-            "cobrancaEntrega/pagoEm": Date.now()
-          }).catch((e) => console.warn("Falha ao persistir cobran\xE7a simulada como paga:", e));
-          pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: "pago", pagoEm: Date.now() };
-          renderSheetRotaEntregadorConteudo();
-          return;
-        }
-      }
-      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = "Gerar Pix";
-      }
-    }
-  }
-  function pararPollingPixCobrancaEntrega() {
-    if (pixCobrancaEntregaPollTimer) {
-      clearInterval(pixCobrancaEntregaPollTimer);
-      pixCobrancaEntregaPollTimer = null;
-    }
-  }
-  async function creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId) {
-    if (!lojistaUid || !Number.isFinite(valor) || valor <= 0) return;
-    try {
-      const resultado = await ajustarSaldoUsuario(lojistaUid, valor);
-      if (!resultado.ok) return;
-      await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
-        protocolo: gerarProtocoloTransacao(),
-        tipo: "CREDITO",
-        metodo: "pix",
-        valor,
-        descricao: `Cobran\xE7a na entrega recebida via Pix (pedido #${envioId}) [TESTE]`,
-        remetente: "Cliente (Pix simulado \u2014 ambiente teste)",
-        destinatario: "Carteira da loja",
-        criadoEm: Date.now()
-      });
-    } catch (err) {
-      console.warn("Falha ao creditar lojista pela cobran\xE7a via Pix (teste local):", err);
-    }
-  }
-  async function finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor) {
-    const agora = Date.now();
-    if (!FLEXA_PAYMENTS_PROXY_URL) {
-      await creditarLojistaCobrancaEntregaTesteLocal(lojistaUid, valor, envioId);
-      await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-        "cobrancaEntrega/status": "pago",
-        "cobrancaEntrega/pagoEm": agora
-      }).catch((err) => console.warn("Falha ao persistir cobran\xE7a paga via Pix (teste local):", err));
-    }
-    const pac = rotaEntSheetPacotes.find((p) => obterIdPacoteConfirmacao(p) === envioId);
-    if (pac) pac.cobrancaEntrega = { ...pac.cobrancaEntrega, status: "pago", pagoEm: agora };
-    pixCobrancaEntregaAtual = null;
-    renderSheetRotaEntregadorConteudo();
-  }
-  function iniciarPollingPixCobrancaEntrega() {
-    pararPollingPixCobrancaEntrega();
-    pixCobrancaEntregaPollTimer = setInterval(async () => {
-      if (!pixCobrancaEntregaAtual?.paymentId) {
-        pararPollingPixCobrancaEntrega();
-        return;
-      }
-      try {
-        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxy("/check-pix-cobranca", { tenantId: pixCobrancaEntregaAtual.lojistaUid, paymentId: pixCobrancaEntregaAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixCobrancaEntregaAtual.paymentId);
-        const statusEl = document.getElementById("ent-sheet-pix-status");
-        if (data?.status === "approved") {
-          pararPollingPixCobrancaEntrega();
-          const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
-          await finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor);
-        } else if (statusEl) {
-          statusEl.innerText = "Aguardando pagamento do cliente...";
-        }
-      } catch (err) {
-        console.warn("Falha ao consultar status do Pix de cobran\xE7a:", err);
-      }
-    }, 4e3);
-  }
-  async function simularAprovacaoCobrancaEntregaTeste() {
-    if (!pixCobrancaEntregaAtual) return;
-    if (!window.confirm("Simular esse Pix de cobran\xE7a como pago? Isso s\xF3 deve ser usado em ambiente de TESTE.")) return;
-    const { lojistaUid, envioId, valor } = pixCobrancaEntregaAtual;
-    pararPollingPixCobrancaEntrega();
-    try {
-      await finalizarCobrancaEntregaComoPaga(lojistaUid, envioId, valor);
-    } catch (err) {
-      console.warn("Falha ao simular cobran\xE7a paga:", err);
-      alert("N\xE3o foi poss\xEDvel simular o pagamento agora. Tente novamente.");
-    }
-  }
-  function copiarCodigoPixCobrancaEntrega() {
-    if (!pixCobrancaEntregaAtual?.pixCode) return;
-    navigator.clipboard?.writeText(pixCobrancaEntregaAtual.pixCode).then(() => {
-      const feedback = document.getElementById("ent-sheet-pix-copy-feedback");
-      if (feedback) feedback.innerText = "C\xF3digo copiado!";
-      notificarSucesso("C\xF3digo Pix copiado!");
-    }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
-  }
   async function confirmarRecebimentoDinheiro() {
     const rotaObj = rotaEntSheetRotaAtual;
     const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
     const cobranca = pac?.cobrancaEntrega;
     if (!rotaObj || !cobranca?.ativa || cobranca.status !== "pendente") return;
-    const valor = Number(cobranca.valor || 0);
-    if (!Number.isFinite(valor) || valor <= 0) return;
+    const espera = pac?.esperaEntrega || {};
+    const dinheiroCongelado = cobranca.escolhaCliente === "dinheiro" && espera.escolhaClienteCongeladoEm;
+    let valorEspera;
+    let valorSubida;
+    let valorCobranca;
+    if (dinheiroCongelado) {
+      valorEspera = espera.esperaStatus === "pago" ? 0 : Number(espera.valorEsperaCongelado || 0);
+      valorSubida = espera.subirStatus === "pago" ? 0 : Number(espera.valorSubidaCongelado || 0);
+      valorCobranca = Number(cobranca.valorCongelado ?? cobranca.valor ?? 0);
+    } else {
+      const minutosDesde = espera.chegouEm ? Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4)) : 0;
+      const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+      valorEspera = espera.esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
+      valorSubida = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+      valorCobranca = Number(cobranca.valor || 0);
+    }
+    const valorTotal = Number((valorEspera + valorSubida + valorCobranca).toFixed(2));
+    if (!Number.isFinite(valorTotal) || valorTotal <= 0) return;
     const confirmado = window.confirm(
-      `Confirmar que recebeu ${precoParaMoeda(valor)} em dinheiro do cliente? Esse valor vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica).`
+      `Confirmar que recebeu ${precoParaMoeda(valorTotal)} em dinheiro do cliente? O valor do pedido (${precoParaMoeda(valorCobranca)}) vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica) \u2014 eventuais taxas de espera/entrega na porta (${precoParaMoeda(valorEspera + valorSubida)}) j\xE1 s\xE3o suas, sem d\xEDvida nenhuma.`
     );
     if (!confirmado) return;
     const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
@@ -8410,67 +8361,12 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         envioId
       });
       const agora = Date.now();
-      pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: Number(data?.valor ?? valor), valorPix: 0, pagoEm: agora };
+      pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: Number(data?.valor ?? valorCobranca), valorPix: 0, pagoEm: agora };
+      if (valorEspera > 0) pac.esperaEntrega = { ...espera, esperaStatus: "pago", valorEsperaPago: valorEspera, esperaPagoEm: agora };
+      if (valorSubida > 0) pac.esperaEntrega = { ...pac.esperaEntrega, subirStatus: "pago", subidaPagoEm: agora };
       renderSheetRotaEntregadorConteudo();
     } catch (err) {
       console.warn("Falha ao confirmar recebimento em dinheiro:", err);
-      alert("N\xE3o foi poss\xEDvel registrar o recebimento agora. Tente novamente.");
-    }
-  }
-  function atualizarRestantePixCobranca(valorDigitado) {
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const total = Number(pac?.cobrancaEntrega?.valor || 0);
-    let dinheiro = parseMoedaParaNumero(valorDigitado || 0);
-    if (!Number.isFinite(dinheiro) || dinheiro < 0) dinheiro = 0;
-    if (dinheiro > total) dinheiro = total;
-    const restante = Number((total - dinheiro).toFixed(2));
-    const label = document.getElementById("ent-sheet-cobranca-restante-label");
-    if (label) label.innerText = restante > 0 ? `Restante no Pix: ${precoParaMoeda(restante)}` : "Dinheiro cobre o total \u2014 nenhum Pix necess\xE1rio.";
-  }
-  async function confirmarPagamentoMistoCobranca() {
-    const rotaObj = rotaEntSheetRotaAtual;
-    const pac = rotaEntSheetPacotes[rotaEntSheetIndex] || {};
-    const cobranca = pac?.cobrancaEntrega;
-    if (!rotaObj || !cobranca?.ativa || cobranca.status !== "pendente") return;
-    const total = Number(cobranca.valor || 0);
-    const input = document.getElementById("ent-sheet-cobranca-dinheiro-input");
-    let valorDinheiro = parseMoedaParaNumero(input?.value || 0);
-    if (!Number.isFinite(valorDinheiro) || valorDinheiro < 0) valorDinheiro = 0;
-    if (valorDinheiro > total) {
-      alert(`O valor em dinheiro n\xE3o pode ser maior que o total da cobran\xE7a (${precoParaMoeda(total)}).`);
-      return;
-    }
-    const valorPix = Number((total - valorDinheiro).toFixed(2));
-    if (valorDinheiro > 0) {
-      const aviso = valorPix > 0 ? `Confirmar que recebeu ${precoParaMoeda(valorDinheiro)} em dinheiro do cliente? O restante de ${precoParaMoeda(valorPix)} vai ser cobrado via Pix a seguir. O valor em dinheiro vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica).` : `Confirmar que recebeu ${precoParaMoeda(valorDinheiro)} em dinheiro do cliente? Esse valor vira d\xEDvida sua com a plataforma at\xE9 a pr\xF3xima rota conclu\xEDda (liquida\xE7\xE3o autom\xE1tica).`;
-      if (!window.confirm(aviso)) return;
-    } else if (valorPix <= 0) {
-      alert("Digite quanto foi recebido em dinheiro, ou gere o Pix pelo valor cheio.");
-      return;
-    }
-    const lojistaUid = obterLojistaUidDaRota(rotaObj, pac);
-    const uidEntregador = getUsuarioIdAtual();
-    const envioId = obterIdPacoteConfirmacao(pac);
-    const agora = Date.now();
-    try {
-      if (valorPix <= 0) {
-        const data = await chamarPaymentsProxy("/confirmar-cobranca-dinheiro", { tenantId: lojistaUid, rotaId: rotaObj.id, envioId });
-        pac.cobrancaEntrega = { ...cobranca, status: "pago", valorDinheiro: Number(data?.valor ?? total), valorPix: 0, pagoEm: agora };
-        renderSheetRotaEntregadorConteudo();
-        return;
-      }
-      const resultadoDivida = await ajustarDividaUsuario(uidEntregador, valorDinheiro);
-      if (!resultadoDivida.ok) throw new Error("Falha ao registrar d\xEDvida.");
-      if (lojistaUid && envioId) {
-        await sincronizarCamposEnvioLojista(lojistaUid, envioId, {
-          "cobrancaEntrega/valorDinheiro": valorDinheiro,
-          "cobrancaEntrega/valorPix": valorPix
-        });
-      }
-      pac.cobrancaEntrega = { ...cobranca, valorDinheiro, valorPix };
-      await gerarPixCobrancaEntrega(valorPix);
-    } catch (err) {
-      console.warn("Falha ao confirmar pagamento misto da cobran\xE7a:", err);
       alert("N\xE3o foi poss\xEDvel registrar o recebimento agora. Tente novamente.");
     }
   }
@@ -8490,54 +8386,41 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     if (cobranca.status === "pago_dinheiro") {
       return `<div class="ent-sheet-cobranca-box ent-sheet-cobranca-ok"><i data-lucide="check-circle-2"></i> ${precoParaMoeda(cobranca.valor)} recebidos em dinheiro</div>`;
     }
+    const espera = pac?.esperaEntrega || {};
+    const dinheiroCongeladoDisplay = cobranca.escolhaCliente === "dinheiro" && espera.escolhaClienteCongeladoEm;
+    let valorEsperaDisplay;
+    let valorSubidaDisplay;
+    let valorCobrancaDisplay;
+    if (dinheiroCongeladoDisplay) {
+      valorEsperaDisplay = espera.esperaStatus === "pago" ? 0 : Number(espera.valorEsperaCongelado || 0);
+      valorSubidaDisplay = espera.subirStatus === "pago" ? 0 : Number(espera.valorSubidaCongelado || 0);
+      valorCobrancaDisplay = Number(cobranca.valorCongelado ?? cobranca.valor ?? 0);
+    } else {
+      const minutosDesdeDisplay = espera.chegouEm ? Math.max(0, Math.round((Date.now() - Number(espera.chegouEm)) / 6e4)) : 0;
+      const minutosCobradosDisplay = Math.max(0, minutosDesdeDisplay - TAXA_ESPERA_GRACE_MIN);
+      valorEsperaDisplay = espera.esperaStatus === "pago" ? 0 : Number((minutosCobradosDisplay * TAXA_ESPERA_POR_MIN).toFixed(2));
+      valorSubidaDisplay = espera.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
+      valorCobrancaDisplay = Number(cobranca.valor || 0);
+    }
+    const valorTotalDisplay = Number((valorEsperaDisplay + valorSubidaDisplay + valorCobrancaDisplay).toFixed(2));
+    if (cobranca.escolhaCliente === "dinheiro") {
+      return `
+        <div class="ent-sheet-cobranca-box">
+            <strong>Cliente vai pagar ${precoParaMoeda(valorTotalDisplay)} em dinheiro na entrega</strong>
+            <div class="flex-btn-row">
+                <button type="button" class="flex-btn flex-btn-secondary" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button>
+            </div>
+        </div>`;
+    }
+    if (cobranca.escolhaCliente === "pix") {
+      return `<div class="ent-sheet-cobranca-box"><strong>Cliente escolheu pagar ${precoParaMoeda(valorTotalDisplay)} via Pix</strong><div class="ent-sheet-pix-status">Aguardando o cliente pagar...</div></div>`;
+    }
     const formasAceitas = Array.isArray(cobranca.formasAceitas) ? cobranca.formasAceitas : [];
-    const podeGerarPix = formasAceitas.includes("pix");
     const podeReceberDinheiro = formasAceitas.includes("dinheiro");
-    const envioIdAtual = obterIdPacoteConfirmacao(pac);
-    const pixAtivo = pixCobrancaEntregaAtual && pixCobrancaEntregaAtual.envioId === envioIdAtual;
-    if (pixAtivo) {
-      const valorDinheiroJaRecebido = Number(cobranca.valorDinheiro) > 0 ? Number(cobranca.valorDinheiro) : 0;
-      return `
-        <div class="ent-sheet-cobranca-box">
-            <strong>Cobrar ${precoParaMoeda(pixCobrancaEntregaAtual.valor || cobranca.valor)} do cliente via Pix</strong>
-            ${valorDinheiroJaRecebido > 0 ? `<p class="ent-sheet-pix-status" style="margin-top:2px;">${precoParaMoeda(valorDinheiroJaRecebido)} j\xE1 recebidos em dinheiro</p>` : ""}
-            ${pixCobrancaEntregaAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixCobrancaEntregaAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
-            <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixCobrancaEntregaAtual.pixCode)}</textarea>
-            <div class="ent-sheet-actions-inline">
-                <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixCobrancaEntrega()">Copiar c\xF3digo Pix</button>
-            </div>
-            <div id="ent-sheet-pix-status" class="ent-sheet-pix-status">Aguardando pagamento do cliente...</div>
-            <div id="ent-sheet-pix-copy-feedback" class="ent-sheet-pix-copy-feedback"></div>
-            ${mercadoPagoAmbienteAtual === "teste" ? `<button type="button" class="ent-sheet-link" onclick="simularAprovacaoCobrancaEntregaTeste()">Simular pagamento aprovado (teste)</button>` : ""}
-        </div>`;
-    }
-    if (podeReceberDinheiro && !podeGerarPix) {
-      return `
-        <div class="ent-sheet-cobranca-box">
-            <strong>Cobrar ${precoParaMoeda(cobranca.valor)} em dinheiro na entrega</strong>
-            <div class="ent-sheet-actions-inline">
-                <button type="button" class="ent-sheet-primary small" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button>
-            </div>
-        </div>`;
-    }
-    if (podeGerarPix && !podeReceberDinheiro) {
-      return `
-        <div class="ent-sheet-cobranca-box">
-            <strong>Cobrar ${precoParaMoeda(cobranca.valor)} do cliente via Pix</strong>
-            <div class="ent-sheet-actions-inline">
-                <button type="button" id="ent-sheet-pix-gerar-btn" class="ent-sheet-btn-ghost" onclick="gerarPixCobrancaEntrega()">Gerar Pix</button>
-            </div>
-        </div>`;
-    }
     return `
     <div class="ent-sheet-cobranca-box">
-        <strong>Cobrar ${precoParaMoeda(cobranca.valor)} do cliente na entrega</strong>
-        <label for="ent-sheet-cobranca-dinheiro-input" style="display:block; margin-top:8px; font-size:12px; font-weight:700; color:#475569;">Recebido em dinheiro (deixe 0 se for tudo no Pix)</label>
-        <input id="ent-sheet-cobranca-dinheiro-input" type="text" inputmode="decimal" placeholder="R$ 0,00" oninput="atualizarRestantePixCobranca(this.value)">
-        <p id="ent-sheet-cobranca-restante-label" class="ent-sheet-pix-status">Restante no Pix: ${precoParaMoeda(cobranca.valor)}</p>
-        <div class="ent-sheet-actions-inline">
-            <button type="button" class="ent-sheet-primary small" onclick="confirmarPagamentoMistoCobranca()">Confirmar recebimento</button>
-        </div>
+        <strong>Aguardando o cliente escolher a forma de pagamento (${precoParaMoeda(valorTotalDisplay)})</strong>
+        ${podeReceberDinheiro ? `<div class="flex-btn-row"><button type="button" class="flex-btn flex-btn-secondary" onclick="confirmarRecebimentoDinheiro()">Recebi em dinheiro</button></div>` : ""}
     </div>`;
   }
   function distanciaHaversineKm(a, b) {
@@ -8830,9 +8713,11 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         let codigoRetirada = "";
         let pontoGeo = null;
         let enderecoDestino = null;
+        let cobrancaPac = null;
         try {
           const snap = await db.ref(`usuarios/${uidLojista}/pacotes/${pacoteId}`).once("value");
           const pac = snap.val() || {};
+          cobrancaPac = pac.cobrancaEntrega || null;
           destinatario = (pac.destinatario || destinatario).toString();
           whatsappCliente = normalizarWhatsapp(pac.whatsapp || "");
           if (pac.clienteId && pac.tipoFluxo !== "coleta_reversa") {
@@ -8873,7 +8758,12 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             pacoteId
           };
         }
-        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino };
+        const cobrancaPublica = cobrancaPac?.ativa ? {
+          cobrancaAtiva: true,
+          cobrancaValor: Number(cobrancaPac.valor) || 0,
+          cobrancaFormas: Array.isArray(cobrancaPac.formasAceitas) ? cobrancaPac.formasAceitas : []
+        } : {};
+        pacotesMapa[pacoteId] = { destinatario, destinoChave, status: "BUSCANDO", ordem: idx + 1, codigoConfirmacaoEntrega: codigoConfirmacao, codigoConfirmacaoRetirada: codigoRetirada, geo: pontoGeo, enderecoDestino, ...cobrancaPublica };
       }
       updates[`rastreioPublico/${rota.id}`] = {
         lojaNome,
@@ -8896,6 +8786,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
   var rastreioPublicoListenerRef = null;
   var clienteAuthApp = null;
   var clienteAuthListenerAtivo = false;
+  var clienteAuthEstadoResolvido = false;
   function obterClienteAuthApp() {
     if (!clienteAuthApp) {
       clienteAuthApp = firebase.initializeApp(firebase.app().options, "clienteAuth");
@@ -8906,7 +8797,10 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const auth2 = obterClienteAuthApp().auth();
     if (!clienteAuthListenerAtivo) {
       clienteAuthListenerAtivo = true;
-      auth2.onAuthStateChanged(() => atualizarUiClienteAuth());
+      auth2.onAuthStateChanged(() => {
+        clienteAuthEstadoResolvido = true;
+        atualizarUiClienteAuth();
+      });
     }
     return auth2;
   }
@@ -8977,6 +8871,10 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const email = (document.getElementById("cliente-auth-email")?.value || "").trim();
     const senha = (document.getElementById("cliente-auth-senha")?.value || "").trim();
     if (!nome || !whatsapp || !email || !senha) return alert("Preencha todos os campos.");
+    if (!senhaEhForte(senha)) {
+      alert("A senha precisa ter pelo menos 6 caracteres, com letras e n\xFAmeros.");
+      return;
+    }
     const auth2 = obterClienteAuth();
     const db2 = obterClienteDb();
     try {
@@ -9047,7 +8945,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const uf = (document.getElementById("cliente-auth-completar-estado")?.value || "").trim();
     const comp = (document.getElementById("cliente-auth-completar-comp")?.value || "").trim();
     if (!nome || !novaSenha) return alert("Preencha nome e a nova senha.");
-    if (novaSenha.length < 6) return alert("A nova senha precisa ter pelo menos 6 caracteres.");
+    if (!senhaEhForte(novaSenha)) return alert("A senha precisa ter pelo menos 6 caracteres, com letras e n\xFAmeros.");
     try {
       const dadosAntes = (await db2.ref("usuarios/" + user.uid).once("value")).val() || {};
       const whatsapp = dadosAntes.whatsapp || "";
@@ -9106,6 +9004,10 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const appActions = document.getElementById("cliente-app-actions");
     const appNav = document.getElementById("cliente-app-nav");
     if (!logado || !deslogado) return;
+    const auth2 = obterClienteAuth();
+    if (!clienteAuthEstadoResolvido) {
+      return;
+    }
     const limparEstadoCliente = () => {
       clienteDadosAtual = null;
       clienteEnderecoAtual = null;
@@ -9121,7 +9023,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       if (appActions) appActions.style.display = "none";
       if (appNav) appNav.style.display = "none";
     };
-    const user = obterClienteAuth().currentUser;
+    const user = auth2.currentUser;
     if (!user) {
       limparEstadoCliente();
       logado.style.display = "none";
@@ -9362,14 +9264,24 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       ]);
       const rotaPublica = rotaSnap.val();
       if (!rotaPublica) throw new Error("Rota de rastreio n\xE3o encontrada.");
+      const pacoteAutenticado = pacoteSnap?.val?.() || {};
+      const itemCacheExistente = clientePedidosCache.find((item) => String(item.token) === token) || {};
       const pedido = {
         token,
-        ...clientePedidosCache.find((item) => String(item.token) === token) || {},
+        ...itemCacheExistente,
         tokenInfo,
         rotaPublica,
         pacotePublico: rotaPublica?.pacotes?.[tokenInfo.pacoteId] || {},
-        pacote: pacoteSnap?.val?.() || {},
-        lojistaNome: rotaPublica.lojaNome || "Loja"
+        pacote: pacoteAutenticado,
+        lojistaNome: rotaPublica.lojaNome || "Loja",
+        // BUG CORRIGIDO 2026-10-08 (achado pelo dono): o pedido de ORIGEM
+        // (aberto direto pelo link, antes da lista de Meus Pedidos
+        // terminar de carregar) nunca tinha criadoEm — só a entrada do
+        // índice pedidosPorCliente tem isso, e aqui a gente nem busca
+        // esse índice (só token -> rota/pacote). Cai pro criadoEm real do
+        // próprio pacote (gravado na criação do envio), em vez de
+        // mostrar "--" na data.
+        criadoEm: itemCacheExistente.criadoEm || pacoteAutenticado.criadoEm || null
       };
       if (obterPedidoOrigemCliente() !== token) return;
       clientePedidoOrigemCache = pedido;
@@ -9452,21 +9364,34 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const minutosEspera = chegouEm && rotaAtiva ? Math.max(0, Math.round((Date.now() - chegouEm) / 6e4) - TAXA_ESPERA_GRACE_MIN) : 0;
     const taxaEsperaValor = Number(espera.valorEsperaPago || 0) || minutosEspera * TAXA_ESPERA_POR_MIN;
     const taxaPortaValor = subirStatus === "aceito" || subirStatus === "pago" ? TAXA_SUBIR_FIXA : 0;
+    const cobrancaAtiva = !!(publico.cobrancaAtiva || pacote.cobrancaEntrega?.ativa);
+    const cobrancaPaga = (publico.cobrancaStatus || pacote.cobrancaEntrega?.status) === "pago";
+    const valorCobranca = cobrancaAtiva ? Number(publico.cobrancaValor ?? pacote.cobrancaEntrega?.valor ?? 0) : 0;
     const linhaValorTag = (valor, tagClasse, tagLabel) => `<div class="cliente-detail-row-value"><strong>${precoParaMoeda(valor)}</strong><span class="cliente-status-tag ${tagClasse}">${tagLabel}</span></div>`;
     const pagamentoLinhas = [
       `<div class="cliente-detail-row"><span>Frete</span>${linhaValorTag(Number(pacote.valorFrete || 0), "pago", "Pago")}</div>`
     ];
+    const pagaEspera = esperaStatus === "pago";
     if (taxaEsperaValor > 0) {
-      const pagaEspera = esperaStatus === "pago";
       pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Taxa de espera</span>${linhaValorTag(taxaEsperaValor, pagaEspera ? "pago" : "pendente", pagaEspera ? "Pago" : "Pendente")}</div>`);
     }
+    const pagaPorta = subirStatus === "pago";
     if (taxaPortaValor > 0) {
-      const pagaPorta = subirStatus === "pago";
       pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Taxa de entrega na porta</span>${linhaValorTag(taxaPortaValor, pagaPorta ? "pago" : "pendente", pagaPorta ? "Pago" : "Pendente")}</div>`);
+    }
+    if (valorCobranca > 0) {
+      pagamentoLinhas.push(`<div class="cliente-detail-row"><span>Valor do produto</span>${linhaValorTag(valorCobranca, cobrancaPaga ? "pago" : "pendente", cobrancaPaga ? "Pago" : "Pendente")}</div>`);
+    }
+    const nadaConfirmadoAinda = !pagaEspera && !pagaPorta && !cobrancaPaga;
+    const totalCongeladoMirror = Number(publico.valorTotalCongelado);
+    const totalPendente = nadaConfirmadoAinda && publico.cobrancaEscolha === "dinheiro" && Number.isFinite(totalCongeladoMirror) ? totalCongeladoMirror : Number(((pagaEspera ? 0 : taxaEsperaValor) + (pagaPorta ? 0 : taxaPortaValor) + (cobrancaPaga ? 0 : valorCobranca)).toFixed(2));
+    if (totalPendente > 0) {
+      pagamentoLinhas.push(`<div class="cliente-detail-row cliente-detail-row-total"><span>Total pendente</span><strong>${precoParaMoeda(totalPendente)}</strong></div>`);
     }
     const dataTxt = item.criadoEm ? new Date(Number(item.criadoEm)).toLocaleDateString("pt-BR") : "--";
     const codigo = pacote.codigo || publico.codigo || item.pacoteId || item.token?.slice(0, 8) || "--";
     const token = item.token || "";
+    const mostrarAcompanhar = token && status.classe !== "concluido" && status.classe !== "cancelado";
     conteudo.innerHTML = `
         <button type="button" class="cliente-back-button" onclick="voltarParaListaPedidosCliente()"><i data-lucide="arrow-left" size="17"></i> Pedidos</button>
         <div class="cliente-detail-card">
@@ -9482,8 +9407,9 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
                 <h2>Pagamento</h2>
                 ${pagamentoLinhas.join("")}
             </div>
+            ${totalPendente > 0 && token ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="wallet" size="17"></i> Pagar agora</button>` : ""}
         </div>
-        ${token ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="map-pin" size="17"></i> Acompanhar pedido</button>` : ""}`;
+        ${mostrarAcompanhar ? `<button type="button" class="cliente-track-button" onclick="abrirRastreioPedidoCliente('${escaparHtmlMarketplace(token)}')"><i data-lucide="map-pin" size="17"></i> Acompanhar pedido</button>` : ""}`;
     if (typeof lucide !== "undefined") lucide.createIcons();
   }
   function voltarParaListaPedidosCliente() {
@@ -9706,6 +9632,9 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const conteudo = document.getElementById("rastreio-pub-conteudo");
     if (!conteudo) return;
     if (!token) {
+      if (!clienteAuthEstadoResolvido) {
+        conteudo.innerHTML = '<div class="rastreio-pub-loading">Carregando...</div>';
+      }
       if (rastreioPublicoListenerRef) {
         rastreioPublicoListenerRef.off();
         rastreioPublicoListenerRef = null;
@@ -9729,6 +9658,26 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       console.warn("Falha ao carregar rastreio p\xFAblico:", err);
       conteudo.innerHTML = '<div class="rastreio-pub-erro">N\xE3o foi poss\xEDvel carregar o rastreio agora. Tente novamente em instantes.</div>';
     }
+  }
+  var cronometroEsperaClienteTimer = null;
+  function pararCronometroEsperaCliente() {
+    if (cronometroEsperaClienteTimer) {
+      clearInterval(cronometroEsperaClienteTimer);
+      cronometroEsperaClienteTimer = null;
+    }
+  }
+  function iniciarCronometroEsperaCliente(chegouEm) {
+    pararCronometroEsperaCliente();
+    cronometroEsperaClienteTimer = setInterval(() => {
+      const el = document.getElementById("rastreio-pub-cronometro-texto");
+      if (!el) {
+        pararCronometroEsperaCliente();
+        return;
+      }
+      const minutosDesde = Math.max(0, Math.round((Date.now() - Number(chegouEm)) / 6e4));
+      const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
+      el.textContent = `Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}`;
+    }, 1e4);
   }
   function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride = null, tokenOverride = tokenRastreioAtual) {
     const conteudo = conteudoOverride || document.getElementById("rastreio-pub-conteudo");
@@ -9830,8 +9779,19 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
     const valorEsperaEstimado = esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
     const valorSubidaEstimado = subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-    const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
+    const cobrancaAtivaInfo = !!pacoteInfo.cobrancaAtiva;
+    const cobrancaJaPaga = pacoteInfo.cobrancaStatus === "pago";
+    const valorCobrancaPendente = cobrancaAtivaInfo && !cobrancaJaPaga ? Number(pacoteInfo.cobrancaValor) || 0 : 0;
+    const formasCobranca = Array.isArray(pacoteInfo.cobrancaFormas) ? pacoteInfo.cobrancaFormas : [];
+    const aceitaDinheiroPendencias = valorCobrancaPendente > 0 && formasCobranca.includes("dinheiro");
+    const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado + valorCobrancaPendente).toFixed(2));
+    const valorTotalCongeladoMirror = Number(pacoteInfo.valorTotalCongelado);
+    const pendenciaCongeladaCliente = Number.isFinite(valorTotalCongeladoMirror);
+    const valorExibidoPendencia = pendenciaCongeladaCliente ? valorTotalCongeladoMirror : valorTotalEstimado;
+    const cronometroClienteHtml = entregadorPresenteParaTaxas ? pendenciaCongeladaCliente ? `<div class="rastreio-pub-cronometro"><i data-lucide="clock" size="14"></i> <span>Aguardando confirma\xE7\xE3o do pagamento</span></div>` : `<div class="rastreio-pub-cronometro"><i data-lucide="clock" size="14"></i> <span id="rastreio-pub-cronometro-texto">Aguardando h\xE1 ${minutosDesde} min${minutosDesde > TAXA_ESPERA_GRACE_MIN ? ` (${minutosCobrados} min j\xE1 geram taxa)` : ""}</span></div>` : "";
     const subidaComprometida = subirStatus === "pendente" || subirStatus === "aceito";
+    const subidaResolvida = pacoteInfo.codigoLiberado || !!subirStatus && subirStatus !== "pendente";
+    const codigoAbertoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
     let codigoHtml = "";
     if (ehColetaReversaTexto) {
       if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
@@ -9839,13 +9799,16 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       }
     } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" && pacoteInfo.entregadorChegou) {
       if (pacoteInfo.codigoLiberado) {
-        codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
+        codigoHtml = codigoAbertoHtml;
       } else if (valorTotalEstimado > 0) {
-        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu c\xF3digo</small></div>`;
+        const msgPendencia = pacoteInfo.cobrancaEscolha === "dinheiro" ? `Aguarde o entregador confirmar o recebimento (${precoParaMoeda(valorExibidoPendencia)}) para ver seu c\xF3digo` : `Pague o valor pendente (${precoParaMoeda(valorExibidoPendencia)}) para ver seu c\xF3digo`;
+        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>${msgPendencia}</small></div>`;
       } else if (subidaComprometida) {
         codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>Seu c\xF3digo aparece aqui assim que a entrega na porta for confirmada</small></div>`;
+      } else if (subirStatus) {
+        codigoHtml = codigoAbertoHtml;
       } else {
-        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="key-round" size="26"></i><small>Ainda dentro do tempo de car\xEAncia \u2014 se gerar o c\xF3digo agora, n\xE3o vai mais poder pedir entrega na porta depois</small><button type="button" class="btn-main" onclick="liberarCodigoSemTaxaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Gerar c\xF3digo</button></div>`;
+        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="key-round" size="26"></i><small>Ainda dentro do tempo de car\xEAncia \u2014 se gerar o c\xF3digo agora, n\xE3o vai mais poder pedir entrega na porta depois</small><button type="button" class="flex-btn flex-btn-primary" onclick="liberarCodigoSemTaxaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Gerar c\xF3digo</button></div>`;
       }
     }
     let subirHtml = "";
@@ -9854,40 +9817,69 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         subirHtml += `
                 <div class="rastreio-pub-subir">
                     <p>O entregador chegou! Precisa que ele entregue at\xE9 a porta do seu apartamento?</p>
-                    <button type="button" class="btn-main" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                    <div class="flex-btn-row">
+                        <button type="button" id="rastreio-pub-subida-sim-btn" class="flex-btn flex-btn-secondary" onclick="solicitarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Sim (+${precoParaMoeda(TAXA_SUBIR_FIXA)})</button>
+                        <button type="button" id="rastreio-pub-subida-nao-btn" class="flex-btn flex-btn-secondary cinza" onclick="dispensarSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">N\xE3o</button>
+                    </div>
                 </div>`;
       } else if (subirStatus === "pendente") {
         subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-aguardando"><i data-lucide="clock" size="16"></i> Aguardando o entregador confirmar...</div>`;
       } else if (subirStatus === "recusado") {
         subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-neg">O entregador avisou que n\xE3o vai poder entregar na porta dessa vez.</div>`;
       }
-      if (valorTotalEstimado > 0) {
-        const pixAtivo = pixSubidaClienteAtual && pixSubidaClienteAtual.pacoteId === pacoteId && pixSubidaClienteAtual.token === tokenOverride;
-        if (pixAtivo) {
-          subirHtml += `
-                    <div class="rastreio-pub-subir">
-                        <p><i data-lucide="check-circle-2" size="16"></i> Pague as taxas da entrega (${precoParaMoeda(pixSubidaClienteAtual.valor)}) via Pix:</p>
-                        ${pixSubidaClienteAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pixSubidaClienteAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
-                        <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pixSubidaClienteAtual.pixCode)}</textarea>
-                        <button type="button" class="ent-sheet-btn-ghost" onclick="copiarCodigoPixSubidaCliente()">Copiar c\xF3digo Pix</button>
-                        <div id="rastreio-pub-pix-status" class="ent-sheet-pix-status">Aguardando confirma\xE7\xE3o do pagamento...</div>
-                    </div>`;
-        } else {
-          const linhas = [];
-          if (valorEsperaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Espera</span><span>${precoParaMoeda(valorEsperaEstimado)}</span></div>`);
-          if (valorSubidaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubidaEstimado)}</span></div>`);
-          subirHtml += `
-                    <div class="rastreio-pub-subir rastreio-pub-taxas-card">
-                        <strong>Taxas desta entrega</strong>
-                        ${linhas.join("")}
-                        <div class="rastreio-pub-taxa-linha rastreio-pub-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotalEstimado)}</span></div>
-                        <button type="button" class="btn-main" onclick="gerarPixSubidaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Pagar taxas</button>
-                    </div>`;
+    }
+    let pagamentoPendenciasHtml = "";
+    if (cobrancaAtivaInfo && !entregadorPresenteParaTaxas && !cobrancaJaPaga) {
+      pagamentoPendenciasHtml = `<div class="rastreio-pub-subir"><p><i data-lucide="wallet" size="16"></i> Este pedido tem ${precoParaMoeda(valorCobrancaPendente)} a pagar na entrega (dinheiro ou Pix).</p></div>`;
+    } else if (rotaId && pacoteInfo.entregadorChegou && subidaResolvida) {
+      const escolha = pacoteInfo.cobrancaEscolha || null;
+      const pixAtivo = pagamentoPendenciasClienteAtual && pagamentoPendenciasClienteAtual.pacoteId === pacoteId && pagamentoPendenciasClienteAtual.token === tokenOverride;
+      const btnCancelar = `<button type="button" class="flex-btn flex-btn-secondary cinza" onclick="cancelarPagamentoPendenciasCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Cancelar</button>`;
+      if (valorTotalEstimado <= 0) {
+        pararPollingPagamentoPendenciasCliente();
+        pararExpiracaoPagamentoPendenciasCliente();
+        if (subirStatus === "pago" || esperaStatus === "pago" || cobrancaJaPaga) {
+          pagamentoPendenciasHtml = `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Pagamento confirmado! Obrigado.</div>`;
         }
-      } else if (subirStatus === "pago" || esperaStatus === "pago") {
-        pararPollingPixSubidaCliente();
-        pararExpiracaoPixSubidaCliente();
-        subirHtml += `<div class="rastreio-pub-subir rastreio-pub-subir-ok"><i data-lucide="check-circle-2" size="16"></i> Taxa paga! Obrigado.</div>`;
+      } else if (escolha === "dinheiro") {
+        pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir">
+                    <p><i data-lucide="banknote" size="16"></i> Voc\xEA escolheu pagar ${precoParaMoeda(valorExibidoPendencia)} em dinheiro \u2014 entregue o valor direto ao entregador.</p>
+                    <div class="flex-btn-row">${btnCancelar}</div>
+                </div>`;
+      } else if (pixAtivo) {
+        pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir">
+                    <p><i data-lucide="check-circle-2" size="16"></i> Pague ${precoParaMoeda(pagamentoPendenciasClienteAtual.valor)} via Pix:</p>
+                    ${pagamentoPendenciasClienteAtual.qrCodeBase64 ? `<img class="ent-sheet-pix-qr-img" src="data:image/png;base64,${pagamentoPendenciasClienteAtual.qrCodeBase64}" alt="QR Code Pix">` : ""}
+                    <textarea readonly class="ent-sheet-pix-copia" onclick="this.select()">${escaparHtmlMarketplace(pagamentoPendenciasClienteAtual.pixCode)}</textarea>
+                    <button type="button" class="flex-btn flex-btn-secondary cinza" onclick="copiarCodigoPagamentoPendenciasCliente()">Copiar c\xF3digo Pix</button>
+                    <div id="rastreio-pub-pagamento-pix-status" class="ent-sheet-pix-status">Aguardando confirma\xE7\xE3o do pagamento...</div>
+                    <div class="flex-btn-row">${btnCancelar}</div>
+                </div>`;
+      } else if (escolha === "pix") {
+        pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir rastreio-pub-subir-aguardando">
+                    <p><i data-lucide="clock" size="16"></i> Voc\xEA j\xE1 escolheu pagar ${precoParaMoeda(valorExibidoPendencia)} via Pix. Se perdeu o c\xF3digo, cancele e gere um novo.</p>
+                    <div class="flex-btn-row">${btnCancelar}</div>
+                </div>`;
+      } else {
+        const linhas = [];
+        if (valorEsperaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Taxa de espera</span><span>${precoParaMoeda(valorEsperaEstimado)}</span></div>`);
+        if (valorSubidaEstimado > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Entrega na porta</span><span>${precoParaMoeda(valorSubidaEstimado)}</span></div>`);
+        if (valorCobrancaPendente > 0) linhas.push(`<div class="rastreio-pub-taxa-linha"><span>Valor do produto</span><span>${precoParaMoeda(valorCobrancaPendente)}</span></div>`);
+        const radioName = `rastreio-pub-forma-${pacoteId}`;
+        pagamentoPendenciasHtml = `
+                <div class="rastreio-pub-subir rastreio-pub-taxas-card">
+                    <strong>Pagamento desta entrega</strong>
+                    ${linhas.join("")}
+                    <div class="rastreio-pub-taxa-linha rastreio-pub-taxa-total"><span>Total</span><span>${precoParaMoeda(valorTotalEstimado)}</span></div>
+                    <div class="rastreio-pub-forma-escolha">
+                        ${aceitaDinheiroPendencias ? `<label class="rastreio-pub-forma-opcao"><input type="radio" name="${radioName}" value="dinheiro" checked><span>Dinheiro</span></label>` : ""}
+                        <label class="rastreio-pub-forma-opcao"><input type="radio" name="${radioName}" value="pix"${aceitaDinheiroPendencias ? "" : " checked"}><span>Pix</span></label>
+                    </div>
+                    <button type="button" class="flex-btn flex-btn-primary" onclick="pagarPendenciasCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this, '${escaparHtmlMarketplace(tokenOverride)}')">Pagar</button>
+                </div>`;
       }
     }
     conteudo.innerHTML = pedidoConcluidoParaCliente ? `
@@ -9907,18 +9899,28 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             ${paradaInfoHtml}
             ${distTxt || durTxt ? `<div class="rastreio-pub-meta">${escaparHtmlMarketplace([distTxt, durTxt].filter(Boolean).join(" \u2022 "))}</div>` : ""}
             ${esperaAvisoHtml}
+            ${cronometroClienteHtml}
             ${subirHtml}
+            ${pagamentoPendenciasHtml}
             ${codigoHtml}
         </div>
     `;
     if (typeof lucide !== "undefined") lucide.createIcons();
+    if (entregadorPresenteParaTaxas && pacoteInfo.chegouEm && !pendenciaCongeladaCliente) {
+      iniciarCronometroEsperaCliente(pacoteInfo.chegouEm);
+    } else {
+      pararCronometroEsperaCliente();
+    }
   }
   function solicitarSubidaCliente(rotaId, pacoteId, btn) {
     if (!rotaId || !pacoteId) return;
+    const outroBtn = document.getElementById("rastreio-pub-subida-nao-btn");
+    const textoOriginal = btn?.innerText;
     if (btn) {
       btn.disabled = true;
       btn.innerText = "Enviando...";
     }
+    if (outroBtn) outroBtn.disabled = true;
     db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({
       subirStatus: "pendente",
       subirSolicitadoEm: Date.now()
@@ -9926,8 +9928,24 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       alert("N\xE3o foi poss\xEDvel enviar o pedido agora. Tente de novo.");
       if (btn) {
         btn.disabled = false;
-        btn.innerText = `Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})`;
+        btn.innerText = textoOriginal || `Sim (+${precoParaMoeda(TAXA_SUBIR_FIXA)})`;
       }
+      if (outroBtn) outroBtn.disabled = false;
+    });
+  }
+  function dispensarSubidaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId) return;
+    const outroBtn = document.getElementById("rastreio-pub-subida-sim-btn");
+    if (btn) {
+      btn.disabled = true;
+    }
+    if (outroBtn) outroBtn.disabled = true;
+    db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({
+      subirStatus: "dispensado"
+    }).catch(() => {
+      alert("N\xE3o foi poss\xEDvel registrar agora. Tente de novo.");
+      if (btn) btn.disabled = false;
+      if (outroBtn) outroBtn.disabled = false;
     });
   }
   function liberarCodigoSemTaxaCliente(rotaId, pacoteId, btn) {
@@ -9944,10 +9962,10 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       }
     });
   }
-  var pixSubidaClienteAtual = null;
-  var pixSubidaClientePollTimer = null;
-  var pixSubidaClienteExpiraTimer = null;
-  var PIX_SUBIDA_VALIDADE_MS = 30 * 60 * 1e3;
+  var pagamentoPendenciasClienteAtual = null;
+  var pagamentoPendenciasClientePollTimer = null;
+  var pagamentoPendenciasClienteExpiraTimer = null;
+  var PIX_PENDENCIAS_VALIDADE_MS = 30 * 60 * 1e3;
   async function chamarPaymentsProxyPublico(caminho, payload) {
     if (!FLEXA_PAYMENTS_PROXY_URL) {
       throw new Error("Endpoint de pagamento (FLEXA_PAYMENTS_PROXY_URL) n\xE3o configurado.");
@@ -9966,108 +9984,116 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     }
     return data;
   }
-  async function criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEstimado) {
-    const valor = Number(valorEstimado) > 0 ? Number(valorEstimado) : TAXA_SUBIR_FIXA;
-    const nomeCliente = (nomeDestinatario || "Cliente Flex").toString().trim() || "Cliente Flex";
-    const partes = nomeCliente.split(/\s+/).filter(Boolean);
-    const firstName = partes[0] || "Cliente";
-    const lastName = partes.slice(1).join(" ") || "Flex";
-    const resp = await fetch("https://api.mercadopago.com/v1/payments", {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + FLEXA_MP_TEST_TOKEN,
-        "Content-Type": "application/json",
-        "X-Idempotency-Key": gerarIdempotencyKeyTesteLocal()
-      },
-      body: JSON.stringify({
-        transaction_amount: Number(valor.toFixed(2)),
-        description: "Flex - taxas da entrega (pedido " + pacoteId + ") [TESTE LOCAL]",
-        payment_method_id: "pix",
-        payer: { email: obterEmailPagadorTesteLocal(), first_name: firstName, last_name: lastName },
-        date_of_expiration: new Date(Date.now() + 30 * 60 * 1e3).toISOString(),
-        external_reference: "taxas:" + rotaId + ":" + pacoteId
-      })
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      const detalhe = data?.message || data?.error || data?.cause?.[0]?.description || "HTTP " + resp.status;
-      throw new Error("Mercado Pago: " + detalhe);
-    }
-    const tx = data?.point_of_interaction?.transaction_data || {};
-    return {
-      paymentId: data?.id ? String(data.id) : "",
-      status: data?.status || "pending",
-      pixCode: tx.qr_code || "",
-      qrCodeBase64: tx.qr_code_base64 || "",
-      valor
-    };
-  }
-  async function gerarPixSubidaCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
+  async function pagarPendenciasCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
     if (!rotaId || !pacoteId || !tokenOverride) return;
+    const formaEl = document.querySelector(`input[name="rastreio-pub-forma-${pacoteId}"]:checked`);
+    const forma = formaEl?.value || "pix";
     if (btn) {
       btn.disabled = true;
-      btn.innerText = "Gerando Pix...";
+      btn.innerText = forma === "dinheiro" ? "Registrando..." : "Gerando Pix...";
     }
     try {
-      const snapAtual = await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).once("value");
-      const pacoteAtual = snapAtual.val() || {};
-      const nomeDestinatario = pacoteAtual.destinatario || "";
       let data;
       if (FLEXA_PAYMENTS_PROXY_URL) {
-        data = await chamarPaymentsProxyPublico("/create-pix-subida", { rastreioToken: tokenOverride });
+        data = await chamarPaymentsProxyPublico("/criar-pagamento-pendencias-cliente", { rastreioToken: tokenOverride, forma });
+      } else if (forma === "dinheiro") {
+        data = { forma: "dinheiro" };
       } else if (FLEXA_MP_TEST_TOKEN) {
+        const snapAtual = await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).once("value");
+        const pacoteAtual = snapAtual.val() || {};
         const minutosDesde = pacoteAtual.chegouEm ? Math.max(0, Math.round((Date.now() - Number(pacoteAtual.chegouEm)) / 6e4)) : 0;
         const minutosCobrados = Math.max(0, minutosDesde - TAXA_ESPERA_GRACE_MIN);
         const valorEspera = pacoteAtual.esperaStatus === "pago" ? 0 : minutosCobrados * TAXA_ESPERA_POR_MIN;
         const valorSubida = pacoteAtual.subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
-        data = await criarPagamentoPixSubidaTesteLocal(pacoteId, rotaId, nomeDestinatario, valorEspera + valorSubida);
+        const valorCobranca = pacoteAtual.cobrancaAtiva && pacoteAtual.cobrancaStatus !== "pago" ? Number(pacoteAtual.cobrancaValor) || 0 : 0;
+        const pacFalso = { id: pacoteId, destinatario: pacoteAtual.destinatario, cobrancaEntrega: { ativa: true, valor: valorEspera + valorSubida + valorCobranca } };
+        data = { forma: "pix", ...await criarPagamentoPixCobrancaEntregaTesteLocal(pacFalso, rotaId) };
       } else {
         throw new Error("Pagamento n\xE3o configurado.");
       }
+      if (forma === "dinheiro") {
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: "dinheiro" }).catch(() => {
+        });
+        const container2 = obterContainerRastreioCliente(tokenOverride);
+        if (container2) {
+          const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
+          renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container2, tokenOverride);
+        }
+        return;
+      }
       const pixCode = normalizarCodigoPix(data.pixCode || "");
       if (!pixCode) throw new Error("Mercado Pago n\xE3o retornou c\xF3digo Pix Copia e Cola.");
-      pixSubidaClienteAtual = {
+      pagamentoPendenciasClienteAtual = {
         paymentId: data.paymentId ? String(data.paymentId) : "",
         pacoteId,
         rotaId,
         token: tokenOverride,
         pixCode,
         qrCodeBase64: data.qrCodeBase64 || "",
-        valor: data.valor || TAXA_SUBIR_FIXA
+        valor: data.valor || 0
       };
+      await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: "pix", valorTotalCongelado: pagamentoPendenciasClienteAtual.valor }).catch(() => {
+      });
       const container = obterContainerRastreioCliente(tokenOverride);
       if (container) {
         const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
         renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
       }
-      iniciarPollingPixSubidaCliente(tokenOverride);
-      iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId, tokenOverride);
+      iniciarPollingPagamentoPendenciasCliente(tokenOverride);
+      iniciarExpiracaoPagamentoPendenciasCliente(rotaId, pacoteId, tokenOverride);
     } catch (err) {
-      console.warn("Falha ao gerar Pix das taxas da entrega:", err);
-      alert(err.message || "N\xE3o foi poss\xEDvel gerar o Pix agora.");
+      console.warn("Falha ao processar pagamento das pend\xEAncias da entrega:", err);
+      alert(err.message || "N\xE3o foi poss\xEDvel processar o pagamento agora. Tente de novo.");
       if (btn) {
         btn.disabled = false;
-        btn.innerText = "Pagar taxas";
+        btn.innerText = "Pagar";
       }
     }
   }
-  function pararPollingPixSubidaCliente() {
-    if (pixSubidaClientePollTimer) {
-      clearInterval(pixSubidaClientePollTimer);
-      pixSubidaClientePollTimer = null;
+  async function cancelarPagamentoPendenciasCliente(rotaId, pacoteId, btn, tokenOverride = tokenRastreioAtual) {
+    if (!rotaId || !pacoteId || !tokenOverride) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Cancelando...";
+    }
+    try {
+      if (FLEXA_PAYMENTS_PROXY_URL) {
+        await chamarPaymentsProxyPublico("/cancelar-escolha-pagamento-cliente", { rastreioToken: tokenOverride });
+      }
+      pagamentoPendenciasClienteAtual = null;
+      pararPollingPagamentoPendenciasCliente();
+      pararExpiracaoPagamentoPendenciasCliente();
+      const container = obterContainerRastreioCliente(tokenOverride);
+      if (container) {
+        const snapRota = await db.ref(`rastreioPublico/${rotaId}`).once("value");
+        renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
+      }
+    } catch (err) {
+      console.warn("Falha ao cancelar escolha de pagamento:", err);
+      alert(err.message || "N\xE3o foi poss\xEDvel cancelar agora. Tente de novo.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Cancelar";
+      }
     }
   }
-  function pararExpiracaoPixSubidaCliente() {
-    if (pixSubidaClienteExpiraTimer) {
-      clearTimeout(pixSubidaClienteExpiraTimer);
-      pixSubidaClienteExpiraTimer = null;
+  function pararPollingPagamentoPendenciasCliente() {
+    if (pagamentoPendenciasClientePollTimer) {
+      clearInterval(pagamentoPendenciasClientePollTimer);
+      pagamentoPendenciasClientePollTimer = null;
     }
   }
-  function iniciarExpiracaoPixSubidaCliente(rotaId, pacoteId, tokenOverride = tokenRastreioAtual) {
-    pararExpiracaoPixSubidaCliente();
-    pixSubidaClienteExpiraTimer = setTimeout(async () => {
-      pixSubidaClienteAtual = null;
-      pararPollingPixSubidaCliente();
+  function pararExpiracaoPagamentoPendenciasCliente() {
+    if (pagamentoPendenciasClienteExpiraTimer) {
+      clearTimeout(pagamentoPendenciasClienteExpiraTimer);
+      pagamentoPendenciasClienteExpiraTimer = null;
+    }
+  }
+  function iniciarExpiracaoPagamentoPendenciasCliente(rotaId, pacoteId, tokenOverride = tokenRastreioAtual) {
+    pararExpiracaoPagamentoPendenciasCliente();
+    pagamentoPendenciasClienteExpiraTimer = setTimeout(async () => {
+      pagamentoPendenciasClienteAtual = null;
+      pararPollingPagamentoPendenciasCliente();
       try {
         const container = obterContainerRastreioCliente(tokenOverride);
         if (!container) return;
@@ -10075,32 +10101,32 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         renderConteudoRastreioPublico(snapRota.val(), pacoteId, rotaId, container, tokenOverride);
       } catch (e) {
       }
-    }, PIX_SUBIDA_VALIDADE_MS);
+    }, PIX_PENDENCIAS_VALIDADE_MS);
   }
-  function iniciarPollingPixSubidaCliente(tokenOverride = tokenRastreioAtual) {
-    pararPollingPixSubidaCliente();
-    pixSubidaClientePollTimer = setInterval(async () => {
-      if (!pixSubidaClienteAtual?.paymentId) {
-        pararPollingPixSubidaCliente();
+  function iniciarPollingPagamentoPendenciasCliente(tokenOverride = tokenRastreioAtual) {
+    pararPollingPagamentoPendenciasCliente();
+    pagamentoPendenciasClientePollTimer = setInterval(async () => {
+      if (!pagamentoPendenciasClienteAtual?.paymentId) {
+        pararPollingPagamentoPendenciasCliente();
         return;
       }
       try {
-        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxyPublico("/check-pix-subida", { rastreioToken: tokenOverride, paymentId: pixSubidaClienteAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pixSubidaClienteAtual.paymentId);
+        const data = FLEXA_PAYMENTS_PROXY_URL ? await chamarPaymentsProxyPublico("/checar-pagamento-pendencias-cliente", { rastreioToken: tokenOverride, paymentId: pagamentoPendenciasClienteAtual.paymentId }) : await consultarPagamentoPixTesteClienteLocal(pagamentoPendenciasClienteAtual.paymentId);
         if (data?.status === "approved") {
-          pararPollingPixSubidaCliente();
-          pararExpiracaoPixSubidaCliente();
+          pararPollingPagamentoPendenciasCliente();
+          pararExpiracaoPagamentoPendenciasCliente();
         } else {
-          const statusEl = document.getElementById("rastreio-pub-pix-status");
+          const statusEl = document.getElementById("rastreio-pub-pagamento-pix-status");
           if (statusEl) statusEl.innerText = "Aguardando confirma\xE7\xE3o do pagamento...";
         }
       } catch (err) {
-        console.warn("Falha ao consultar status do Pix da taxa de entrega na porta:", err);
+        console.warn("Falha ao consultar status do Pix das pend\xEAncias da entrega:", err);
       }
     }, 4e3);
   }
-  function copiarCodigoPixSubidaCliente() {
-    if (!pixSubidaClienteAtual?.pixCode) return;
-    navigator.clipboard?.writeText(pixSubidaClienteAtual.pixCode).then(() => {
+  function copiarCodigoPagamentoPendenciasCliente() {
+    if (!pagamentoPendenciasClienteAtual?.pixCode) return;
+    navigator.clipboard?.writeText(pagamentoPendenciasClienteAtual.pixCode).then(() => {
       notificarSucesso("C\xF3digo Pix copiado!");
     }).catch(() => notificarErro("N\xE3o foi poss\xEDvel copiar automaticamente."));
   }
@@ -10454,6 +10480,110 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       alert("N\xE3o foi poss\xEDvel fechar o chamado agora.");
     }
   }
+  var adminDocumentosFiltroStatus = "pendente";
+  var DOCUMENTO_STATUS_LABEL_ADMIN = { nao_enviado: "N\xE3o enviado", pendente: "Em an\xE1lise", aprovado: "Aprovado", rejeitado: "Rejeitado" };
+  var DOCUMENTO_STATUS_CLASSE_ADMIN = { nao_enviado: "status--", pendente: "status-buscando", aprovado: "status-concluido", rejeitado: "status-cancelado" };
+  function filtrarDocumentosAdminPorStatus(status, btn) {
+    adminDocumentosFiltroStatus = status;
+    document.querySelectorAll("#admin-documentos-tabs .admin-chip").forEach((b) => b.classList.toggle("active", b === btn));
+    renderDocumentosAdmin();
+  }
+  async function renderDocumentosAdmin() {
+    const wrap = document.getElementById("admin-documentos-lista");
+    if (!wrap) return;
+    wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
+    try {
+      let dataUsers = adminUsersCache;
+      if (!dataUsers) {
+        const snap = await db.ref("usuarios").once("value");
+        dataUsers = snap.val() || {};
+        adminUsersCache = dataUsers;
+      }
+      const entregadores = Object.keys(dataUsers).filter((uid) => {
+        const tipo = normalizarTexto(dataUsers[uid]?.tipo || "");
+        return tipo === "entregador" || tipo === "entrega";
+      }).map((uid) => ({ uid, nome: (dataUsers[uid]?.nome || "Entregador").toString(), documentos: dataUsers[uid]?.documentos || {} }));
+      const statusDoc = (ent, chave) => ent.documentos[chave]?.status || "nao_enviado";
+      const temPendente = (ent) => DOCUMENTOS_ENTREGADOR_TIPOS.some((t) => statusDoc(ent, t.chave) === "pendente");
+      const todosAprovados = (ent) => DOCUMENTOS_ENTREGADOR_TIPOS.every((t) => statusDoc(ent, t.chave) === "aprovado");
+      const temRejeitado = (ent) => DOCUMENTOS_ENTREGADOR_TIPOS.some((t) => statusDoc(ent, t.chave) === "rejeitado");
+      let filtrados = entregadores;
+      if (adminDocumentosFiltroStatus === "pendente") filtrados = entregadores.filter(temPendente);
+      else if (adminDocumentosFiltroStatus === "aprovado") filtrados = entregadores.filter(todosAprovados);
+      else if (adminDocumentosFiltroStatus === "rejeitado") filtrados = entregadores.filter(temRejeitado);
+      filtrados.sort((a, b) => a.nome.localeCompare(b.nome));
+      if (!filtrados.length) {
+        wrap.innerHTML = '<p class="admin-subtle">Nenhum entregador por aqui.</p>';
+        return;
+      }
+      wrap.innerHTML = filtrados.map((ent) => montarDocumentoAdminHtml(ent)).join("");
+      if (typeof lucide !== "undefined") lucide.createIcons();
+    } catch (err) {
+      console.warn("Falha ao carregar documentos de entregadores:", err);
+      wrap.innerHTML = '<p class="admin-subtle">N\xE3o foi poss\xEDvel carregar os documentos agora.</p>';
+    }
+  }
+  function montarDocumentoAdminHtml(ent) {
+    const uidEsc = escaparHtmlMarketplace(ent.uid);
+    const linhasHtml = DOCUMENTOS_ENTREGADOR_TIPOS.map((tipo) => {
+      const d = ent.documentos[tipo.chave] || {};
+      const status = d.status || "nao_enviado";
+      const classe = DOCUMENTO_STATUS_CLASSE_ADMIN[status] || "status--";
+      const label = DOCUMENTO_STATUS_LABEL_ADMIN[status] || status;
+      const linkHtml = d.url ? `<a href="${escaparHtmlMarketplace(d.url)}" target="_blank" rel="noopener noreferrer"><i data-lucide="paperclip" size="13"></i> ${escaparHtmlMarketplace(d.nomeArquivo || "arquivo")}</a>` : '<span class="admin-subtle">Nenhum arquivo enviado</span>';
+      const motivoHtml = status === "rejeitado" && d.motivoRejeicao ? `<p class="admin-chamado-resposta" style="background:#fef2f2; color:#b91c1c;">Motivo: ${escaparHtmlMarketplace(d.motivoRejeicao)}</p>` : "";
+      const acoesHtml = d.url ? `<div class="admin-chamado-btns">
+                    <button type="button" class="admin-chip" onclick="aprovarDocumentoEntregadorAdmin('${uidEsc}', '${tipo.chave}')">Aprovar</button>
+                    <button type="button" class="admin-chip danger" onclick="rejeitarDocumentoEntregadorAdmin('${uidEsc}', '${tipo.chave}')">Rejeitar</button>
+               </div>` : "";
+      return `
+            <div class="admin-doc-linha">
+                <div class="admin-doc-linha-head">
+                    <strong>${escaparHtmlMarketplace(tipo.label)}</strong>
+                    <span class="status-chip ${classe}">${escaparHtmlMarketplace(label)}</span>
+                </div>
+                ${linkHtml}
+                ${motivoHtml}
+                ${acoesHtml}
+            </div>`;
+    }).join("");
+    return `
+        <div class="admin-chamado-card">
+            <div class="admin-chamado-head">
+                <div><strong>${escaparHtmlMarketplace(ent.nome)}</strong> <span class="admin-chip">entregador</span></div>
+            </div>
+            ${linhasHtml}
+        </div>
+    `;
+  }
+  async function aprovarDocumentoEntregadorAdmin(uid, chave) {
+    try {
+      await db.ref(`usuarios/${uid}/documentos/${chave}`).update({ status: "aprovado", motivoRejeicao: null });
+      if (adminUsersCache?.[uid]) {
+        adminUsersCache[uid].documentos = { ...adminUsersCache[uid].documentos || {}, [chave]: { ...adminUsersCache[uid].documentos?.[chave] || {}, status: "aprovado", motivoRejeicao: null } };
+      }
+      notificarSucesso("Documento aprovado.");
+      renderDocumentosAdmin();
+    } catch (err) {
+      console.warn("Falha ao aprovar documento:", err);
+      alert("N\xE3o foi poss\xEDvel aprovar agora. Tente de novo.");
+    }
+  }
+  async function rejeitarDocumentoEntregadorAdmin(uid, chave) {
+    const motivo = (window.prompt("Motivo da rejei\xE7\xE3o (o entregador vai ver esse texto):") || "").trim();
+    if (!motivo) return;
+    try {
+      await db.ref(`usuarios/${uid}/documentos/${chave}`).update({ status: "rejeitado", motivoRejeicao: motivo });
+      if (adminUsersCache?.[uid]) {
+        adminUsersCache[uid].documentos = { ...adminUsersCache[uid].documentos || {}, [chave]: { ...adminUsersCache[uid].documentos?.[chave] || {}, status: "rejeitado", motivoRejeicao: motivo } };
+      }
+      notificarSucesso("Documento rejeitado.");
+      renderDocumentosAdmin();
+    } catch (err) {
+      console.warn("Falha ao rejeitar documento:", err);
+      alert("N\xE3o foi poss\xEDvel rejeitar agora. Tente de novo.");
+    }
+  }
   async function pagarRotaComSaldo() {
     if (!rotaDraftAtual) return;
     const total = Number(rotaDraftAtual.totalFrete || 0);
@@ -10619,10 +10749,13 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       document.getElementById("edit-veiculo-tipo").value = user.veiculoTipo || "";
       document.getElementById("edit-veiculo-marca").value = user.veiculoMarca || "";
       document.getElementById("edit-veiculo-modelo").value = user.veiculoModelo || "";
+      document.getElementById("edit-veiculo-ano").value = user.veiculoAno || "";
       document.getElementById("edit-veiculo-cor").value = user.veiculoCor || "";
       document.getElementById("edit-veiculo-placa").value = user.veiculoPlaca || "";
       aplicarFotoComPlaceholder(document.getElementById("edit-preview-img"), user.foto || "");
     }
+    const instaInput = document.getElementById("edit-instagram");
+    if (instaInput) instaInput.placeholder = ehEntregador ? "@seuinstagram" : "@sualoja";
     document.querySelectorAll(".perfil-veiculo-group").forEach((group) => {
       group.style.display = ehEntregador ? "block" : "none";
     });
@@ -10684,6 +10817,11 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
       });
     }
   }
+  function capitalizarPrimeiraLetra(valor) {
+    const texto = (valor || "").toString().trim();
+    if (!texto) return "";
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
   function salvarPerfil() {
     const uid = window.usuarioLogado ? window.usuarioLogado.id : firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
     if (!uid) {
@@ -10700,8 +10838,9 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     if (usuarioEhEntregador()) {
       novosDados.cnh = document.getElementById("edit-cnh").value;
       novosDados.veiculoTipo = document.getElementById("edit-veiculo-tipo").value;
-      novosDados.veiculoMarca = document.getElementById("edit-veiculo-marca").value;
-      novosDados.veiculoModelo = document.getElementById("edit-veiculo-modelo").value;
+      novosDados.veiculoMarca = capitalizarPrimeiraLetra(document.getElementById("edit-veiculo-marca").value);
+      novosDados.veiculoModelo = capitalizarPrimeiraLetra(document.getElementById("edit-veiculo-modelo").value);
+      novosDados.veiculoAno = document.getElementById("edit-veiculo-ano").value;
       novosDados.veiculoCor = document.getElementById("edit-veiculo-cor").value;
       novosDados.veiculoPlaca = document.getElementById("edit-veiculo-placa").value;
     }
@@ -12556,6 +12695,122 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
     carregarDadosPagamento();
     marcarSidebarLojaAtivoFinanceiro();
   }
+  var DOCUMENTOS_ENTREGADOR_TIPOS = [
+    { chave: "comprovanteEndereco", label: "Comprovante de Endere\xE7o", icone: "home" },
+    { chave: "cnh", label: "CNH", icone: "id-card" },
+    { chave: "docVeiculo", label: "Documento do Ve\xEDculo", icone: "file-text" }
+  ];
+  function abrirModalDocumentosEntregador() {
+    renderDocumentosEntregadorLista();
+    const overlay = document.getElementById("overlay-documentos-entregador");
+    if (overlay) overlay.style.display = "flex";
+  }
+  function fecharModalDocumentosEntregador() {
+    const overlay = document.getElementById("overlay-documentos-entregador");
+    if (overlay) overlay.style.display = "none";
+  }
+  function alternarAccordionDocumentoEntregador(chave) {
+    document.getElementById(`acc-doc-${chave}-body`)?.classList.toggle("hidden");
+  }
+  function renderDocumentosEntregadorLista() {
+    const wrap = document.getElementById("documentos-entregador-lista");
+    if (!wrap) return;
+    const docs = (window.usuarioLogado || {}).documentos || {};
+    const STATUS_INFO = {
+      pendente: { label: "Enviado", classe: "status-concluido" },
+      aprovado: { label: "Aprovado", classe: "status-concluido" },
+      rejeitado: { label: "Rejeitado", classe: "status-cancelado" }
+    };
+    wrap.innerHTML = DOCUMENTOS_ENTREGADOR_TIPOS.map((tipo) => {
+      const d = docs[tipo.chave] || {};
+      const info = STATUS_INFO[d.status] || { label: "Enviar", classe: "status-buscando" };
+      const motivoHtml = d.status === "rejeitado" && d.motivoRejeicao ? `<p class="doc-acc-motivo"><strong>Motivo da rejei\xE7\xE3o:</strong> ${escaparHtmlMarketplace(d.motivoRejeicao)}</p>` : "";
+      const arquivoHtml = d.url ? `<a href="${escaparHtmlMarketplace(d.url)}" target="_blank" rel="noopener noreferrer" class="doc-acc-arquivo-link"><i data-lucide="paperclip" size="13"></i> ${escaparHtmlMarketplace(d.nomeArquivo || "Ver arquivo enviado")}</a>` : "";
+      return `
+        <div class="menu-item doc-acc-header" onclick="alternarAccordionDocumentoEntregador('${tipo.chave}')">
+            <div class="item-left"><i data-lucide="${tipo.icone}"></i><span>${tipo.label}</span></div>
+            <span class="status-chip ${info.classe}">${info.label}</span>
+            <i data-lucide="chevron-right" class="arrow" size="18"></i>
+        </div>
+        <div class="doc-acc-body hidden" id="acc-doc-${tipo.chave}-body">
+            <div class="doc-acc-card">
+                ${arquivoHtml}
+                ${motivoHtml}
+                <div class="form-group" style="margin-top:12px; margin-bottom:10px;">
+                    <label>${d.url ? "Reenviar arquivo" : "Selecionar arquivo"}</label>
+                    <div class="input-wrapper"><input type="file" id="doc-input-${tipo.chave}" accept="application/pdf,image/jpeg,image/png"></div>
+                </div>
+                <button type="button" id="doc-btn-${tipo.chave}" class="btn-main" style="margin-top:0;" onclick="enviarDocumentoEntregador('${tipo.chave}')">Enviar</button>
+            </div>
+        </div>`;
+    }).join("");
+    if (typeof lucide !== "undefined") lucide.createIcons();
+    atualizarBadgeDocumentosEntregador(docs);
+  }
+  function atualizarBadgeDocumentosEntregador(docsOverride) {
+    const badge = document.getElementById("perfil-documentos-badge");
+    if (!badge) return;
+    const docs = docsOverride || (window.usuarioLogado || {}).documentos || {};
+    const todosAprovados = DOCUMENTOS_ENTREGADOR_TIPOS.every((t) => docs[t.chave]?.status === "aprovado");
+    const algumRejeitado = DOCUMENTOS_ENTREGADOR_TIPOS.some((t) => docs[t.chave]?.status === "rejeitado");
+    badge.style.display = "inline-flex";
+    if (todosAprovados) {
+      badge.className = "status-chip status-concluido";
+      badge.innerText = "Aprovado";
+    } else if (algumRejeitado) {
+      badge.className = "status-chip status-cancelado";
+      badge.innerText = "Revisar";
+    } else {
+      badge.className = "status-chip status-buscando";
+      badge.innerText = "Pendente";
+    }
+  }
+  async function enviarDocumentoEntregador(chave) {
+    const uid = getUsuarioIdAtual();
+    if (!uid) {
+      alert("Sess\xE3o expirada. Fa\xE7a login novamente.");
+      return;
+    }
+    const input = document.getElementById(`doc-input-${chave}`);
+    const arquivo = input?.files?.[0];
+    if (!arquivo) {
+      alert("Selecione um arquivo antes de enviar.");
+      return;
+    }
+    if (arquivo.size > 10 * 1024 * 1024) {
+      alert("Arquivo muito grande (m\xE1ximo 10MB).");
+      return;
+    }
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(arquivo.type)) {
+      alert("Formato n\xE3o aceito. Envie PDF, JPG ou PNG.");
+      return;
+    }
+    const btn = document.getElementById(`doc-btn-${chave}`);
+    const textoOriginal = btn?.innerText;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Enviando...";
+    }
+    try {
+      const extensao = (arquivo.name.split(".").pop() || "bin").toLowerCase();
+      const storageRef = firebase.storage().ref(`documentosEntregador/${uid}/${chave}-${Date.now()}.${extensao}`);
+      await storageRef.put(arquivo);
+      const url = await storageRef.getDownloadURL();
+      const novoRegistro = { url, nomeArquivo: arquivo.name, enviadoEm: Date.now(), status: "pendente" };
+      await db.ref(`usuarios/${uid}/documentos/${chave}`).update(novoRegistro);
+      window.usuarioLogado = window.usuarioLogado || {};
+      window.usuarioLogado.documentos = { ...window.usuarioLogado.documentos || {}, [chave]: novoRegistro };
+      notificarSucesso("Documento enviado! Aguarde a aprova\xE7\xE3o.");
+      renderDocumentosEntregadorLista();
+    } catch (err) {
+      console.warn("Falha ao enviar documento do entregador:", err);
+      alert("N\xE3o foi poss\xEDvel enviar o documento agora. Tente novamente.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = textoOriginal || "Enviar";
+      }
+    }
+  }
   function posicionarFooterPagamentoDesktop() {
     if (!document.body.classList.contains("lojista-desktop-mode")) return;
     const sheet = document.querySelector(".pagamento-sheet");
@@ -13326,6 +13581,15 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
   function normalizarWhatsapp(valor) {
     return String(valor || "").replace(/\D/g, "");
   }
+  function validarFormatoWhatsapp(digitos) {
+    return digitos.length === 10 || digitos.length === 11;
+  }
+  function validarFormatoCnh(digitos) {
+    return digitos.length === 11;
+  }
+  function senhaEhForte(senha) {
+    return /^(?=.*[A-Za-z])(?=.*\d).{6,}$/.test(senha || "");
+  }
   function aplicarTipoCadastroNaTela() {
     const labelNome = document.getElementById("label-nome");
     const inputNome = document.getElementById("input-nome");
@@ -13376,12 +13640,31 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     const email = (document.querySelector('#form-cadastrar input[type="email"]')?.value || "").trim();
     const whatsapp = normalizarWhatsapp(document.getElementById("input-whatsapp-cad")?.value || "");
     const senha = (document.getElementById("pass-cad")?.value || "").trim();
-    const cnh = (document.getElementById("input-cnh")?.value || "").trim();
+    const senhaConfirmacao = (document.getElementById("pass-conf")?.value || "").trim();
+    const cnh = normalizarWhatsapp(document.getElementById("input-cnh")?.value || "");
     if (!nome || !email || !senha || !whatsapp) return alert("Preencha todos os campos, incluindo o WhatsApp \u2014 ele \xE9 usado pra entrar no app.");
-    const ehEntregador = tipoCadastroSelecionado === "entrega";
-    if (ehEntregador && !cnh) {
-      alert("Preencha o numero da CNH para cadastro de entregador.");
+    if (senha !== senhaConfirmacao) {
+      alert("As senhas digitadas n\xE3o s\xE3o iguais.");
       return;
+    }
+    if (!senhaEhForte(senha)) {
+      alert("A senha precisa ter pelo menos 6 caracteres, com letras e n\xFAmeros.");
+      return;
+    }
+    if (!validarFormatoWhatsapp(whatsapp)) {
+      alert("N\xFAmero de WhatsApp inv\xE1lido. Informe o DDD + n\xFAmero (10 ou 11 d\xEDgitos).");
+      return;
+    }
+    const ehEntregador = tipoCadastroSelecionado === "entrega";
+    if (ehEntregador) {
+      if (!cnh) {
+        alert("Preencha o numero da CNH para cadastro de entregador.");
+        return;
+      }
+      if (!validarFormatoCnh(cnh)) {
+        alert("N\xFAmero de CNH inv\xE1lido. A CNH tem 11 d\xEDgitos, s\xF3 n\xFAmeros.");
+        return;
+      }
     }
     try {
       const telefoneJaUsado = (await db.ref("telefoneParaEmail/" + whatsapp).once("value")).val();

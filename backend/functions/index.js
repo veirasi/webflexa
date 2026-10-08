@@ -223,7 +223,7 @@ async function ajustarSaldoUsuarioServer(uid, delta) {
 // entregador podia aceitar, embolsar o Pix assim que aprovasse, e nunca
 // subir. Chamada de dois lugares: dentro de /resolver-taxa-espera (o
 // caminho normal — só roda depois que confirmarEntregaPacoteAtual já
-// validou o código, ver comentário lá) e dentro de /check-pix-subida, pro
+// validou o código, ver comentário lá) e dentro de /checar-pagamento-pendencias-cliente, pro
 // caso raro do Pix aprovar DEPOIS que a entrega já foi confirmada (usa
 // esperaEntrega.finalizada, que /resolver-taxa-espera grava ao terminar,
 // como sinal de "já rodou e não vai rodar de novo pra essa entrega" — sem
@@ -592,23 +592,97 @@ async function resolverRastreioTokenServer(token) {
   return { rotaId: String(dados.rotaId), pacoteId: String(dados.pacoteId), lojistaUid: String(dados.lojistaUid) };
 }
 
-// Taxas da entrega (espera + entrega na porta combinadas, pedido do dono,
-// 2026-10-04): gerado pelo CLIENTE, na própria tela de rastreio (não pelo
-// entregador — ele só aceita o pedido de subida, entrega, e confirma o
-// código; não mexe em Pix nenhum). Soma o que estiver pendente das duas
-// taxas num Pix só, pra não ter duas cobranças em telas diferentes.
-async function criarPixSubida(req, res) {
-  const resolvido = await resolverRastreioTokenServer((req.body || {}).rastreioToken);
+// ===== [PENDÊNCIAS DA ENTREGA — PAGAMENTO ÚNICO DO CLIENTE] (2026-10-08) =====
+// Substituiu os dois fluxos separados (taxas / cobrança na entrega): o
+// pedido do dono foi juntar TUDO que o cliente deve pagar nesta entrega —
+// taxa de espera + taxa de entrega na porta + cobrança do PEDIDO (valor do
+// produto, quando a loja escolhe que o entregador cobra na hora) — num card
+// só, com uma escolha de forma de pagamento só (nunca duas cobranças em
+// telas/momentos diferentes). Gerado pelo CLIENTE, na própria tela de
+// rastreio — identidade provada pelo rastreioToken (nunca Bearer), mesmo
+// esquema das outras rotas públicas acima.
+//
+// "Dinheiro" só é oferecido quando a cobrança do PEDIDO já aceita dinheiro
+// (formasAceitas) — as taxas sozinhas continuam exigindo Pix (forçar Pix só
+// nelas é o que evita o entregador ter que negociar trocado por uma taxa de
+// R$3); quando a loja já confia em cobrar o produto em espécie, estender
+// essa mesma confiança pro total combinado (produto + taxas, tudo na mesma
+// entrega em mãos) é razoável.
+async function calcularPendenciasCliente(lojistaUid, pacoteId) {
+  const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(lojistaUid, pacoteId);
+  if (!pacote) return null;
+
+  const espera = pacote.esperaEntrega || {};
+  const cobranca = pacote.cobrancaEntrega;
+  const cobrancaPendente = Boolean(cobranca?.ativa) && cobranca.status !== 'pago';
+  const formasAceitasCobranca = Array.isArray(cobranca?.formasAceitas) ? cobranca.formasAceitas : [];
+
+  // BUG CORRIGIDO 2026-10-08 (achado pelo dono em teste ao vivo, 2 rodadas):
+  // a taxa de espera cresce minuto a minuto. 1ª rodada: só congelava quando
+  // o cliente escolhia DINHEIRO — mas o mesmo problema acontecia com Pix: o
+  // cliente gerava o Pix dentro da carência, só que o tempo virava (carência
+  // estourava) ENQUANTO ele ainda estava pagando, e o valor pendente
+  // calculado "ao vivo" criava uma SOBRA nova (ex: R$1 de espera) que nunca
+  // tinha entrado em nenhum pagamento — nem no Pix já gerado (que já tinha
+  // valor fixo), nem em lugar nenhum. 2ª rodada (pedido do dono: "o
+  // cronômetro deve parar quando o cliente informar o tipo de pagamento"):
+  // agora o congelamento acontece assim que o cliente clica em Pagar, pra
+  // QUALQUER forma (dinheiro ou Pix) — o relógio da espera para de contar
+  // pro cliente a partir do instante em que ele inicia o pagamento, e o
+  // entregador recebe exatamente o que foi combinado, nem mais nem menos.
+  const pendenciaCongelada = Boolean(espera?.escolhaClienteCongeladoEm);
+  let valorEspera;
+  let valorSubida;
+  let valorCobranca;
+  if (pendenciaCongelada) {
+    valorEspera = espera.esperaStatus === 'pago' ? 0 : Number(espera.valorEsperaCongelado || 0);
+    valorSubida = espera.subirStatus === 'pago' ? 0 : Number(espera.valorSubidaCongelado || 0);
+    valorCobranca = cobrancaPendente ? Number(cobranca.valorCongelado || 0) : 0;
+  } else {
+    const chegouEm = Number(espera.chegouEm) || 0;
+    const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
+    valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
+    valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
+    valorCobranca = cobrancaPendente ? (Number(cobranca.valor) || 0) : 0;
+  }
+
+  const valorTotal = Number((valorEspera + valorSubida + valorCobranca).toFixed(2));
+
+  return {
+    pacote,
+    pacotePath,
+    valorEspera,
+    valorSubida,
+    cobrancaPendente,
+    valorCobranca,
+    valorTotal,
+    aceitaDinheiro: cobrancaPendente && formasAceitasCobranca.includes('dinheiro'),
+    jaCongelada: pendenciaCongelada
+  };
+}
+
+async function criarPagamentoPendenciasCliente(req, res) {
+  const body = req.body || {};
+  const resolvido = await resolverRastreioTokenServer(body.rastreioToken);
+  const forma = String(body.forma || '').trim();
   if (!resolvido) {
     return res.status(404).json({ error: 'Link de rastreio inválido' });
   }
+  if (forma !== 'dinheiro' && forma !== 'pix') {
+    return res.status(400).json({ error: 'Forma de pagamento inválida' });
+  }
   const { rotaId, pacoteId, lojistaUid } = resolvido;
 
-  const token = MP_ACCESS_TOKEN.value();
-  if (!token) {
-    return res.status(500).json({ error: 'MP_ACCESS_TOKEN não configurado no servidor' });
+  const pend = await calcularPendenciasCliente(lojistaUid, pacoteId);
+  if (!pend) {
+    return res.status(404).json({ error: 'Envio não encontrado' });
   }
-  const ambiente = ambienteDoTokenMp(token);
+  if (pend.valorTotal <= 0) {
+    return res.status(422).json({ error: 'Nenhuma pendência para pagar' });
+  }
+  if (forma === 'dinheiro' && !pend.aceitaDinheiro) {
+    return res.status(422).json({ error: 'Pagamento em dinheiro não disponível para este pedido' });
+  }
 
   const rotaSnap = await db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`).once('value');
   const rota = rotaSnap.val();
@@ -617,38 +691,77 @@ async function criarPixSubida(req, res) {
     return res.status(404).json({ error: 'Rota não encontrada' });
   }
 
-  // Nunca confia em valor/estado vindo do cliente: recalcula tudo a partir
-  // do que já está persistido.
-  const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(lojistaUid, pacoteId);
-  if (!pacote) {
-    return res.status(404).json({ error: 'Envio não encontrado' });
+  // Congela o valor pendente assim que o cliente clica em Pagar — pra
+  // QUALQUER forma, dinheiro ou Pix (pedido do dono 2026-10-08: "o
+  // cronômetro deve parar quando o cliente informar o tipo de pagamento").
+  // Só congela na PRIMEIRA chamada (duplo clique, aba reaberta, ou o
+  // cliente cancela e escolhe nessa mesma pendência de novo não re-congela
+  // com um valor mais novo — ver cancelarEscolhaPagamentoCliente, que limpa
+  // esse congelamento pra permitir recomeçar do zero).
+  if (!pend.jaCongelada) {
+    await syncEnvioFields(lojistaUid, pacoteId, {
+      'esperaEntrega/escolhaClienteCongeladoEm': Date.now(),
+      'esperaEntrega/valorEsperaCongelado': pend.valorEspera,
+      'esperaEntrega/valorSubidaCongelado': pend.valorSubida,
+      'cobrancaEntrega/valorCongelado': pend.valorCobranca
+    });
   }
-  const espera = pacote.esperaEntrega || {};
-  const chegouEm = Number(espera.chegouEm) || 0;
-  const minutosEspera = chegouEm ? Math.max(0, Math.round((Date.now() - chegouEm) / 60000) - TAXA_ESPERA_GRACE_MIN) : 0;
-  const valorEspera = espera.esperaStatus === 'pago' ? 0 : Number((minutosEspera * TAXA_ESPERA_POR_MIN).toFixed(2));
-  const valorSubida = espera.subirStatus === 'aceito' ? TAXA_SUBIR_FIXA : 0;
-  const valorTotal = Number((valorEspera + valorSubida).toFixed(2));
 
-  if (valorTotal <= 0) {
-    return res.status(422).json({ error: 'Nenhuma taxa pendente pra pagar' });
+  if (forma === 'dinheiro') {
+    // Dinheiro é só a DECLARAÇÃO do cliente — não finaliza nada sozinho.
+    // Quem confirma de verdade é o ENTREGADOR, ao físicamente receber o
+    // valor e clicar "Recebi em dinheiro" do lado dele (ver
+    // confirmarRecebimentoPendenciasEntregador) — senão o cliente sozinho
+    // poderia "declarar" que pagou sem nunca ter entregado nada, criando uma
+    // dívida real pro entregador por algo que não aconteceu.
+    await syncEnvioFields(lojistaUid, pacoteId, {
+      'cobrancaEntrega/escolhaCliente': 'dinheiro',
+      'cobrancaEntrega/escolhaClienteEm': Date.now()
+    });
+    // Espelha a escolha E o valor TOTAL já congelado pra tela do cliente —
+    // sem isso ela recalcularia "ao vivo" de novo a partir de chegouEm (só
+    // tem o espelho público, não os campos congelados acima) e mostraria um
+    // valor crescendo, diferente do que foi realmente combinado/travado.
+    await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: 'dinheiro', valorTotalCongelado: pend.valorTotal }).catch(() => {});
+    return res.status(200).json({ forma: 'dinheiro', valor: pend.valorTotal });
   }
 
-  const nomeCliente = String(pacote?.destinatario || 'Cliente Flex').trim() || 'Cliente Flex';
+  // forma === 'pix': espelha a escolha também (pedido do dono: o entregador
+  // nunca deve poder gerar um Pix/confirmar dinheiro em paralelo enquanto o
+  // cliente já escolheu Pix — ver renderBlocoCobrancaEntrega no frontend,
+  // que só mostra "Recebi em dinheiro" quando escolhaCliente === 'dinheiro',
+  // nunca quando já é 'pix'). Diferente de dinheiro, aqui não é uma
+  // declaração que precisa de confirmação manual depois — o próprio Pix
+  // aprovado já finaliza tudo sozinho (ver checarPagamentoPendenciasCliente).
+  await syncEnvioFields(lojistaUid, pacoteId, {
+    'cobrancaEntrega/escolhaCliente': 'pix',
+    'cobrancaEntrega/escolhaClienteEm': Date.now()
+  });
+  await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: 'pix', valorTotalCongelado: pend.valorTotal }).catch(() => {});
+
+  // forma === 'pix' — um Pix só pro total combinado.
+  const token = MP_ACCESS_TOKEN.value();
+  if (!token) {
+    return res.status(500).json({ error: 'MP_ACCESS_TOKEN não configurado no servidor' });
+  }
+  const ambiente = ambienteDoTokenMp(token);
+
+  const nomeCliente = String(pend.pacote?.destinatario || 'Cliente Flex').trim() || 'Cliente Flex';
   const [firstNameCliente, ...restoNomeCliente] = nomeCliente.split(' ');
   const lastNameCliente = restoNomeCliente.join(' ') || 'Flex';
   const partesDesc = [];
-  if (valorEspera > 0) partesDesc.push('espera');
-  if (valorSubida > 0) partesDesc.push('entrega na porta');
+  if (pend.valorEspera > 0) partesDesc.push('espera');
+  if (pend.valorSubida > 0) partesDesc.push('entrega na porta');
+  if (pend.cobrancaPendente) partesDesc.push('pedido');
 
   const mpData = await criarPagamentoPixMp(token, {
-    valor: valorTotal,
-    descricao: `Flex - taxas da entrega (${partesDesc.join(' + ')}) (pedido ${pacoteId})`,
+    valor: pend.valorTotal,
+    descricao: `Flex - pagamento da entrega (${partesDesc.join(' + ')}) (pedido ${pacoteId})`,
     payerEmail: `cliente-${pacoteId}@flex.app`,
     payerFirstName: firstNameCliente || 'Cliente',
     payerLastName: lastNameCliente,
-    externalReference: `taxas:${rotaId}:${pacoteId}`,
-    idempotencyKey: `${lojistaUid}-${rotaId}-${pacoteId}-taxas-${Date.now()}`
+    externalReference: `pendencias:${rotaId}:${pacoteId}`,
+    idempotencyKey: `${lojistaUid}-${rotaId}-${pacoteId}-pendencias-${Date.now()}`
   });
 
   const tx = mpData?.point_of_interaction?.transaction_data || {};
@@ -663,30 +776,33 @@ async function criarPixSubida(req, res) {
     rotaId,
     envioId: pacoteId,
     entregadorId,
-    tipo: 'taxas_entrega',
-    total: valorTotal,
-    valorEspera,
-    valorSubida,
+    tipo: 'pendencias_entrega_cliente',
+    total: pend.valorTotal,
+    valorEspera: pend.valorEspera,
+    valorSubida: pend.valorSubida,
+    valorCobranca: pend.valorCobranca,
     ambiente,
     criadoEm: Date.now()
   });
-  await db.ref(`${pacotePath}/esperaEntrega/taxasPixPaymentId`).set(paymentId);
+  await db.ref(`${pend.pacotePath}/esperaEntrega/taxasPixPaymentId`).set(paymentId).catch(() => {});
 
   return res.status(200).json({
+    forma: 'pix',
     paymentId,
     status: mpData?.status || 'pending',
     statusDetail: mpData?.status_detail || '',
     pixCode,
     ticketUrl: tx.ticket_url || '',
     qrCodeBase64: tx.qr_code_base64 || '',
-    valor: valorTotal,
-    valorEspera,
-    valorSubida,
+    valor: pend.valorTotal,
+    valorEspera: pend.valorEspera,
+    valorSubida: pend.valorSubida,
+    valorCobranca: pend.valorCobranca,
     ambiente
   });
 }
 
-async function checarPixSubida(req, res) {
+async function checarPagamentoPendenciasCliente(req, res) {
   const body = req.body || {};
   const resolvido = await resolverRastreioTokenServer(body.rastreioToken);
   const paymentId = String(body.paymentId || '').trim();
@@ -702,7 +818,7 @@ async function checarPixSubida(req, res) {
 
   const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
   const registro = registroSnap.val();
-  if (!registro || registro.tipo !== 'taxas_entrega' || String(registro.tenantId) !== lojistaUid || String(registro.envioId) !== pacoteId || String(registro.rotaId) !== rotaId) {
+  if (!registro || registro.tipo !== 'pendencias_entrega_cliente' || String(registro.tenantId) !== lojistaUid || String(registro.envioId) !== pacoteId || String(registro.rotaId) !== rotaId) {
     return res.status(404).json({ error: 'Pagamento não encontrado para este link de rastreio' });
   }
 
@@ -712,51 +828,78 @@ async function checarPixSubida(req, res) {
   if (statusPagamento === 'approved') {
     const { path: envioPath, dados: pacote } = await resolverEnvioLojista(lojistaUid, pacoteId);
     if (envioPath && pacote) {
-      const marcadorRef = db.ref(`${envioPath}/esperaEntrega/taxasCreditoEfetuadoEm`);
-      const marcadorSnap = await marcadorRef.once('value');
-      if (!marcadorSnap.val()) {
-        // Pedido do dono (2026-10-04): o valor NÃO cai na carteira do
-        // entregador aqui — fica RETIDO até a entrega ser de fato confirmada
-        // (ver liberarCreditoSubidaSeElegivel/liberarCreditoEsperaSeElegivel).
-        // Sem isso, um entregador podia aceitar, o cliente pagar, e ele nunca
-        // subir — já ficando com o dinheiro antes de entregar qualquer coisa.
-        await marcadorRef.set(Date.now());
-        const updates = {};
-        if (Number(registro.valorSubida) > 0) {
-          updates['esperaEntrega/subirStatus'] = 'pago';
-          updates['esperaEntrega/subidaPagoEm'] = Date.now();
-        }
-        if (Number(registro.valorEspera) > 0) {
-          updates['esperaEntrega/esperaStatus'] = 'pago';
-          updates['esperaEntrega/valorEsperaPago'] = registro.valorEspera;
-          updates['esperaEntrega/esperaPagoEm'] = Date.now();
-        }
-        await syncEnvioFields(lojistaUid, pacoteId, updates);
+      // Taxas (espera + entrega na porta) — retidas até a entrega ser de
+      // fato confirmada, igual sempre foi (ver liberarCreditoSubidaSeElegivel/
+      // liberarCreditoEsperaSeElegivel, chamadas em confirmarEntregaPacoteAtual).
+      if (Number(registro.valorEspera) > 0 || Number(registro.valorSubida) > 0) {
+        const marcadorTaxasRef = db.ref(`${envioPath}/esperaEntrega/taxasCreditoEfetuadoEm`);
+        const marcadorTaxasSnap = await marcadorTaxasRef.once('value');
+        if (!marcadorTaxasSnap.val()) {
+          await marcadorTaxasRef.set(Date.now());
+          const updatesTaxas = {};
+          if (Number(registro.valorSubida) > 0) {
+            updatesTaxas['esperaEntrega/subirStatus'] = 'pago';
+            updatesTaxas['esperaEntrega/subidaPagoEm'] = Date.now();
+          }
+          if (Number(registro.valorEspera) > 0) {
+            updatesTaxas['esperaEntrega/esperaStatus'] = 'pago';
+            updatesTaxas['esperaEntrega/valorEsperaPago'] = registro.valorEspera;
+            updatesTaxas['esperaEntrega/esperaPagoEm'] = Date.now();
+          }
+          await syncEnvioFields(lojistaUid, pacoteId, updatesTaxas);
 
-        const mirrorRastreio = {};
-        if (Number(registro.valorSubida) > 0) mirrorRastreio.subirStatus = 'pago';
-        if (Number(registro.valorEspera) > 0) mirrorRastreio.esperaStatus = 'pago';
-        if (Object.keys(mirrorRastreio).length) {
-          await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update(mirrorRastreio).catch(() => {});
-        }
+          const mirrorTaxas = {};
+          if (Number(registro.valorSubida) > 0) mirrorTaxas.subirStatus = 'pago';
+          if (Number(registro.valorEspera) > 0) mirrorTaxas.esperaStatus = 'pago';
+          if (Object.keys(mirrorTaxas).length) {
+            await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update(mirrorTaxas).catch(() => {});
+          }
 
-        // Caso raro: o Pix só aprova DEPOIS que a entrega já foi confirmada
-        // (resolver-taxa-espera já rodou uma vez pra essa entrega e nunca
-        // mais vai rodar pra ela) — libera na hora, senão ficaria retido pra
-        // sempre.
-        const espera = pacote.esperaEntrega || {};
-        if (espera.finalizada) {
-          const pacoteAtualizado = {
-            ...pacote,
-            esperaEntrega: {
-              ...espera,
-              subirStatus: Number(registro.valorSubida) > 0 ? 'pago' : espera.subirStatus,
-              esperaStatus: Number(registro.valorEspera) > 0 ? 'pago' : espera.esperaStatus,
-              valorEsperaPago: Number(registro.valorEspera) > 0 ? registro.valorEspera : espera.valorEsperaPago
-            }
-          };
-          await liberarCreditoSubidaSeElegivel(lojistaUid, pacoteId, registro.entregadorId, pacoteAtualizado);
-          await liberarCreditoEsperaSeElegivel(lojistaUid, pacoteId, registro.entregadorId, pacoteAtualizado);
+          // Caso raro: o Pix só aprova DEPOIS que a entrega já foi confirmada
+          // — libera na hora, senão ficaria retido pra sempre.
+          const esperaAtual = pacote.esperaEntrega || {};
+          if (esperaAtual.finalizada) {
+            const pacoteAtualizado = {
+              ...pacote,
+              esperaEntrega: {
+                ...esperaAtual,
+                subirStatus: Number(registro.valorSubida) > 0 ? 'pago' : esperaAtual.subirStatus,
+                esperaStatus: Number(registro.valorEspera) > 0 ? 'pago' : esperaAtual.esperaStatus,
+                valorEsperaPago: Number(registro.valorEspera) > 0 ? registro.valorEspera : esperaAtual.valorEsperaPago
+              }
+            };
+            await liberarCreditoSubidaSeElegivel(lojistaUid, pacoteId, registro.entregadorId, pacoteAtualizado);
+            await liberarCreditoEsperaSeElegivel(lojistaUid, pacoteId, registro.entregadorId, pacoteAtualizado);
+          }
+        }
+      }
+
+      // Cobrança do pedido (produto) — vira crédito direto na carteira da
+      // LOJA, nunca passa pelo entregador nem gera dívida (ele só
+      // intermediou a cobrança). Marcador próprio, independente do das taxas.
+      if (Number(registro.valorCobranca) > 0) {
+        const marcadorCobrancaRef = db.ref(`${envioPath}/cobrancaEntrega/creditoEfetuadoEm`);
+        const marcadorCobrancaSnap = await marcadorCobrancaRef.once('value');
+        if (!marcadorCobrancaSnap.val()) {
+          const saldoRef = db.ref(`usuarios/${lojistaUid}/financeiro/saldo`);
+          const saldoSnap = await saldoRef.once('value');
+          const saldoAntes = Number(saldoSnap.val() || 0);
+          const saldoDepois = Number((saldoAntes + registro.valorCobranca).toFixed(2));
+          await saldoRef.set(saldoDepois);
+          await marcadorCobrancaRef.set(Date.now());
+          await db.ref(`usuarios/${lojistaUid}/financeiro/transacoes`).push({
+            protocolo: gerarProtocoloTransacaoServer(),
+            tipo: 'CREDITO',
+            metodo: 'pix',
+            valor: registro.valorCobranca,
+            descricao: `Cobrança na entrega recebida via Pix (pedido #${pacoteId})`,
+            remetente: 'Cliente (Pix)',
+            destinatario: 'Carteira da loja',
+            paymentIdMp: String(paymentId),
+            criadoEm: Date.now()
+          });
+          await db.ref(`${envioPath}/cobrancaEntrega`).update({ status: 'pago', pagoEm: Date.now() });
+          await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaStatus: 'pago' }).catch(() => {});
         }
       }
     }
@@ -768,6 +911,52 @@ async function checarPixSubida(req, res) {
     statusDetail: data?.status_detail || '',
     ambiente: ambienteDoTokenMp(token)
   });
+}
+
+// Pedido do dono (2026-10-08): "deve ter um botão cancelar no meio de
+// pagamento (às vezes clicou sem querer ou mudou de ideia) e escolher
+// novamente o meio de pagamento". A escolha (dinheiro/pix) e o congelamento
+// do valor (ver criarPagamentoPendenciasCliente) são escritos como
+// write-once no espelho público (rastreioPublico) bem de propósito — o
+// CLIENTE não consegue desfazer sozinho pelo navegador (nem com
+// FLEXA_PAYMENTS_PROXY_URL fora do ar). Precisa do Admin SDK aqui, que
+// ignora essa trava. Só permite cancelar enquanto nada foi CONFIRMADO de
+// verdade ainda (nenhum status 'pago') — depois disso não tem mais o que
+// desfazer, só o que já está resolvido.
+async function cancelarEscolhaPagamentoCliente(req, res) {
+  const body = req.body || {};
+  const resolvido = await resolverRastreioTokenServer(body.rastreioToken);
+  if (!resolvido) {
+    return res.status(404).json({ error: 'Link de rastreio inválido' });
+  }
+  const { rotaId, pacoteId, lojistaUid } = resolvido;
+
+  const { dados: pacote } = await resolverEnvioLojista(lojistaUid, pacoteId);
+  if (!pacote) {
+    return res.status(404).json({ error: 'Envio não encontrado' });
+  }
+  const espera = pacote.esperaEntrega || {};
+  const cobranca = pacote.cobrancaEntrega || {};
+  if (espera.esperaStatus === 'pago' || espera.subirStatus === 'pago' || cobranca.status === 'pago') {
+    return res.status(422).json({ error: 'Pagamento já confirmado, não é possível cancelar' });
+  }
+
+  // Zera a escolha e o congelamento — a próxima chamada de
+  // criarPagamentoPendenciasCliente recalcula tudo AO VIVO de novo (o
+  // relógio da espera volta a contar a partir de agora, não do zero: o
+  // tempo real de espera não para só porque o cliente mudou de ideia sobre
+  // a forma de pagamento).
+  await syncEnvioFields(lojistaUid, pacoteId, {
+    'cobrancaEntrega/escolhaCliente': null,
+    'cobrancaEntrega/escolhaClienteEm': null,
+    'cobrancaEntrega/valorCongelado': null,
+    'esperaEntrega/escolhaClienteCongeladoEm': null,
+    'esperaEntrega/valorEsperaCongelado': null,
+    'esperaEntrega/valorSubidaCongelado': null
+  });
+  await db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}`).update({ cobrancaEscolha: null, valorTotalCongelado: null }).catch(() => {});
+
+  return res.status(200).json({ ok: true });
 }
 
 // Mesma normalização de normalizarStatusRotaFiltro no frontend (sem a parte
@@ -1080,7 +1269,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/create-pix-cobranca', '/check-pix-cobranca', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/create-pix-subida', '/check-pix-subida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/criar-pagamento-pendencias-cliente', '/checar-pagamento-pendencias-cliente', '/cancelar-escolha-pagamento-cliente', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -1101,22 +1290,30 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   // Mesmo motivo do bloco acima: o cliente nesta tela (link de rastreio
-  // público) não está logado em nada, então estas duas rotas também
-  // precisam rodar antes do Bearer obrigatório — a prova de identidade é o
+  // público) não está logado em nada, então estas rotas também precisam
+  // rodar antes do Bearer obrigatório — a prova de identidade é o
   // rastreioToken (ver resolverRastreioTokenServer).
-  if (path === '/create-pix-subida') {
+  if (path === '/criar-pagamento-pendencias-cliente') {
     try {
-      return await criarPixSubida(req, res);
+      return await criarPagamentoPendenciasCliente(req, res);
     } catch (error) {
-      logger.error('create_pix_subida_error', error);
+      logger.error('criar_pagamento_pendencias_cliente_error', error);
       return res.status(500).json({ error: 'Internal error', message: error.message });
     }
   }
-  if (path === '/check-pix-subida') {
+  if (path === '/checar-pagamento-pendencias-cliente') {
     try {
-      return await checarPixSubida(req, res);
+      return await checarPagamentoPendenciasCliente(req, res);
     } catch (error) {
-      logger.error('check_pix_subida_error', error);
+      logger.error('checar_pagamento_pendencias_cliente_error', error);
+      return res.status(500).json({ error: 'Internal error', message: error.message });
+    }
+  }
+  if (path === '/cancelar-escolha-pagamento-cliente') {
+    try {
+      return await cancelarEscolhaPagamentoCliente(req, res);
+    } catch (error) {
+      logger.error('cancelar_escolha_pagamento_cliente_error', error);
       return res.status(500).json({ error: 'Internal error', message: error.message });
     }
   }
@@ -1206,160 +1403,6 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         ticketUrl: tx.ticket_url || '',
         qrCodeBase64: tx.qr_code_base64 || '',
         totalFrete: total,
-        ambiente
-      });
-    }
-
-    // Cobranca na entrega: o ENTREGADOR gera o Pix pro cliente pagar no ato da
-    // entrega (nunca passa pela mao dele — vai direto pro lojista/plataforma via
-    // MP, por isso nao cria divida nenhuma). Ver project-flexa-cobranca-entrega-dinheiro.
-    if (path === '/create-pix-cobranca') {
-      const { tenantId, rotaId, envioId, valor: valorSolicitado } = req.body || {};
-      if (!tenantId || !rotaId || !envioId) {
-        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'rotaId', 'envioId'] });
-      }
-
-      const rotaSnap = await db.ref(`usuarios/${tenantId}/rotas/${rotaId}`).once('value');
-      const rota = rotaSnap.val();
-      if (!rota) {
-        return res.status(404).json({ error: 'Rota não encontrada' });
-      }
-      const entregadorId = String(rota.entregadorId || rota.aceitoPor || '');
-      const isEntregadorDaRota = Boolean(entregadorId) && requester.uid === entregadorId;
-      const allowed = isEntregadorDaRota || await canAccessTenant(requester, tenantId);
-      if (!allowed) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
-      // valor-teto sempre recalculado a partir do envio persistido, nunca do que
-      // o app mandar. O app PODE pedir um valor menor (pagamento misto — parte já
-      // recebida em dinheiro, ver project-flexa-cobranca-entrega-dinheiro), nunca maior.
-      const { dados: pacote, path: pacotePath } = await resolverEnvioLojista(tenantId, envioId);
-      const cobranca = pacote?.cobrancaEntrega;
-      const valorTotalCobranca = Number(cobranca?.valor);
-      if (!pacote || !cobranca?.ativa || !Number.isFinite(valorTotalCobranca) || valorTotalCobranca <= 0) {
-        return res.status(422).json({ error: 'Envio sem cobrança na entrega ativa' });
-      }
-      if (!Array.isArray(cobranca.formasAceitas) || !cobranca.formasAceitas.includes('pix')) {
-        return res.status(422).json({ error: 'Pix não habilitado para este envio' });
-      }
-      if (cobranca.status && cobranca.status !== 'pendente') {
-        return res.status(409).json({ error: 'Cobrança já processada para este envio' });
-      }
-      const valorPedido = Number(valorSolicitado);
-      const valorCobranca = Number.isFinite(valorPedido) && valorPedido > 0 && valorPedido <= valorTotalCobranca
-        ? valorPedido
-        : valorTotalCobranca;
-
-      const nomeCliente = String(pacote?.destinatario || 'Cliente Flex').trim() || 'Cliente Flex';
-      const [firstNameCliente, ...restoNomeCliente] = nomeCliente.split(' ');
-      const lastNameCliente = restoNomeCliente.join(' ') || 'Flex';
-
-      const mpData = await criarPagamentoPixMp(token, {
-        valor: valorCobranca,
-        descricao: `Flex - cobrança na entrega (pedido ${envioId})`,
-        payerEmail: `cliente-${envioId}@flex.app`,
-        payerFirstName: firstNameCliente || 'Cliente',
-        payerLastName: lastNameCliente,
-        externalReference: `${rotaId}:${envioId}`,
-        idempotencyKey: `${tenantId}-${rotaId}-${envioId}-${Date.now()}`
-      });
-
-      const tx = mpData?.point_of_interaction?.transaction_data || {};
-      const pixCode = tx.qr_code || '';
-      if (!pixCode) {
-        return res.status(502).json({ error: 'Mercado Pago não retornou código Pix Copia e Cola' });
-      }
-
-      const paymentId = String(mpData?.id || '');
-      await db.ref(`mp_payments/${paymentId}`).set({
-        tenantId,
-        rotaId,
-        envioId,
-        entregadorId,
-        tipo: 'cobranca_entrega',
-        total: valorCobranca,
-        ambiente,
-        criadoEm: Date.now()
-      });
-      await db.ref(`${pacotePath}/cobrancaEntrega/pixPaymentId`).set(paymentId);
-
-      return res.status(200).json({
-        paymentId,
-        status: mpData?.status || 'pending',
-        statusDetail: mpData?.status_detail || '',
-        pixCode,
-        ticketUrl: tx.ticket_url || '',
-        qrCodeBase64: tx.qr_code_base64 || '',
-        valor: valorCobranca,
-        ambiente
-      });
-    }
-
-    if (path === '/check-pix-cobranca') {
-      const { tenantId, paymentId } = req.body || {};
-      if (!tenantId || !paymentId) {
-        return res.status(400).json({ error: 'Missing required fields', required: ['tenantId', 'paymentId'] });
-      }
-
-      const registroSnap = await db.ref(`mp_payments/${paymentId}`).once('value');
-      const registro = registroSnap.val();
-      if (!registro || String(registro.tenantId) !== String(tenantId) || registro.tipo !== 'cobranca_entrega') {
-        return res.status(404).json({ error: 'Pagamento não encontrado para este tenant' });
-      }
-
-      const isEntregadorDoPagamento = Boolean(registro.entregadorId) && requester.uid === registro.entregadorId;
-      const allowed = isEntregadorDoPagamento || await canAccessTenant(requester, tenantId);
-      if (!allowed) {
-        return res.status(403).json({ error: 'Forbidden tenant access' });
-      }
-
-      const data = await consultarPagamentoPixMp(token, paymentId);
-      const statusPagamento = data?.status || 'pending';
-
-      if (statusPagamento === 'approved') {
-        // O Pix da cobrança na entrega é pago pelo cliente e vira CRÉDITO NA
-        // CARTEIRA DO LOJISTA (tenantId) — o produto é dele, o entregador só
-        // intermediou a cobrança e nunca chega a segurar esse dinheiro (por isso
-        // não gera dívida, diferente do dinheiro em espécie). O lojista depois
-        // solicita separadamente que a plataforma repasse esse saldo pro Pix dele
-        // (fluxo de saque, fora deste endpoint). Decisão do dono, 2026-08-16 —
-        // ver project-flexa-cobranca-entrega-dinheiro. Protegido por marcador pra
-        // não creditar duas vezes se o polling chamar de novo depois de aprovado.
-        const { path: envioPath } = await resolverEnvioLojista(tenantId, registro.envioId);
-        if (envioPath) {
-          const marcadorRef = db.ref(`${envioPath}/cobrancaEntrega/creditoEfetuadoEm`);
-          const marcadorSnap = await marcadorRef.once('value');
-          if (!marcadorSnap.val()) {
-            const saldoRef = db.ref(`usuarios/${tenantId}/financeiro/saldo`);
-            const saldoSnap = await saldoRef.once('value');
-            const saldoAntes = Number(saldoSnap.val() || 0);
-            const saldoDepois = Number((saldoAntes + registro.total).toFixed(2));
-            await saldoRef.set(saldoDepois);
-            await marcadorRef.set(Date.now());
-            await db.ref(`usuarios/${tenantId}/financeiro/transacoes`).push({
-              protocolo: gerarProtocoloTransacaoServer(),
-              tipo: 'CREDITO',
-              metodo: 'pix',
-              valor: registro.total,
-              descricao: `Cobrança na entrega recebida via Pix (pedido #${registro.envioId})`,
-              remetente: 'Cliente (Pix)',
-              destinatario: 'Carteira da loja',
-              paymentIdMp: String(paymentId),
-              criadoEm: Date.now()
-            });
-            await db.ref(`${envioPath}/cobrancaEntrega`).update({
-              status: 'pago',
-              pagoEm: Date.now()
-            });
-          }
-        }
-      }
-
-      return res.status(200).json({
-        paymentId,
-        status: statusPagamento,
-        statusDetail: data?.status_detail || '',
         ambiente
       });
     }
@@ -1619,14 +1662,17 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       });
     }
 
-    // Taxa de espera/entrega na porta (pedido do dono, 2026-10-04): nenhuma
-    // das duas tem mais fallback de dinheiro/dívida — dinheiro físico gerava
-    // dúvida sobre o que foi ou não recebido. As duas só existem via Pix
-    // (gerado na tela do entregador, ver /create-pix-taxas, ou pela tela do
-    // cliente no caso da subida isolada, /create-pix-subida), ficam RETIDAS
-    // até aprovar e só viram saldo gastável do entregador aqui, no momento
-    // em que confirmarEntregaPacoteAtual já validou o código de confirmação
-    // (prova que a entrega aconteceu de verdade). Se nunca foi paga, o
+    // Taxa de espera/entrega na porta (pedido do dono, 2026-10-04; revisto
+    // 2026-10-08): o entregador nunca negocia dinheiro pra essas duas
+    // sozinho — só existem via Pix (gerado pela tela do cliente, sozinhas
+    // ou junto da cobrança do pedido, ver /criar-pagamento-pendencias-cliente),
+    // ficam RETIDAS até aprovar e só viram saldo gastável do entregador aqui,
+    // no momento em que confirmarEntregaPacoteAtual já validou o código de
+    // confirmação (prova que a entrega aconteceu de verdade). A ÚNICA
+    // exceção é dinheiro vindo junto de uma cobrança-na-entrega que já aceita
+    // espécie — nesse caso o pagamento combinado (ver
+    // criarPagamentoPendenciasCliente) já marca as duas como pagas na hora,
+    // sem passar por aqui. Se nunca foi paga (nem Pix nem dinheiro), o
     // entregador simplesmente não recebe por ela — sem dívida, sem pergunta.
     if (path === '/resolver-taxa-espera') {
       const { tenantId, rotaId, envioId } = req.body || {};
@@ -1699,9 +1745,9 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
     // Cobrança na entrega paga EM DINHEIRO (plano de segurança 2026-09-27):
     // antes o entregador reportava o valor recebido direto do navegador —
     // um cliente adulterado podia mandar qualquer valor pra marcar o pacote
-    // de qualquer lojista como "pago". Agora o teto vem sempre do
-    // cobrancaEntrega.valor já persistido (mesma validação que
-    // /create-pix-cobranca já faz pro Pix), nunca do que o app manda.
+    // de qualquer lojista como "pago". Agora o teto vem sempre do que está
+    // persistido no servidor (calcularPendenciasCliente), nunca do que o
+    // app manda.
     if (path === '/confirmar-cobranca-dinheiro') {
       const { tenantId, rotaId, envioId } = req.body || {};
       if (!tenantId || !rotaId || !envioId) {
@@ -1718,25 +1764,52 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         return res.status(403).json({ error: 'Só o entregador desta rota pode confirmar a cobrança' });
       }
 
-      const { dados: pacote } = await resolverEnvioLojista(tenantId, envioId);
-      const cobranca = pacote?.cobrancaEntrega;
-      const valor = Number(cobranca?.valor);
-      if (!pacote || !cobranca?.ativa || !Number.isFinite(valor) || valor <= 0) {
-        return res.status(422).json({ error: 'Envio sem cobrança na entrega ativa' });
-      }
-      if (cobranca.status !== 'pendente') {
-        return res.status(409).json({ error: 'Cobrança já processada para este envio' });
+      // Pedido do dono (2026-10-08): o entregador confirma o recebimento em
+      // dinheiro de TUDO que estiver pendente nesta entrega (taxa de espera
+      // + entrega na porta, se houver, mais a cobrança do pedido) — não só
+      // da cobrança sozinha — porque o cliente já pode ter entregado um
+      // valor combinado único (ver /criar-pagamento-pendencias-cliente, que
+      // só REGISTRA a intenção de pagar em dinheiro, nunca finaliza sozinho:
+      // só o entregador, recebendo de verdade e confirmando aqui, é que
+      // libera o valor — senão o cliente sozinho criaria uma dívida real
+      // pro entregador sem nunca ter entregado nada).
+      const pend = await calcularPendenciasCliente(tenantId, envioId);
+      if (!pend || pend.valorTotal <= 0) {
+        return res.status(422).json({ error: 'Nenhuma pendência para confirmar neste envio' });
       }
 
-      await ajustarDividaUsuarioServer(entregadorId, valor);
-      await syncEnvioFields(tenantId, envioId, {
-        'cobrancaEntrega/status': 'pago',
-        'cobrancaEntrega/valorDinheiro': valor,
-        'cobrancaEntrega/valorPix': 0,
-        'cobrancaEntrega/pagoEm': Date.now()
-      });
+      const updates = {};
+      if (pend.valorEspera > 0) {
+        updates['esperaEntrega/esperaStatus'] = 'pago';
+        updates['esperaEntrega/valorEsperaPago'] = pend.valorEspera;
+        updates['esperaEntrega/esperaPagoEm'] = Date.now();
+      }
+      if (pend.valorSubida > 0) {
+        updates['esperaEntrega/subirStatus'] = 'pago';
+        updates['esperaEntrega/subidaPagoEm'] = Date.now();
+      }
+      if (pend.cobrancaPendente) {
+        await ajustarDividaUsuarioServer(entregadorId, pend.valorCobranca);
+        updates['cobrancaEntrega/status'] = 'pago';
+        updates['cobrancaEntrega/valorDinheiro'] = pend.valorCobranca;
+        updates['cobrancaEntrega/valorPix'] = 0;
+        updates['cobrancaEntrega/pagoEm'] = Date.now();
+      }
+      await syncEnvioFields(tenantId, envioId, updates);
 
-      return res.status(200).json({ valor });
+      // Espelha o desfecho pra tela do cliente — o entregador pode ter
+      // resolvido direto com ele (cliente nunca abriu o link, ou abriu mas
+      // não escolheu nada), mas a tela de rastreio, se o cliente olhar
+      // depois, precisa saber que já foi pago.
+      const mirror = {};
+      if (pend.valorEspera > 0) mirror.esperaStatus = 'pago';
+      if (pend.valorSubida > 0) mirror.subirStatus = 'pago';
+      if (pend.cobrancaPendente) mirror.cobrancaStatus = 'pago';
+      if (Object.keys(mirror).length) {
+        await db.ref(`rastreioPublico/${rotaId}/pacotes/${envioId}`).update(mirror).catch(() => {});
+      }
+
+      return res.status(200).json({ valor: pend.valorTotal });
     }
 
     // Crédito da rota finalizada pro entregador (plano de segurança
@@ -1953,6 +2026,23 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       const tipoRaw = String(tipoSnap.val() || '').toLowerCase();
       if (tipoRaw !== 'entrega' && tipoRaw !== 'entregador') {
         return res.status(403).json({ error: 'Somente entregador pode aceitar rota' });
+      }
+
+      // Documentos de verificação (2026-10-08, pedido do dono: limitar
+      // quantidade de entregadores ativos a quem já teve endereço/CNH/
+      // documento do veículo aprovados pelo master — ver Perfil >
+      // Documentos no app e a aba Documentos no painel master). Checado
+      // aqui (não só escondido na tela) porque é o ÚNICO jeito de garantir
+      // de verdade — a tela pode ser contornada, o servidor não.
+      const docsSnap = await db.ref(`usuarios/${uidEntregador}/documentos`).once('value');
+      const docs = docsSnap.val() || {};
+      const tiposDocsObrigatorios = ['comprovanteEndereco', 'cnh', 'docVeiculo'];
+      const documentosAprovados = tiposDocsObrigatorios.every((t) => docs[t]?.status === 'aprovado');
+      if (!documentosAprovados) {
+        return res.status(403).json({
+          error: 'Seus documentos ainda não foram aprovados — envie e aguarde a aprovação em Perfil > Documentos',
+          motivo: 'documentos_pendentes'
+        });
       }
 
       const flashCheck = await entregadorTemFlashPendente(uidEntregador);
