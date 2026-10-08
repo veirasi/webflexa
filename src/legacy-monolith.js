@@ -1607,6 +1607,23 @@ function setTicketPagamentoPixRota(url = '') {
     }
 }
 
+// QR code do Pix da rota — só aparece no modo desktop do lojista (pedido do
+// dono, 2026-10-07): no celular o Copia e Cola já resolve (o app do banco
+// está no mesmo aparelho); no desktop o lojista normalmente paga pelo
+// celular, então o QR faz mais sentido que copiar/colar entre telas
+// diferentes. Ver CSS (.rota-pix-qr-img, body.lojista-desktop-mode).
+function setRotaPixQrImg(base64 = '') {
+    const img = document.getElementById('rota-pix-qr-img');
+    if (!img) return;
+    if (base64) {
+        img.src = 'data:image/png;base64,' + base64;
+        img.style.visibility = 'visible';
+    } else {
+        img.removeAttribute('src');
+        img.style.visibility = 'hidden';
+    }
+}
+
 
 function atualizarAvisoAmbientePix() {
     const aviso = document.getElementById('rota-pix-ambiente');
@@ -10063,6 +10080,7 @@ async function irParaPagamentoRota() {
     if (pixTotal) pixTotal.innerText = precoParaMoeda(valorRestantePix > 0 ? valorRestantePix : rotaDraftAtual.totalFrete);
     if (pixFeedback) pixFeedback.innerText = '';
     setTicketPagamentoPixRota('');
+    setRotaPixQrImg('');
     atualizarAvisoAmbientePix();
 
     rotaModalStep = 2;
@@ -10071,6 +10089,7 @@ async function irParaPagamentoRota() {
     if (valorRestantePix <= 0) {
         // saldo cobre o total: nem gera Pix, só espera o clique em "Pagar com saldo"
         if (pixTxt) pixTxt.textContent = '--';
+        setRotaPixQrImg('');
         setStatusPagamentoPixRota('Saldo cobre o valor total. Use "Pagar com saldo" acima.', 'approved');
         return;
     }
@@ -10088,6 +10107,7 @@ async function irParaPagamentoRota() {
 
         if (pixTxt) pixTxt.textContent = codigoPixLimpo;
         setTicketPagamentoPixRota(pixPagamento.ticketUrl || '');
+        setRotaPixQrImg(pixPagamento.qrCodeBase64 || '');
         // BUG CORRIGIDO 2026-09-19: mercadoPagoAmbienteAtual já é atualizado com
         // o ambiente real que veio na resposta (chamarPaymentsProxy), mas esse
         // aviso na tela só era redesenhado ANTES da chamada — ficava mostrando
@@ -10107,6 +10127,7 @@ async function irParaPagamentoRota() {
         rotaPixCodigoRawAtual = '';
         if (pixTxt) pixTxt.textContent = '--';
         setTicketPagamentoPixRota('');
+        setRotaPixQrImg('');
         atualizarAvisoAmbientePix();
 
         const detalheErro = erro?.message || 'erro desconhecido';
@@ -10128,6 +10149,7 @@ async function irParaPagamentoRota() {
                     qrCodeBase64: ''
                 };
                 if (pixTxt) pixTxt.textContent = 'Pagamento simulado (dev)';
+                setRotaPixQrImg('');
                 setStatusPagamentoPixRota('Pagamento simulado aprovado (ambiente TESTE). Não usar em produção.', 'approved');
                 renderEtapaModalRota();
                 return;
@@ -10835,11 +10857,33 @@ function renderMeusPedidosCliente(whatsapp) {
     });
 }
 
+// BUG CORRIGIDO 2026-10-07 (achado pelo dono) — 2ª volta: minha primeira
+// correção aqui ainda errava a fonte. O PRÓPRIO envio/pacote (usuarios/
+// {lojistaUid}/pacotes/{id}/status, lido em item.pacote) já é sincronizado
+// pra 'EM_ROTA' assim que o entregador ACEITA a rota (ver comentário em
+// rotaSheetBloqueada, "/aceitar-rota-marketplace passou a sincronizar
+// usuarios/{uid}/pacotes/{id}/status") — é o mesmo campo que a lista de
+// envios do próprio lojista usa (normalizarStatusEnvioFiltro). Eu estava
+// checando primeiro item.pacotePublico?.status (o espelho PÚBLICO em
+// rastreioPublico, que só varia BUSCANDO/ENTREGUE/DEVOLVIDO, nunca EM_ROTA)
+// — como ele quase sempre vem preenchido, o fallback pro pacote de verdade
+// nunca era alcançado. Agora usa o pacote (fonte certa, com EM_ROTA) como
+// prioridade, e só cai pro status da rota/pacote público se o pacote não
+// tiver sido carregado por algum motivo (ex: falha no enriquecimento).
 function statusPedidoCliente(item = {}) {
-    const bruto = String(item.pacotePublico?.status || item.pacote?.statusRaw || item.pacote?.status || item.rotaPublica?.statusRota || 'BUSCANDO').toUpperCase();
-    if (bruto === 'ENTREGUE' || bruto === 'CONCLUIDO' || bruto === 'CONCLUÍDO') return { label: 'Concluída', classe: 'concluido' };
-    if (bruto === 'DEVOLVIDO' || bruto === 'CANCELADO' || bruto === 'CANCELADA') return { label: 'Cancelada', classe: 'cancelado' };
-    if (bruto === 'EM_ROTA' || bruto === 'EM ROTA') return { label: 'Em rota', classe: 'em-rota' };
+    const statusEnvio = normalizarStatusEnvioFiltro(item.pacote?.statusRaw || item.pacote?.status || '');
+    if (statusEnvio === 'ENTREGUE') return { label: 'Concluída', classe: 'concluido' };
+    if (statusEnvio === 'CANCELADO') return { label: 'Cancelada', classe: 'cancelado' };
+    if (statusEnvio === 'EM_ROTA') return { label: 'Em rota', classe: 'em-rota' };
+    if (statusEnvio === 'BUSCANDO') return { label: 'Buscando entregador', classe: 'buscando' };
+
+    const statusPacotePublico = String(item.pacotePublico?.status || '').toUpperCase();
+    if (statusPacotePublico === 'ENTREGUE') return { label: 'Concluída', classe: 'concluido' };
+    if (statusPacotePublico === 'DEVOLVIDO') return { label: 'Cancelada', classe: 'cancelado' };
+    const statusRota = normalizarStatusRotaFiltro(item.rotaPublica?.statusRota || 'BUSCANDO');
+    if (statusRota === 'CONCLUIDO') return { label: 'Concluída', classe: 'concluido' };
+    if (statusRota === 'CANCELADO') return { label: 'Cancelada', classe: 'cancelado' };
+    if (statusRota === 'EM_ROTA') return { label: 'Em rota', classe: 'em-rota' };
     return { label: 'Buscando entregador', classe: 'buscando' };
 }
 
@@ -11580,16 +11624,35 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride
     // isso força o pagamento antes da entrega acontecer. Só vale pro código
     // de ENTREGA normal, não pro de retirada da coleta reversa (ali quem
     // recebe o produto no fim é a loja, não o cliente).
+    //
+    // BUG CORRIGIDO 2026-10-07 (achado pelo dono, 3ª volta): mesmo só
+    // aparecendo depois que o entregador chega e travando com taxa pendente
+    // (inclusive 'pendente' de aceite, não só 'aceito'), ainda sobrava uma
+    // brecha: nos minutos de carência grátis (antes de qualquer taxa
+    // existir), o código aparecia sozinho — o cliente podia ver, guardar, e
+    // só depois pedir entrega na porta sem nunca pagar (o código já estava
+    // com ele havia tempo). Solução do dono: dentro da carência, sem taxa
+    // nenhuma, o código não aparece sozinho — o cliente precisa clicar
+    // "Gerar código" pra revelar (grava codigoLiberado=true, ver
+    // database.rules.json), e isso fecha de vez a opção de pedir entrega na
+    // porta depois pra esse pacote (regra valida isso no servidor, não só na
+    // tela). Quem pediu entrega na porta primeiro cai no fluxo de pagar pra
+    // ver o código, nunca o contrário.
+    const subidaComprometida = subirStatus === 'pendente' || subirStatus === 'aceito';
     let codigoHtml = '';
     if (ehColetaReversaTexto) {
         if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
             codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse código ao entregador na hora da retirada</small></div>`;
         }
-    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO') {
-        if (valorTotalEstimado > 0) {
-            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu código</small></div>`;
-        } else {
+    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== 'ENTREGUE' && pacoteInfo.status !== 'DEVOLVIDO' && pacoteInfo.entregadorChegou) {
+        if (pacoteInfo.codigoLiberado) {
             codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu código de confirmação</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse código ao entregador na hora da entrega</small></div>`;
+        } else if (valorTotalEstimado > 0) {
+            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu código</small></div>`;
+        } else if (subidaComprometida) {
+            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="lock" size="26"></i><small>Seu código aparece aqui assim que a entrega na porta for confirmada</small></div>`;
+        } else {
+            codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>Código de confirmação</span><i data-lucide="key-round" size="26"></i><small>Ainda dentro do tempo de carência — se gerar o código agora, não vai mais poder pedir entrega na porta depois</small><button type="button" class="btn-main" onclick="liberarCodigoSemTaxaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Gerar código</button></div>`;
         }
     }
 
@@ -11602,8 +11665,12 @@ function renderConteudoRastreioPublico(dados, pacoteId, rotaId, conteudoOverride
     let subirHtml = '';
     if (rotaId && entregadorPresenteParaTaxas) {
         // Pedido de subida em si (perguntar/aguardar aceite) — independente
-        // do pagamento, que fica no card combinado logo abaixo.
-        if (!subirStatus) {
+        // do pagamento, que fica no card combinado logo abaixo. Se o cliente
+        // já gerou o código de graça (ver codigoHtml acima), pedir entrega
+        // na porta agora não faz mais sentido — ele já tem o código em mãos
+        // havia tempo, então essa opção simplesmente some (reforçado no
+        // servidor pelo .validate de subirStatus em database.rules.json).
+        if (!subirStatus && !pacoteInfo.codigoLiberado) {
             subirHtml += `
                 <div class="rastreio-pub-subir">
                     <p>O entregador chegou! Precisa que ele entregue até a porta do seu apartamento?</p>
@@ -11682,6 +11749,20 @@ function solicitarSubidaCliente(rotaId, pacoteId, btn) {
     }).catch(() => {
         alert('Não foi possível enviar o pedido agora. Tente de novo.');
         if (btn) { btn.disabled = false; btn.innerText = `Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})`; }
+    });
+}
+
+// Pedido do dono (2026-10-07): dentro da carência grátis, sem nenhuma taxa
+// pendente ainda, o cliente escolhe EXPLICITAMENTE ver o código agora — e
+// isso fecha de vez a opção de pedir entrega na porta pra esse pacote depois
+// (ver .validate de subirStatus em database.rules.json), senão dava pra
+// "espiar" o código de graça e só depois pedir a entrega na porta sem pagar.
+function liberarCodigoSemTaxaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId) return;
+    if (btn) { btn.disabled = true; btn.innerText = 'Gerando código...'; }
+    db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}/codigoLiberado`).set(true).catch(() => {
+        alert('Não foi possível gerar o código agora. Tente de novo.');
+        if (btn) { btn.disabled = false; btn.innerText = 'Gerar código'; }
     });
 }
 
@@ -12488,6 +12569,7 @@ function iniciarModalRota() {
     if (pixTotal) pixTotal.innerText = 'R$ 0,00';
     if (pixFeedback) pixFeedback.innerText = '';
     setTicketPagamentoPixRota('');
+    setRotaPixQrImg('');
     setStatusPagamentoPixRota('Aguardando geração do código...', 'pending');
     atualizarAvisoAmbientePix();
 
@@ -17476,6 +17558,7 @@ export {
   irParaRevisao,
   irParaVeiculos,
   lerValorMonetarioInput,
+  liberarCodigoSemTaxaCliente,
   liberarRotaParadaLojista,
   limparBadgeChat,
   limparFiltrosRotaEntregador,

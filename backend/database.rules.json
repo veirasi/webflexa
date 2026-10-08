@@ -269,7 +269,23 @@
         // depois que o ENTREGADOR aceita, do lado dele.
         "pacotes": {
           "$pacoteId": {
-            "subirStatus": { ".write": true },
+            // BUG CORRIGIDO 2026-10-07 (achado pelo dono): o código de
+            // confirmação só ficava visível quando não havia taxa pendente —
+            // mas nos primeiros 5 min de carência (grátis) o cliente podia
+            // ver o código, guardar, e só então pedir entrega na porta sem
+            // nunca pagar (o código já estava com ele havia tempo). Agora o
+            // cliente escolhe explicitamente: ou clica em "Gerar código"
+            // dentro da carência (grava codigoLiberado=true aqui) — e aí
+            // nunca mais pode pedir entrega na porta pra esse pacote — ou
+            // pede entrega na porta primeiro, e só vê o código depois de
+            // pagar. codigoLiberado só pode ser gravado como true (nunca
+            // desfeito por uma escrita sem login), e subirStatus passa a
+            // recusar escrita se o código já tiver sido liberado assim.
+            "codigoLiberado": { ".write": true, ".validate": "newData.val() === true" },
+            "subirStatus": {
+              ".write": true,
+              ".validate": "root.child('rastreioPublico').child($rotaId).child('pacotes').child($pacoteId).child('codigoLiberado').val() !== true"
+            },
             "subirSolicitadoEm": { ".write": true }
           }
         }

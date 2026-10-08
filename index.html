@@ -696,9 +696,11 @@
                         <button id="rota-saldo-pagar-btn" type="button" class="btn-main" style="margin-top:0;" onclick="pagarRotaComSaldo()">Pagar com saldo</button>
                         <p id="rota-saldo-aplicado-info" class="rota-flow-help" style="display:none; margin-top:8px;"></p>
                     </div>
-                    <p class="rota-flow-help">Ou use o Pix Copia e Cola para pagar e liberar a rota para os entregadores.</p>
+                    <p class="rota-flow-help">Ou pague via Pix para liberar a rota para os entregadores.</p>
                     <div class="rota-pix-card">
-                        <span class="rota-pix-label">Pix Copia e Cola</span>
+                        <span class="rota-pix-label rota-pix-label-mobile">Pix Copia e Cola</span>
+                        <span class="rota-pix-label rota-pix-label-desktop">Escaneie o QR Code Pix</span>
+                        <img id="rota-pix-qr-img" class="rota-pix-qr-img" alt="QR Code Pix">
                         <div id="rota-pix-code" class="rota-pix-code-text">--</div>
                         <button id="rota-pix-copy-btn" type="button" class="rota-pix-copy-btn" onclick="copiarCodigoPixRota()">Copiar código Pix</button>
                         <span id="rota-pix-copy-feedback" class="rota-pix-copy-feedback"></span>

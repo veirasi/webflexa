@@ -294,6 +294,7 @@
     irParaRevisao: () => irParaRevisao,
     irParaVeiculos: () => irParaVeiculos,
     lerValorMonetarioInput: () => lerValorMonetarioInput,
+    liberarCodigoSemTaxaCliente: () => liberarCodigoSemTaxaCliente,
     liberarRotaParadaLojista: () => liberarRotaParadaLojista,
     limparBadgeChat: () => limparBadgeChat,
     limparFiltrosRotaEntregador: () => limparFiltrosRotaEntregador,
@@ -1975,6 +1976,17 @@
     } else {
       link.removeAttribute("href");
       link.style.display = "none";
+    }
+  }
+  function setRotaPixQrImg(base64 = "") {
+    const img = document.getElementById("rota-pix-qr-img");
+    if (!img) return;
+    if (base64) {
+      img.src = "data:image/png;base64," + base64;
+      img.style.visibility = "visible";
+    } else {
+      img.removeAttribute("src");
+      img.style.visibility = "hidden";
     }
   }
   function atualizarAvisoAmbientePix() {
@@ -8629,11 +8641,13 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     if (pixTotal) pixTotal.innerText = precoParaMoeda(valorRestantePix > 0 ? valorRestantePix : rotaDraftAtual.totalFrete);
     if (pixFeedback) pixFeedback.innerText = "";
     setTicketPagamentoPixRota("");
+    setRotaPixQrImg("");
     atualizarAvisoAmbientePix();
     rotaModalStep = 2;
     renderEtapaModalRota();
     if (valorRestantePix <= 0) {
       if (pixTxt) pixTxt.textContent = "--";
+      setRotaPixQrImg("");
       setStatusPagamentoPixRota('Saldo cobre o valor total. Use "Pagar com saldo" acima.', "approved");
       return;
     }
@@ -8648,6 +8662,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       rotaPixCodigoRawAtual = codigoPixLimpo;
       if (pixTxt) pixTxt.textContent = codigoPixLimpo;
       setTicketPagamentoPixRota(pixPagamento.ticketUrl || "");
+      setRotaPixQrImg(pixPagamento.qrCodeBase64 || "");
       atualizarAvisoAmbientePix();
       if (mercadoPagoAmbienteAtual === "teste") {
         setStatusPagamentoPixRota("Pix de teste gerado. Em banco real ele pode ser recusado.", "warning");
@@ -8661,6 +8676,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       rotaPixCodigoRawAtual = "";
       if (pixTxt) pixTxt.textContent = "--";
       setTicketPagamentoPixRota("");
+      setRotaPixQrImg("");
       atualizarAvisoAmbientePix();
       const detalheErro = erro?.message || "erro desconhecido";
       if (mercadoPagoAmbienteAtual === "teste") {
@@ -8678,6 +8694,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
             qrCodeBase64: ""
           };
           if (pixTxt) pixTxt.textContent = "Pagamento simulado (dev)";
+          setRotaPixQrImg("");
           setStatusPagamentoPixRota("Pagamento simulado aprovado (ambiente TESTE). N\xE3o usar em produ\xE7\xE3o.", "approved");
           renderEtapaModalRota();
           return;
@@ -9204,10 +9221,18 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     });
   }
   function statusPedidoCliente(item = {}) {
-    const bruto = String(item.pacotePublico?.status || item.pacote?.statusRaw || item.pacote?.status || item.rotaPublica?.statusRota || "BUSCANDO").toUpperCase();
-    if (bruto === "ENTREGUE" || bruto === "CONCLUIDO" || bruto === "CONCLU\xCDDO") return { label: "Conclu\xEDda", classe: "concluido" };
-    if (bruto === "DEVOLVIDO" || bruto === "CANCELADO" || bruto === "CANCELADA") return { label: "Cancelada", classe: "cancelado" };
-    if (bruto === "EM_ROTA" || bruto === "EM ROTA") return { label: "Em rota", classe: "em-rota" };
+    const statusEnvio = normalizarStatusEnvioFiltro(item.pacote?.statusRaw || item.pacote?.status || "");
+    if (statusEnvio === "ENTREGUE") return { label: "Conclu\xEDda", classe: "concluido" };
+    if (statusEnvio === "CANCELADO") return { label: "Cancelada", classe: "cancelado" };
+    if (statusEnvio === "EM_ROTA") return { label: "Em rota", classe: "em-rota" };
+    if (statusEnvio === "BUSCANDO") return { label: "Buscando entregador", classe: "buscando" };
+    const statusPacotePublico = String(item.pacotePublico?.status || "").toUpperCase();
+    if (statusPacotePublico === "ENTREGUE") return { label: "Conclu\xEDda", classe: "concluido" };
+    if (statusPacotePublico === "DEVOLVIDO") return { label: "Cancelada", classe: "cancelado" };
+    const statusRota = normalizarStatusRotaFiltro(item.rotaPublica?.statusRota || "BUSCANDO");
+    if (statusRota === "CONCLUIDO") return { label: "Conclu\xEDda", classe: "concluido" };
+    if (statusRota === "CANCELADO") return { label: "Cancelada", classe: "cancelado" };
+    if (statusRota === "EM_ROTA") return { label: "Em rota", classe: "em-rota" };
     return { label: "Buscando entregador", classe: "buscando" };
   }
   function renderCardPedidoCliente(item, index) {
@@ -9806,21 +9831,26 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     const valorEsperaEstimado = esperaStatus === "pago" ? 0 : Number((minutosCobrados * TAXA_ESPERA_POR_MIN).toFixed(2));
     const valorSubidaEstimado = subirStatus === "aceito" ? TAXA_SUBIR_FIXA : 0;
     const valorTotalEstimado = Number((valorEsperaEstimado + valorSubidaEstimado).toFixed(2));
+    const subidaComprometida = subirStatus === "pendente" || subirStatus === "aceito";
     let codigoHtml = "";
     if (ehColetaReversaTexto) {
       if (pacoteInfo.codigoConfirmacaoRetirada && !pacoteInfo.retiradaConfirmada) {
         codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoRetirada)}</strong><small>Informe esse c\xF3digo ao entregador na hora da retirada</small></div>`;
       }
-    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO") {
-      if (valorTotalEstimado > 0) {
-        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu c\xF3digo</small></div>`;
-      } else {
+    } else if (pacoteInfo.codigoConfirmacaoEntrega && pacoteInfo.status !== "ENTREGUE" && pacoteInfo.status !== "DEVOLVIDO" && pacoteInfo.entregadorChegou) {
+      if (pacoteInfo.codigoLiberado) {
         codigoHtml = `<div class="rastreio-pub-codigo"><span>Seu c\xF3digo de confirma\xE7\xE3o</span><strong>${escaparHtmlMarketplace(pacoteInfo.codigoConfirmacaoEntrega)}</strong><small>Informe esse c\xF3digo ao entregador na hora da entrega</small></div>`;
+      } else if (valorTotalEstimado > 0) {
+        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>Pague as taxas pendentes (${precoParaMoeda(valorTotalEstimado)}) para ver seu c\xF3digo</small></div>`;
+      } else if (subidaComprometida) {
+        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="lock" size="26"></i><small>Seu c\xF3digo aparece aqui assim que a entrega na porta for confirmada</small></div>`;
+      } else {
+        codigoHtml = `<div class="rastreio-pub-codigo rastreio-pub-codigo-bloqueado"><span>C\xF3digo de confirma\xE7\xE3o</span><i data-lucide="key-round" size="26"></i><small>Ainda dentro do tempo de car\xEAncia \u2014 se gerar o c\xF3digo agora, n\xE3o vai mais poder pedir entrega na porta depois</small><button type="button" class="btn-main" onclick="liberarCodigoSemTaxaCliente('${escaparHtmlMarketplace(rotaId)}', '${escaparHtmlMarketplace(pacoteId)}', this)">Gerar c\xF3digo</button></div>`;
       }
     }
     let subirHtml = "";
     if (rotaId && entregadorPresenteParaTaxas) {
-      if (!subirStatus) {
+      if (!subirStatus && !pacoteInfo.codigoLiberado) {
         subirHtml += `
                 <div class="rastreio-pub-subir">
                     <p>O entregador chegou! Precisa que ele entregue at\xE9 a porta do seu apartamento?</p>
@@ -9897,6 +9927,20 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       if (btn) {
         btn.disabled = false;
         btn.innerText = `Pedir entrega na porta (${precoParaMoeda(TAXA_SUBIR_FIXA)})`;
+      }
+    });
+  }
+  function liberarCodigoSemTaxaCliente(rotaId, pacoteId, btn) {
+    if (!rotaId || !pacoteId) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = "Gerando c\xF3digo...";
+    }
+    db.ref(`rastreioPublico/${rotaId}/pacotes/${pacoteId}/codigoLiberado`).set(true).catch(() => {
+      alert("N\xE3o foi poss\xEDvel gerar o c\xF3digo agora. Tente de novo.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Gerar c\xF3digo";
       }
     });
   }
@@ -10517,6 +10561,7 @@ Se o saldo mostrado aqui estiver errado, confira o extrato em Perfil > Pagamento
     if (pixTotal) pixTotal.innerText = "R$ 0,00";
     if (pixFeedback) pixFeedback.innerText = "";
     setTicketPagamentoPixRota("");
+    setRotaPixQrImg("");
     setStatusPagamentoPixRota("Aguardando gera\xE7\xE3o do c\xF3digo...", "pending");
     atualizarAvisoAmbientePix();
     renderListaPendentesRota();

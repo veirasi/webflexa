@@ -3632,6 +3632,27 @@ body.lojista-desktop-mode .accordion-save-btn {
     margin-bottom: 8px;
 }
 
+/* QR code vs. Copia e Cola (pedido do dono, 2026-10-07): no celular o app
+   do banco já está no mesmo aparelho, então só o Copia e Cola faz sentido;
+   no desktop o lojista normalmente paga pelo celular, então só o QR code
+   faz sentido ali — nunca os dois juntos. */
+.rota-pix-label-desktop { display: none; }
+.rota-pix-qr-img { display: none; }
+body.lojista-desktop-mode .rota-pix-label-mobile,
+body.lojista-desktop-mode #rota-pix-code,
+body.lojista-desktop-mode #rota-pix-copy-btn,
+body.lojista-desktop-mode .rota-pix-copy-feedback { display: none; }
+body.lojista-desktop-mode .rota-pix-label-desktop { display: block; }
+body.lojista-desktop-mode .rota-pix-qr-img {
+    display: block;
+    width: 180px;
+    height: 180px;
+    margin: 0 auto 4px;
+    border-radius: 12px;
+    border: 1px solid #e9eef5;
+    visibility: hidden;
+}
+
 .rota-pix-code-text {
     display: block;
     width: 100%;
@@ -7146,6 +7167,7 @@ body.usuario-entregador #entregador-rotas-shell {
 .rastreio-pub-codigo-bloqueado span { color: #b45309; }
 .rastreio-pub-codigo-bloqueado i { color: #b45309; margin: 6px 0; }
 .rastreio-pub-codigo-bloqueado small { color: #b45309; font-weight: 700; }
+.rastreio-pub-codigo-bloqueado .btn-main { margin-top: 12px; }
 
 .rastreio-pub-sucesso { text-align: center; padding: 10px 0 4px; }
 .rastreio-pub-sucesso-check { color: #16a34a; display: flex; justify-content: center; margin-bottom: 10px; }
