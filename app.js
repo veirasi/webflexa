@@ -130,6 +130,7 @@
     caminhoFinanceiroUsuario: () => caminhoFinanceiroUsuario,
     cancelarCorridaPacoteAtual: () => cancelarCorridaPacoteAtual,
     cancelarEdicaoDestinoEnvio: () => cancelarEdicaoDestinoEnvio,
+    cancelarEdicaoFreteEnvio: () => cancelarEdicaoFreteEnvio,
     cancelarPagamentoPendenciasCliente: () => cancelarPagamentoPendenciasCliente,
     carregarChatsAtivos: () => carregarChatsAtivos,
     carregarDadosPagamento: () => carregarDadosPagamento,
@@ -274,6 +275,7 @@
     handleSelectorTouchMove: () => handleSelectorTouchMove,
     handleSelectorTouchStart: () => handleSelectorTouchStart,
     iniciarCorridaPacoteAtual: () => iniciarCorridaPacoteAtual,
+    iniciarEdicaoFreteEnvio: () => iniciarEdicaoFreteEnvio,
     iniciarFluxoDevolucao: () => iniciarFluxoDevolucao,
     iniciarListenerGeoTrackingLoja: () => iniciarListenerGeoTrackingLoja,
     iniciarListenerHomeEntregador: () => iniciarListenerHomeEntregador,
@@ -442,6 +444,7 @@
     salvarEdicaoDestinoEnvio: () => salvarEdicaoDestinoEnvio,
     salvarEndereco: () => salvarEndereco,
     salvarEnderecoDesktop: () => salvarEnderecoDesktop,
+    salvarFreteEditadoEnvio: () => salvarFreteEditadoEnvio,
     salvarMetaDiaEntregador: () => salvarMetaDiaEntregador,
     salvarNovoCliente: () => salvarNovoCliente,
     salvarPerfil: () => salvarPerfil,
@@ -636,6 +639,10 @@
     const limpo = valor.toString().replace("R$", "").trim().replace(/\./g, "").replace(",", ".");
     const numero = Number(limpo);
     return Number.isFinite(numero) ? numero : 0;
+  }
+  function precoParaInput(preco) {
+    const numero = parseMoedaParaNumero(preco);
+    return numero ? numero.toFixed(2) : "";
   }
   function precoParaMoeda(preco) {
     const numero = parseMoedaParaNumero(preco);
@@ -3612,8 +3619,17 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     }
     return mapa;
   }
+  async function chamarLiberarRotasAtrasadas() {
+    try {
+      return await chamarPaymentsProxy("/liberar-rotas-atrasadas", {});
+    } catch (err) {
+      console.warn("Falha ao liberar rotas atrasadas:", err);
+      return null;
+    }
+  }
   async function carregarMarketplaceRotasEntregador() {
     try {
+      await chamarLiberarRotasAtrasadas();
       const snap = await db.ref("marketplacePublico").once("value");
       const usuariosNo = snap.val() || {};
       window.pacotesRaizCache = {};
@@ -4278,6 +4294,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     pararRastreioGpsEntregador();
     pararListenerEsperaPacote();
     pararCronometroEsperaEntregador();
+    pararCronometroColetaEntregador();
   }
   var geoRastreioWatchId = null;
   var geoRastreioUltimoEnvio = 0;
@@ -4707,6 +4724,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         rotaId: String(rotaObj.id)
       });
     }
+    pararCronometroColetaEntregador();
     renderSheetRotaEntregadorConteudo();
   }
   function renderSheetColetaPacotes() {
@@ -4737,6 +4755,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             <div class="ent-sheet-endereco" id="ent-sheet-endereco-texto">${escaparHtmlMarketplace(enderecoLoja || "Endere\xE7o n\xE3o informado")}</div>
         </div>
 
+        <div class="ent-sheet-cronometro"><i data-lucide="clock" size="14"></i> <span id="ent-sheet-coleta-cronometro-texto">Calculando prazo...</span></div>
+
         <div class="ent-sheet-code-box">
             <label for="ent-sheet-coleta-code-input">Pe\xE7a o c\xF3digo de coleta ao lojista</label>
             <input id="ent-sheet-coleta-code-input" type="text" placeholder="C\xF3digo de coleta">
@@ -4757,6 +4777,43 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         if (el) el.textContent = enderecoAoVivo;
       });
     }
+    iniciarCronometroColetaEntregador(rotaObj.aceitoEm, rotaObj.id);
+  }
+  var PRAZO_COLETA_MIN = 20;
+  var cronometroColetaEntregadorTimer = null;
+  function pararCronometroColetaEntregador() {
+    if (cronometroColetaEntregadorTimer) {
+      clearInterval(cronometroColetaEntregadorTimer);
+      cronometroColetaEntregadorTimer = null;
+    }
+  }
+  function iniciarCronometroColetaEntregador(aceitoEm, rotaId) {
+    pararCronometroColetaEntregador();
+    const atualizar = async () => {
+      const el = document.getElementById("ent-sheet-coleta-cronometro-texto");
+      if (!el) {
+        pararCronometroColetaEntregador();
+        return;
+      }
+      const restanteMs = Number(aceitoEm || 0) + PRAZO_COLETA_MIN * 60 * 1e3 - Date.now();
+      if (restanteMs > 0) {
+        const min = Math.floor(restanteMs / 6e4);
+        const seg = Math.floor(restanteMs % 6e4 / 1e3);
+        el.textContent = `Faltam ${min}:${String(seg).padStart(2, "0")} para coletar na loja`;
+        return;
+      }
+      el.textContent = "Prazo esgotado \u2014 verificando...";
+      pararCronometroColetaEntregador();
+      const resultado = await chamarLiberarRotasAtrasadas();
+      const foiLiberada = Array.isArray(resultado?.liberadas) && resultado.liberadas.some((r) => String(r.rotaId) === String(rotaId));
+      if (foiLiberada) {
+        alert("O prazo de 20 minutos para coletar na loja acabou \u2014 essa rota voltou a ficar dispon\xEDvel para outros entregadores.");
+        fecharSheetRotaEntregador();
+        if (typeof renderRotasMarketplaceEntregador === "function") renderRotasMarketplaceEntregador(true);
+      }
+    };
+    atualizar();
+    cronometroColetaEntregadorTimer = setInterval(atualizar, 1e3);
   }
   var cronometroEsperaEntregadorTimer = null;
   function pararCronometroEsperaEntregador() {
@@ -10493,12 +10550,9 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     if (!wrap) return;
     wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
     try {
-      let dataUsers = adminUsersCache;
-      if (!dataUsers) {
-        const snap = await db.ref("usuarios").once("value");
-        dataUsers = snap.val() || {};
-        adminUsersCache = dataUsers;
-      }
+      const snap = await db.ref("usuarios").once("value");
+      const dataUsers = snap.val() || {};
+      adminUsersCache = dataUsers;
       const entregadores = Object.keys(dataUsers).filter((uid) => {
         const tipo = normalizarTexto(dataUsers[uid]?.tipo || "");
         return tipo === "entregador" || tipo === "entrega";
@@ -11885,6 +11939,13 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     preencherTextoDetalheEnvio("envio-detalhe-duracao", formatarDuracao(envio.duracaoMin));
     preencherTextoDetalheEnvio("envio-detalhe-valor-frete", precoParaMoeda(envio.valor || 0));
     preencherTextoDetalheEnvio("envio-detalhe-valor-conteudo", Number.isFinite(envio.valorConteudo) ? precoParaMoeda(envio.valorConteudo) : "--");
+    cancelarEdicaoFreteEnvio();
+    const freteEditarBtn = document.getElementById("envio-detalhe-frete-editar-btn");
+    if (freteEditarBtn) {
+      const { rota } = localizarRotaDoEnvio(envioId);
+      const podeEditarFrete = !rota || rota.pagamento !== "APROVADO";
+      freteEditarBtn.classList.toggle("hidden", !podeEditarFrete);
+    }
     const cobrancaRow = document.getElementById("envio-detalhe-cobranca-row");
     if (envio.cobrancaEntrega?.ativa) {
       const formas = (envio.cobrancaEntrega.formasAceitas || []).map((f) => f === "dinheiro" ? "Dinheiro" : "Pix").join(" ou ");
@@ -11945,6 +12006,60 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     setTimeout(() => {
       modal.style.display = "none";
     }, 220);
+  }
+  function iniciarEdicaoFreteEnvio() {
+    if (!envioDetalheAtualId) return;
+    const envio = coletarEnviosDaBase().find((item) => item.id === envioDetalheAtualId);
+    if (!envio) return;
+    document.getElementById("envio-detalhe-frete-row")?.classList.add("hidden");
+    document.getElementById("envio-detalhe-frete-edicao-row")?.classList.remove("hidden");
+    const input = document.getElementById("envio-detalhe-frete-input");
+    if (input) {
+      input.value = precoParaInput(envio.valor || 0);
+      input.focus();
+      input.select();
+    }
+  }
+  function cancelarEdicaoFreteEnvio() {
+    document.getElementById("envio-detalhe-frete-row")?.classList.remove("hidden");
+    document.getElementById("envio-detalhe-frete-edicao-row")?.classList.add("hidden");
+  }
+  async function salvarFreteEditadoEnvio() {
+    const envioId = envioDetalheAtualId;
+    const uid = getUsuarioIdAtual();
+    if (!envioId || !uid) return;
+    const input = document.getElementById("envio-detalhe-frete-input");
+    const novoValor = Number(parseMoedaParaNumero(input?.value || 0).toFixed(2));
+    if (!Number.isFinite(novoValor) || novoValor <= 0) {
+      alert("Informe um valor de frete v\xE1lido.");
+      return;
+    }
+    const { rota } = localizarRotaDoEnvio(envioId);
+    if (rota && rota.pagamento === "APROVADO") {
+      alert("N\xE3o \xE9 poss\xEDvel alterar o frete: a rota desse envio j\xE1 foi paga.");
+      cancelarEdicaoFreteEnvio();
+      return;
+    }
+    try {
+      await sincronizarCamposEnvioLojista(uid, envioId, { valorFrete: novoValor });
+      for (const cliente of clientes) {
+        const historico = Array.isArray(cliente.historico) ? cliente.historico : [];
+        const idx = historico.findIndex((h) => h.id === envioId);
+        if (idx >= 0) {
+          historico[idx].valorFrete = novoValor;
+          break;
+        }
+      }
+      if (window.pacotesRaizCache?.[uid]?.[envioId]) {
+        window.pacotesRaizCache[uid][envioId].valorFrete = novoValor;
+      }
+      notificarSucesso("Valor do frete atualizado.");
+      abrirModalDetalheEnvio(envioId);
+      if (typeof renderEnviosHome === "function") renderEnviosHome();
+    } catch (err) {
+      console.warn("Falha ao atualizar valor do frete:", err);
+      alert("N\xE3o foi poss\xEDvel salvar o novo valor agora. Tente novamente.");
+    }
   }
   function excluirEnvioAtualNoModal() {
     if (!envioDetalheAtualId) return;
@@ -12804,7 +12919,10 @@ O entregador j\xE1 iniciou a entrega deste pacote \u2014 ser\xE1 cobrada uma tax
       renderDocumentosEntregadorLista();
     } catch (err) {
       console.warn("Falha ao enviar documento do entregador:", err);
-      alert("N\xE3o foi poss\xEDvel enviar o documento agora. Tente novamente.");
+      const detalhe = err?.code ? `${err.code}${err.message ? " \u2014 " + err.message : ""}` : err?.message || "erro desconhecido";
+      alert(`N\xE3o foi poss\xEDvel enviar o documento agora.
+
+Detalhe: ${detalhe}`);
       if (btn) {
         btn.disabled = false;
         btn.innerText = textoOriginal || "Enviar";

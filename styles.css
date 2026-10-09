@@ -3329,6 +3329,31 @@ body.lojista-desktop-mode .accordion-save-btn {
     font-weight: 800;
     text-align: right;
 }
+
+/* Edição do valor do frete (2026-10-09, pedido do dono) — tag cinza padrão
+   ("editar") ao lado do valor quando ainda dá pra editar (rota ainda não
+   paga, ver abrirModalDetalheEnvio); vira um input inline + confirmar/
+   cancelar. Pedido do dono (2026-10-09, 2ª volta): trocar o ícone de lápis
+   por essa tag — reaproveita o .status-chip.status-- já usado em outras
+   telas, só reseta o que vem de <button> por padrão (borda, fundo, fonte).
+*/
+.envio-detalhe-frete-display { display: flex; align-items: center; gap: 8px; }
+.envio-detalhe-edit-tag {
+    border: none; font-family: inherit; cursor: pointer; text-transform: none;
+}
+.envio-detalhe-edit-tag:hover { background: #cbd5e1; }
+.envio-detalhe-frete-edit-inline { display: flex; align-items: center; gap: 6px; }
+.envio-detalhe-frete-edit-inline input {
+    width: 90px; text-align: right; border: 1.5px solid #e2e8f0; border-radius: 8px;
+    padding: 5px 8px; font-size: 13px; font-weight: 700; color: #0f172a;
+}
+.envio-detalhe-edit-confirm, .envio-detalhe-edit-cancel {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 8px; border: none; cursor: pointer; flex-shrink: 0;
+}
+.envio-detalhe-edit-confirm { background: #ecfdf3; color: #15803d; }
+.envio-detalhe-edit-cancel { background: #fef2f2; color: #b91c1c; }
+
 .envio-detalhe-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

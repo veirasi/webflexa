@@ -326,7 +326,20 @@ function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
 // Isso permite fechar `usuarios/.read` pra master/dono apenas.
 const ALLOWLIST_HISTORICO_ITEM = ['id', 'destino', 'destinoEndereco', 'cidadeDestino', 'bairroDestino', 'cidade', 'servico', 'status', 'statusRaw', 'distanciaKm', 'duracaoMin', 'valorFrete', 'valor', 'tamanho', 'embalagem', 'veiculo', 'tipoFluxo', 'rotaId'];
 const ALLOWLIST_CLIENTE_ENDERECO = ['cidade', 'estado', 'uf', 'endereco', 'cep', 'rua', 'num', 'bairro', 'comp'];
-const ALLOWLIST_ROTA_MARKETPLACE = ['status', 'pagamentoStatus', 'totalFrete', 'pacoteIds', 'pacotes', 'quantidade', 'entregadorId', 'aceitoPor', 'criadoEm'];
+// aceitoEm/coletaConfirmada (2026-10-09): precisam estar no espelho público
+// pra liberarRotasAtrasadasServer decidir, só lendo marketplacePublico (sem
+// precisar abrir usuarios/{lojistaUid} inteiro), se uma rota "aceita" já
+// passou do prazo de 20 min pra coleta sem confirmação — nenhum dos dois é
+// dado sensível (é só timing/status operacional, mesma classe de status já
+// exposta aqui).
+const ALLOWLIST_ROTA_MARKETPLACE = ['status', 'pagamentoStatus', 'totalFrete', 'pacoteIds', 'pacotes', 'quantidade', 'entregadorId', 'aceitoPor', 'criadoEm', 'aceitoEm', 'coletaConfirmada'];
+
+// Prazo pra confirmar a coleta na loja depois de aceitar a rota (pedido do
+// dono 2026-10-09, prevenção contra entregador "travar" uma rota sem nunca
+// aparecer): passou disso sem confirmar, a rota volta a ficar disponível
+// pra qualquer outro entregador — ver o uso dentro de /aceitar-rota-marketplace
+// (aceite atrasado) e liberarRotasAtrasadasServer (limpeza proativa).
+const PRAZO_COLETA_MS = 20 * 60 * 1000;
 
 function filtrarCampos(obj, campos) {
   const out = {};
@@ -1103,6 +1116,104 @@ function normalizarStatusRotaServer(status) {
   return 'BUSCANDO';
 }
 
+// Pedido do dono (2026-10-09): limpeza PROATIVA das rotas "aceitas" cujo
+// prazo de 20 min pra coleta já estourou — devolve status:'BUSCANDO' e tira
+// o entregador, pra elas aparecerem de novo na LISTAGEM do marketplace (não
+// só ficarem aceitáveis nos bastidores, ver o aceite atrasado dentro de
+// /aceitar-rota-marketplace, que cobre a aceitação em si mas não corrige o
+// que a listagem mostra até alguém escrever algo). Lê marketplacePublico
+// (o mesmo espelho que o app já lê pra montar a lista) em vez de usuarios/*
+// inteiro — mais barato e já filtrado só pra lojistas.
+async function liberarRotasAtrasadasServer() {
+  const snap = await db.ref('marketplacePublico').once('value');
+  const usuariosNo = snap.val() || {};
+  const agora = Date.now();
+  const liberadas = [];
+
+  for (const lojistaUid of Object.keys(usuariosNo)) {
+    const rotasNo = usuariosNo[lojistaUid]?.rotas || {};
+    for (const rotaId of Object.keys(rotasNo)) {
+      const rotaEspelho = rotasNo[rotaId] || {};
+      const entregadorIdEspelho = String(rotaEspelho.entregadorId || rotaEspelho.aceitoPor || '');
+      if (!entregadorIdEspelho) continue;
+      if (normalizarStatusRotaServer(rotaEspelho.status || rotaEspelho.pagamentoStatus) !== 'EM_ROTA') continue;
+      if (rotaEspelho.coletaConfirmada === true) continue;
+      const aceitoEmEspelho = Number(rotaEspelho.aceitoEm || 0);
+      if (!aceitoEmEspelho || (agora - aceitoEmEspelho) < PRAZO_COLETA_MS) continue;
+
+      // Confere e reverte de verdade via transação na origem (nunca confia
+      // só no espelho, que pode estar um instante desatualizado).
+      let entregadorRevertidoId = '';
+      const rotaRef = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`);
+      const tx = await rotaRef.transaction((atual) => {
+        if (!atual) return atual;
+        if (normalizarStatusRotaServer(atual?.status || atual?.pagamentoStatus) !== 'EM_ROTA') return;
+        if (atual?.coletaConfirmada === true) return;
+        const aceitoEmAtual = Number(atual?.aceitoEm || 0);
+        if (!aceitoEmAtual || (agora - aceitoEmAtual) < PRAZO_COLETA_MS) return;
+        entregadorRevertidoId = String(atual?.entregadorId || atual?.aceitoPor || '');
+        return {
+          ...atual,
+          status: 'BUSCANDO',
+          entregadorId: null,
+          aceitoPor: null,
+          aceitoEm: null,
+          entregadorNome: null,
+          entregadorFoto: null,
+          codigoConfirmacaoColeta: null,
+          atualizadoEm: agora
+        };
+      }).catch(() => ({ committed: false }));
+
+      if (!tx.committed || !entregadorRevertidoId) continue;
+
+      liberadas.push({ lojistaUid, rotaId, entregadorId: entregadorRevertidoId });
+      await db.ref(`usuarios/${entregadorRevertidoId}/rotas/${rotaId}`).remove().catch(() => {});
+      await db.ref(`rastreioPublico/${rotaId}`).update({ statusRota: 'BUSCANDO' }).catch(() => {});
+      await db.ref(`usuarios/${entregadorRevertidoId}/notificacoes`).push({
+        tipo: 'rota_liberada_atraso',
+        titulo: 'Rota liberada por atraso',
+        mensagem: 'Você não confirmou a coleta em até 20 minutos — essa rota voltou a ficar disponível para outros entregadores.',
+        rotaId: String(rotaId),
+        lida: false,
+        criadoEm: agora
+      }).catch(() => {});
+
+      // Mesmo dual-write de /aceitar-rota-marketplace, na direção contrária:
+      // sem isso, a tela de Pedidos do lojista (que confia em
+      // pacotes/{id}/status, não no status da rota) continuava mostrando
+      // "Em rota" pros pacotes mesmo depois da rota voltar a "Buscando".
+      const rotaRevertidaVal = tx.snapshot.val() || {};
+      const pacoteIdsRevertidos = Array.isArray(rotaRevertidaVal.pacoteIds) ? rotaRevertidaVal.pacoteIds : (Array.isArray(rotaRevertidaVal.pacotes) ? rotaRevertidaVal.pacotes : []);
+      if (pacoteIdsRevertidos.length) {
+        const clientesSnap = await db.ref(`usuarios/${lojistaUid}/clientes`).once('value');
+        const clientesNo = clientesSnap.val() || {};
+        const idsSet = new Set(pacoteIdsRevertidos.map((id) => String(id)));
+        const updatesStatus = {};
+        Object.keys(clientesNo).forEach((clienteId) => {
+          const historico = Array.isArray(clientesNo[clienteId]?.historico) ? clientesNo[clienteId].historico : [];
+          historico.forEach((h, idx) => {
+            const idAtual = String(h?.id || `envio-${clienteId}-${idx}`);
+            if (!idsSet.has(idAtual)) return;
+            updatesStatus[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/status`] = 'BUSCANDO';
+            updatesStatus[`usuarios/${lojistaUid}/clientes/${clienteId}/historico/${idx}/atualizadoEm`] = agora;
+          });
+        });
+        pacoteIdsRevertidos.forEach((pid) => {
+          updatesStatus[`usuarios/${lojistaUid}/pacotes/${pid}/status`] = 'BUSCANDO';
+          updatesStatus[`usuarios/${lojistaUid}/pacotes/${pid}/statusRaw`] = 'BUSCANDO';
+          updatesStatus[`usuarios/${lojistaUid}/pacotes/${pid}/atualizadoEm`] = agora;
+        });
+        if (Object.keys(updatesStatus).length) {
+          await db.ref().update(updatesStatus).catch(() => {});
+        }
+      }
+    }
+  }
+
+  return liberadas;
+}
+
 function gerarCodigoConfirmacaoEntregaServer() {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
@@ -1269,7 +1380,7 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
   }
 
   const path = (req.path || '/').replace(/\/+$/, '') || '/';
-  const rotasValidas = ['/create-pix', '/check-pix', '/criar-pagamento-pendencias-cliente', '/checar-pagamento-pendencias-cliente', '/cancelar-escolha-pagamento-cliente', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/gerar-login-cliente', '/consumir-login-cliente'];
+  const rotasValidas = ['/create-pix', '/check-pix', '/criar-pagamento-pendencias-cliente', '/checar-pagamento-pendencias-cliente', '/cancelar-escolha-pagamento-cliente', '/create-pix-devolucao', '/check-pix-devolucao', '/create-pix-quitacao-divida', '/check-pix-quitacao-divida', '/resolver-taxa-espera', '/confirmar-taxa-espera-recebida', '/confirmar-cobranca-dinheiro', '/creditar-rota-finalizada', '/admin-atualizar-status-rota', '/admin-excluir-rota', '/aceitar-rota-marketplace', '/liberar-rotas-atrasadas', '/gerar-login-cliente', '/consumir-login-cliente'];
   if (!rotasValidas.includes(path)) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -2007,6 +2118,18 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
       return res.status(200).json({ excluido: true });
     }
 
+    // Limpeza oportunista das rotas atrasadas (pedido do dono 2026-10-09):
+    // chamada pelo app sempre que um entregador abre/atualiza o marketplace
+    // (ver carregarMarketplaceRotasEntregador) e pela própria tela de
+    // confirmar coleta (ver renderSheetColetaPacotes), pra devolver
+    // 'BUSCANDO' as rotas cujo prazo de 20 min estourou ANTES de montar a
+    // lista/decidir se fecha a tela — qualquer autenticado pode chamar
+    // (é uma limpeza idempotente, sem nenhum dado sensível envolvido).
+    if (path === '/liberar-rotas-atrasadas') {
+      const liberadas = await liberarRotasAtrasadasServer();
+      return res.status(200).json({ liberadas });
+    }
+
     // Aceitar rota no marketplace (plano de segurança 2026-09-27, item 6/6):
     // a regra do banco pra "rotas" é auth != null (não valida vínculo real
     // com a rota) — um entregador mal-intencionado podia pular as checagens
@@ -2143,17 +2266,58 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         codigoConfirmacaoColeta
       };
 
+      // Capturado de DENTRO da transação (closure) — fica com o uid do
+      // entregador que estava na rota ANTES dela ser tomada por aceite
+      // atrasado (ver abaixo). A própria API de transaction() não expõe o
+      // valor "antes" separado do commit, então guardar aqui é o jeito de
+      // saber de quem limpar o espelho depois.
+      let entregadorSubstituidoId = '';
       const rotaRef = db.ref(`usuarios/${lojistaUid}/rotas/${rotaId}`);
       const tx = await rotaRef.transaction((atual) => {
         if (!atual) return atual;
         const statusAtual = normalizarStatusRotaServer(atual?.status || atual?.pagamentoStatus || 'CRIADA');
         const jaTemEntregador = Boolean(atual?.entregadorId || atual?.aceitoPor);
-        if (statusAtual !== 'BUSCANDO' || jaTemEntregador) return;
-        return { ...atual, ...metaEntregador };
+        if (statusAtual === 'BUSCANDO' && !jaTemEntregador) {
+          entregadorSubstituidoId = '';
+          return { ...atual, ...metaEntregador };
+        }
+        // Pedido do dono (2026-10-09): entregador tem 20 min pra confirmar a
+        // coleta na loja depois de aceitar — se passar desse prazo sem
+        // confirmar, a rota volta a valer "disponível" na prática, mesmo que
+        // nenhuma limpeza em segundo plano tenha rodado ainda (ver
+        // liberarRotasAtrasadasServer, chamada de forma oportunista sempre
+        // que um entregador abre o marketplace). Checar isso AQUI, dentro da
+        // própria transação de aceite, garante que o primeiro a tentar
+        // aceitar depois do prazo leva, sem depender de mais nada já ter
+        // rodado antes — sem essa checagem, um entregador atrasado podia
+        // travar a rota pra sempre só não aparecendo na loja.
+        if (statusAtual === 'EM_ROTA' && jaTemEntregador && atual?.coletaConfirmada !== true) {
+          const aceitoEmAnterior = Number(atual?.aceitoEm || 0);
+          if (aceitoEmAnterior && (agora - aceitoEmAnterior) >= PRAZO_COLETA_MS) {
+            entregadorSubstituidoId = String(atual?.entregadorId || atual?.aceitoPor || '');
+            return { ...atual, ...metaEntregador };
+          }
+        }
+        return;
       });
 
       if (!tx.committed || !tx.snapshot.exists()) {
         return res.status(409).json({ error: 'Essa rota já foi aceita por outro entregador', motivo: 'ja_aceita' });
+      }
+
+      // Rota tomada de um entregador atrasado (ver acima) — limpa o espelho
+      // dele e avisa, senão o app dele continuava mostrando essa rota como
+      // sendo dele mesmo depois de ter sido aceita por outra pessoa.
+      if (entregadorSubstituidoId && entregadorSubstituidoId !== uidEntregador) {
+        await db.ref(`usuarios/${entregadorSubstituidoId}/rotas/${rotaId}`).remove().catch(() => {});
+        await db.ref(`usuarios/${entregadorSubstituidoId}/notificacoes`).push({
+          tipo: 'rota_liberada_atraso',
+          titulo: 'Rota liberada por atraso',
+          mensagem: `Você não confirmou a coleta da rota #${rotaId} em até 20 minutos — ela foi liberada e aceita por outro entregador.`,
+          rotaId: String(rotaId),
+          lida: false,
+          criadoEm: agora
+        }).catch(() => {});
       }
 
       const rotaAtualizada = tx.snapshot.val() || {};

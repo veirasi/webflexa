@@ -1615,7 +1615,21 @@
                 <div class="envio-detalhe-info-row"><span>Duração</span><strong id="envio-detalhe-duracao">--</strong></div>
                 <div class="envio-detalhe-info-row"><span>Tipo de serviço</span><strong id="envio-detalhe-servico">--</strong></div>
                 <div class="envio-detalhe-info-row"><span>Veículo</span><strong id="envio-detalhe-veiculo">--</strong></div>
-                <div class="envio-detalhe-info-row"><span>Valor do frete</span><strong id="envio-detalhe-valor-frete">--</strong></div>
+                <div class="envio-detalhe-info-row" id="envio-detalhe-frete-row">
+                    <span>Valor do frete</span>
+                    <span class="envio-detalhe-frete-display">
+                        <strong id="envio-detalhe-valor-frete">--</strong>
+                        <button type="button" id="envio-detalhe-frete-editar-btn" class="status-chip status-- envio-detalhe-edit-tag hidden" onclick="iniciarEdicaoFreteEnvio()">editar</button>
+                    </span>
+                </div>
+                <div class="envio-detalhe-info-row hidden" id="envio-detalhe-frete-edicao-row">
+                    <span>Novo valor do frete</span>
+                    <span class="envio-detalhe-frete-edit-inline">
+                        <input type="text" id="envio-detalhe-frete-input" inputmode="decimal" placeholder="0,00">
+                        <button type="button" class="envio-detalhe-edit-confirm" onclick="salvarFreteEditadoEnvio()" title="Salvar"><i data-lucide="check" size="14"></i></button>
+                        <button type="button" class="envio-detalhe-edit-cancel" onclick="cancelarEdicaoFreteEnvio()" title="Cancelar"><i data-lucide="x" size="14"></i></button>
+                    </span>
+                </div>
                 <div class="envio-detalhe-info-row"><span>Tamanho do pacote</span><strong id="envio-detalhe-tamanho">--</strong></div>
                 <div class="envio-detalhe-info-row"><span>Valor do conteúdo</span><strong id="envio-detalhe-valor-conteudo">--</strong></div>
                 <div class="envio-detalhe-info-row" id="envio-detalhe-cobranca-row" style="display:none;"><span>Cobrança na entrega</span><strong id="envio-detalhe-cobranca">--</strong></div>

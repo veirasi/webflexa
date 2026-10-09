@@ -3582,8 +3582,26 @@ function montarMapaPacotesUsuarioMarketplace(clientesNo = {}) {
     return mapa;
 }
 
+// Pedido do dono (2026-10-09): entregador tem 20 min pra confirmar a coleta
+// na loja depois de aceitar — passou disso, a rota precisa voltar a
+// aparecer como disponível pra qualquer outro entregador. Sem nenhum cron
+// job nesta app, a limpeza roda de forma OPORTUNISTA: toda vez que alguém
+// abre/atualiza o marketplace (aqui) ou a própria tela de confirmar coleta
+// (ver renderSheetColetaPacotes). Falha aqui nunca deve travar a tela —
+// só significa que a lista pode ficar um pouco desatualizada até a próxima
+// chamada, nunca um erro visível pro entregador.
+async function chamarLiberarRotasAtrasadas() {
+    try {
+        return await chamarPaymentsProxy('/liberar-rotas-atrasadas', {});
+    } catch (err) {
+        console.warn('Falha ao liberar rotas atrasadas:', err);
+        return null;
+    }
+}
+
 async function carregarMarketplaceRotasEntregador() {
     try {
+        await chamarLiberarRotasAtrasadas();
         // Plano de segurança 2026-09-27 (Fase 3): antes lia a coleção `usuarios`
         // inteira (exigia usuarios/.read: auth != null, vazando financeiro/dívida/
         // saques/clientes de TODO MUNDO pra qualquer autenticado). Agora lê
@@ -4470,6 +4488,7 @@ function fecharSheetRotaEntregador() {
     pararRastreioGpsEntregador();
     pararListenerEsperaPacote();
     pararCronometroEsperaEntregador();
+    pararCronometroColetaEntregador();
 }
 
 // ===== [RASTREIO GPS DO ENTREGADOR] =====
@@ -5045,6 +5064,7 @@ async function confirmarColetaPacotes() {
         });
     }
 
+    pararCronometroColetaEntregador();
     renderSheetRotaEntregadorConteudo();
 }
 
@@ -5079,6 +5099,8 @@ function renderSheetColetaPacotes() {
             <div class=\"ent-sheet-endereco\" id=\"ent-sheet-endereco-texto\">${escaparHtmlMarketplace(enderecoLoja || 'Endereço não informado')}</div>
         </div>
 
+        <div class=\"ent-sheet-cronometro\"><i data-lucide=\"clock\" size=\"14\"></i> <span id=\"ent-sheet-coleta-cronometro-texto\">Calculando prazo...</span></div>
+
         <div class=\"ent-sheet-code-box\">
             <label for=\"ent-sheet-coleta-code-input\">Peça o código de coleta ao lojista</label>
             <input id=\"ent-sheet-coleta-code-input\" type=\"text\" placeholder=\"Código de coleta\">
@@ -5102,6 +5124,51 @@ function renderSheetColetaPacotes() {
             if (el) el.textContent = enderecoAoVivo;
         });
     }
+
+    iniciarCronometroColetaEntregador(rotaObj.aceitoEm, rotaObj.id);
+}
+
+// Pedido do dono (2026-10-09): "trava de 20 min pra coletar o pacote na
+// loja depois que aceitou a corrida" — mesmo padrão visual/discreto do
+// cronômetro de espera (ver iniciarCronometroEsperaEntregador), só que
+// aqui, ao chegar em zero, chama a limpeza do servidor (ver
+// liberarRotasAtrasadasServer/backend) pra confirmar se ESSA rota
+// específica já foi liberada — se foi, avisa e fecha a sheet, em vez de
+// deixar o entregador parado numa tela de uma rota que já não é mais dele.
+const PRAZO_COLETA_MIN = 20;
+let cronometroColetaEntregadorTimer = null;
+function pararCronometroColetaEntregador() {
+    if (cronometroColetaEntregadorTimer) {
+        clearInterval(cronometroColetaEntregadorTimer);
+        cronometroColetaEntregadorTimer = null;
+    }
+}
+function iniciarCronometroColetaEntregador(aceitoEm, rotaId) {
+    pararCronometroColetaEntregador();
+    const atualizar = async () => {
+        const el = document.getElementById('ent-sheet-coleta-cronometro-texto');
+        if (!el) { pararCronometroColetaEntregador(); return; }
+
+        const restanteMs = Number(aceitoEm || 0) + (PRAZO_COLETA_MIN * 60 * 1000) - Date.now();
+        if (restanteMs > 0) {
+            const min = Math.floor(restanteMs / 60000);
+            const seg = Math.floor((restanteMs % 60000) / 1000);
+            el.textContent = `Faltam ${min}:${String(seg).padStart(2, '0')} para coletar na loja`;
+            return;
+        }
+
+        el.textContent = 'Prazo esgotado — verificando...';
+        pararCronometroColetaEntregador();
+        const resultado = await chamarLiberarRotasAtrasadas();
+        const foiLiberada = Array.isArray(resultado?.liberadas) && resultado.liberadas.some((r) => String(r.rotaId) === String(rotaId));
+        if (foiLiberada) {
+            alert('O prazo de 20 minutos para coletar na loja acabou — essa rota voltou a ficar disponível para outros entregadores.');
+            fecharSheetRotaEntregador();
+            if (typeof renderRotasMarketplaceEntregador === 'function') renderRotasMarketplaceEntregador(true);
+        }
+    };
+    atualizar();
+    cronometroColetaEntregadorTimer = setInterval(atualizar, 1000);
 }
 
 // Pedido do dono (2026-10-08): o cronômetro de espera precisa ficar
@@ -12634,12 +12701,15 @@ async function renderDocumentosAdmin() {
     wrap.innerHTML = '<p class="admin-subtle">Carregando...</p>';
 
     try {
-        let dataUsers = adminUsersCache;
-        if (!dataUsers) {
-            const snap = await db.ref('usuarios').once('value');
-            dataUsers = snap.val() || {};
-            adminUsersCache = dataUsers;
-        }
+        // BUG CORRIGIDO 2026-10-09 (achado pelo dono: entregador de teste
+        // enviou documento e não aparecia nenhum botão de aprovar/rejeitar):
+        // diferente de renderChamadosAdmin, esta aba sempre busca dados
+        // FRESCOS — se o master já tinha aberto "Usuários" antes (deixando
+        // adminUsersCache populado), reusar esse cache aqui escondia
+        // qualquer documento enviado DEPOIS que o cache foi montado.
+        const snap = await db.ref('usuarios').once('value');
+        const dataUsers = snap.val() || {};
+        adminUsersCache = dataUsers;
 
         const entregadores = Object.keys(dataUsers)
             .filter((uid) => {
@@ -14396,6 +14466,19 @@ function abrirModalDetalheEnvio(envioId, event) {
     preencherTextoDetalheEnvio('envio-detalhe-duracao', formatarDuracao(envio.duracaoMin));
     preencherTextoDetalheEnvio('envio-detalhe-valor-frete', precoParaMoeda(envio.valor || 0));
     preencherTextoDetalheEnvio('envio-detalhe-valor-conteudo', Number.isFinite(envio.valorConteudo) ? precoParaMoeda(envio.valorConteudo) : '--');
+    cancelarEdicaoFreteEnvio();
+    // Pedido do dono (2026-10-09): lojista pode alterar o valor do frete —
+    // mas só enquanto a rota desse envio ainda não foi PAGA (mesma trava já
+    // usada em confirmarExclusaoEnvio/podeReembolsar). Depois que o frete já
+    // foi cobrado/repassado, mudar o valor aqui bagunçaria o que o entregador
+    // tem a receber — isso vira um ajuste manual à parte, não uma edição
+    // simples de campo.
+    const freteEditarBtn = document.getElementById('envio-detalhe-frete-editar-btn');
+    if (freteEditarBtn) {
+        const { rota } = localizarRotaDoEnvio(envioId);
+        const podeEditarFrete = !rota || rota.pagamento !== 'APROVADO';
+        freteEditarBtn.classList.toggle('hidden', !podeEditarFrete);
+    }
     const cobrancaRow = document.getElementById('envio-detalhe-cobranca-row');
     if (envio.cobrancaEntrega?.ativa) {
         const formas = (envio.cobrancaEntrega.formasAceitas || []).map((f) => f === 'dinheiro' ? 'Dinheiro' : 'Pix').join(' ou ');
@@ -14464,6 +14547,76 @@ function fecharModalDetalheEnvio() {
     setTimeout(() => {
         modal.style.display = 'none';
     }, 220);
+}
+
+// Pedido do dono (2026-10-09): lojista pode alterar o valor do frete do
+// próprio pedido/envio — só enquanto a rota ainda não foi paga (ver trava em
+// abrirModalDetalheEnvio, que esconde o lápis quando rota.pagamento ===
+// 'APROVADO'). Troca a linha de exibição por um input inline, sem precisar
+// de outro modal.
+function iniciarEdicaoFreteEnvio() {
+    if (!envioDetalheAtualId) return;
+    const envio = coletarEnviosDaBase().find((item) => item.id === envioDetalheAtualId);
+    if (!envio) return;
+
+    document.getElementById('envio-detalhe-frete-row')?.classList.add('hidden');
+    document.getElementById('envio-detalhe-frete-edicao-row')?.classList.remove('hidden');
+    const input = document.getElementById('envio-detalhe-frete-input');
+    if (input) {
+        input.value = precoParaInput(envio.valor || 0);
+        input.focus();
+        input.select();
+    }
+}
+
+function cancelarEdicaoFreteEnvio() {
+    document.getElementById('envio-detalhe-frete-row')?.classList.remove('hidden');
+    document.getElementById('envio-detalhe-frete-edicao-row')?.classList.add('hidden');
+}
+
+async function salvarFreteEditadoEnvio() {
+    const envioId = envioDetalheAtualId;
+    const uid = getUsuarioIdAtual();
+    if (!envioId || !uid) return;
+
+    const input = document.getElementById('envio-detalhe-frete-input');
+    const novoValor = Number(parseMoedaParaNumero(input?.value || 0).toFixed(2));
+    if (!Number.isFinite(novoValor) || novoValor <= 0) {
+        alert('Informe um valor de frete válido.');
+        return;
+    }
+
+    // Trava de novo no momento de salvar (não só ao abrir o modal) — entre
+    // abrir a edição e confirmar, a rota pode ter sido paga nesse meio tempo.
+    const { rota } = localizarRotaDoEnvio(envioId);
+    if (rota && rota.pagamento === 'APROVADO') {
+        alert('Não é possível alterar o frete: a rota desse envio já foi paga.');
+        cancelarEdicaoFreteEnvio();
+        return;
+    }
+
+    try {
+        await sincronizarCamposEnvioLojista(uid, envioId, { valorFrete: novoValor });
+
+        // Atualiza o estado local (clientes/historico + pacotes raiz) pra
+        // refletir na hora, sem precisar recarregar — mesmo padrão de
+        // excluirEnvioPorId.
+        for (const cliente of clientes) {
+            const historico = Array.isArray(cliente.historico) ? cliente.historico : [];
+            const idx = historico.findIndex((h) => h.id === envioId);
+            if (idx >= 0) { historico[idx].valorFrete = novoValor; break; }
+        }
+        if (window.pacotesRaizCache?.[uid]?.[envioId]) {
+            window.pacotesRaizCache[uid][envioId].valorFrete = novoValor;
+        }
+
+        notificarSucesso('Valor do frete atualizado.');
+        abrirModalDetalheEnvio(envioId);
+        if (typeof renderEnviosHome === 'function') renderEnviosHome();
+    } catch (err) {
+        console.warn('Falha ao atualizar valor do frete:', err);
+        alert('Não foi possível salvar o novo valor agora. Tente novamente.');
+    }
 }
 
 function excluirEnvioAtualNoModal() {
@@ -15578,7 +15731,13 @@ async function enviarDocumentoEntregador(chave) {
         renderDocumentosEntregadorLista();
     } catch (err) {
         console.warn('Falha ao enviar documento do entregador:', err);
-        alert('Não foi possível enviar o documento agora. Tente novamente.');
+        // BUG CORRIGIDO 2026-10-09 (achado pelo dono: upload falhava sem
+        // nenhuma pista do motivo) — mostra o erro de verdade do Firebase
+        // (ex: "storage/unauthorized" quando as regras do Storage ainda não
+        // foram deployadas) em vez de um "tente de novo" genérico que
+        // escondia a causa raiz.
+        const detalhe = err?.code ? `${err.code}${err.message ? ' — ' + err.message : ''}` : (err?.message || 'erro desconhecido');
+        alert(`Não foi possível enviar o documento agora.\n\nDetalhe: ${detalhe}`);
         if (btn) { btn.disabled = false; btn.innerText = textoOriginal || 'Enviar'; }
     }
 }
@@ -17906,6 +18065,7 @@ export {
   caminhoFinanceiroUsuario,
   cancelarCorridaPacoteAtual,
   cancelarEdicaoDestinoEnvio,
+  cancelarEdicaoFreteEnvio,
   cancelarPagamentoPendenciasCliente,
   carregarChatsAtivos,
   carregarDadosPagamento,
@@ -18050,6 +18210,7 @@ export {
   handleSelectorTouchMove,
   handleSelectorTouchStart,
   iniciarCorridaPacoteAtual,
+  iniciarEdicaoFreteEnvio,
   iniciarFluxoDevolucao,
   iniciarListenerGeoTrackingLoja,
   iniciarListenerHomeEntregador,
@@ -18218,6 +18379,7 @@ export {
   salvarEdicaoDestinoEnvio,
   salvarEndereco,
   salvarEnderecoDesktop,
+  salvarFreteEditadoEnvio,
   salvarMetaDiaEntregador,
   salvarNovoCliente,
   salvarPerfil,
