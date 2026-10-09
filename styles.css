@@ -1254,7 +1254,8 @@ body.lojista-desktop-mode #view-perfil .perfil-contato-row {
     color: #475569;
     font-weight: 600;
 }
-body.lojista-desktop-mode #view-perfil .perfil-contato-row i { color: #94a3b8; flex-shrink: 0; }
+body.lojista-desktop-mode #view-perfil .perfil-contato-row i,
+body.lojista-desktop-mode #view-perfil .perfil-contato-row svg { color: #94a3b8; flex-shrink: 0; }
 
 /* ---- Accordion (Dados da conta / Endereço) ---- */
 body.lojista-desktop-mode .accordion-item .arrow { transition: transform 0.18s ease; }

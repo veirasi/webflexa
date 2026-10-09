@@ -2230,7 +2230,15 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         });
         const capacidade = Number((saldo + aReceberPendente - dividaAtual).toFixed(2));
         if (capacidade < valorCobrancaDinheiro) {
-          return res.status(403).json({ error: 'Capacidade de cobrança insuficiente', motivo: 'capacidade_insuficiente' });
+          // Pedido do dono (2026-10-09): mensagens de sistema devem mostrar
+          // os valores reais (saldo/capacidade), não só "está baixo" — manda
+          // os números pro frontend montar a mensagem certa.
+          return res.status(403).json({
+            error: 'Capacidade de cobrança insuficiente',
+            motivo: 'capacidade_insuficiente',
+            capacidade,
+            valorNecessario: valorCobrancaDinheiro
+          });
         }
       }
 

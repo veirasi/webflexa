@@ -617,8 +617,10 @@
   function formatarEnderecoLojaParaCalculo(end) {
     const base = formatarEnderecoEstruturado(end);
     const cep = formatarCep(end?.cep);
-    if (base && cep) return `${base} - CEP ${cep}`;
-    return base;
+    let endereco = base && cep ? `${base} - CEP ${cep}` : base;
+    const complemento = (end?.comp || "").trim();
+    if (complemento) endereco += ` (${complemento})`;
+    return endereco.trim();
   }
   function formatarEnderecoLojaParaRota(end) {
     if (!end) return "";
@@ -1467,6 +1469,7 @@
           cidadeDestino: clientes[idx].cidade || "",
           bairroDestino: clientes[idx].bairro || "",
           complemento: clientes[idx].comp || "",
+          obs: clientes[idx].obs || "",
           numero: clientes[idx].num || "",
           lojistaUid: getUsuarioIdAtual() || ""
         };
@@ -2037,7 +2040,7 @@
     aviso.innerText = "Ambiente definido pelo servidor ao gerar o Pix.";
   }
   function obterEnderecoLojaTexto() {
-    return formatarEnderecoEstruturado(window.usuarioLogado?.endereco);
+    return formatarEnderecoLojaParaCalculo(window.usuarioLogado?.endereco);
   }
   function obterCidadeUfUsuarioLogado() {
     const end = window.usuarioLogado?.endereco || {};
@@ -2703,8 +2706,26 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       alert("Conta criada com sucesso!");
       alternarAuth("entrar");
     } catch (error) {
-      alert("Erro ao cadastrar: " + error.message);
+      alert("Erro ao cadastrar: " + traduzirErroFirebaseAuth(error));
     }
+  }
+  function traduzirErroFirebaseAuth(error) {
+    const codigo = String(error?.code || "").toLowerCase();
+    const MAPA_ERROS_FIREBASE_AUTH = {
+      "auth/wrong-password": "Senha incorreta.",
+      "auth/user-not-found": "N\xE3o encontramos uma conta com esse e-mail.",
+      "auth/invalid-credential": "E-mail/WhatsApp ou senha incorretos.",
+      "auth/invalid-login-credentials": "E-mail/WhatsApp ou senha incorretos.",
+      "auth/email-already-in-use": "Esse e-mail j\xE1 est\xE1 cadastrado. Tente entrar em vez de criar uma conta nova.",
+      "auth/invalid-email": "E-mail inv\xE1lido. Confira e tente de novo.",
+      "auth/weak-password": "Senha muito fraca. Use pelo menos 6 caracteres, com letras e n\xFAmeros.",
+      "auth/too-many-requests": "Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.",
+      "auth/network-request-failed": "Falha de conex\xE3o. Confira sua internet e tente de novo.",
+      "auth/user-disabled": "Essa conta foi desativada. Fale com o suporte.",
+      "auth/requires-recent-login": "Essa a\xE7\xE3o exige um login recente \u2014 saia e entre de novo pra confirmar.",
+      "auth/popup-closed-by-user": "Janela fechada antes de concluir. Tente de novo."
+    };
+    return MAPA_ERROS_FIREBASE_AUTH[codigo] || error?.message || "N\xE3o foi poss\xEDvel concluir agora. Tente de novo.";
   }
   async function loginReal() {
     const whatsapp = normalizarWhatsapp(document.getElementById("whatsapp-login")?.value || "");
@@ -2746,7 +2767,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
         iniciarListenerHomeEntregador();
       }
     } catch (error) {
-      alert("Erro ao entrar: " + error.message);
+      alert("Erro ao entrar: " + traduzirErroFirebaseAuth(error));
     }
   }
   async function recuperarSenhaReal() {
@@ -2757,7 +2778,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       alert("Link de redefini\xE7\xE3o enviado para o seu e-mail.");
       navegar("view-auth");
     } catch (error) {
-      alert("N\xE3o foi poss\xEDvel enviar o link: " + error.message);
+      alert("N\xE3o foi poss\xEDvel enviar o link: " + traduzirErroFirebaseAuth(error));
     }
   }
   document.addEventListener("DOMContentLoaded", () => {
@@ -2788,7 +2809,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       const splash = document.getElementById("splash-screen");
       finalizarSplash(splash);
     } catch (err) {
-      alert("Falha no login admin: " + err.message);
+      alert("Falha no login admin: " + traduzirErroFirebaseAuth(err));
     }
   }
   function irParaPerfil() {
@@ -4658,7 +4679,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     if (!lojistaUid) return "";
     try {
       const snap = await db.ref(`usuarios/${lojistaUid}/endereco`).once("value");
-      return formatarEnderecoEstruturado(snap.val()).trim();
+      return formatarEnderecoLojaParaCalculo(snap.val()).trim();
     } catch (err) {
       console.warn("Falha ao buscar endere\xE7o atual da loja:", err);
       return "";
@@ -4861,7 +4882,8 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const cidadeTxt = extrairCidadeEnderecoSimples(enderecoCompleto || pac?.cidade || rotaObj?.destinoPrincipal || pac?.cidadeDestino || "");
     const complemento = pac?.complemento || pac?.destinoComplemento || "";
     const cep = formatarCep(pac?.destinoCep || pac?.cep || pac?.cepDestino || rotaObj?.destinoCep || rotaObj?.cep);
-    const obs = (pac?.observacoes || pac?.obs || "").trim();
+    const obsEndereco = (pac?.obs || "").trim();
+    const obs = (pac?.observacoes || "").trim();
     const pedidoId = pac?.id || pac?.codigo || pac?.codigoEntrega || pac?.codigoPacote || rotaObj?.codigo || rotaObj?.id || "-";
     const destinatarioNome = pac?.destinatario || pac?.destinatarioNome || pac?.cliente || pac?.nomeCliente || rotaObj?.destinatario || rotaObj?.destinatarioNome || rotaObj?.clienteNome || "Destinat\xE1rio";
     const estadoAtual = obterEstadoPacoteRota(rotaObj.id, pac, rotaEntSheetIndex);
@@ -4872,7 +4894,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const dots = Array.from({ length: total }).map(
       (_, idx) => `<span class="ent-sheet-dot ${idx === rotaEntSheetIndex ? "active" : ""} ${bloqueado ? "locked" : ""}"></span>`
     ).join("");
-    const enderecoExtra = [complemento].filter(Boolean).join(" \u2022 ");
+    const enderecoExtra = [complemento, obsEndereco].filter(Boolean).join(" \u2022 ");
     const espera = pac?.esperaEntrega || {};
     const cobranca = pac?.cobrancaEntrega;
     const cobrancaAtiva = !!cobranca?.ativa;
@@ -5324,7 +5346,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       const resultado = await ajustarSaldoUsuario(lojistaUid, -valor, { permitirNegativo: false });
       if (!resultado.ok) {
         if (resultado.saldoInsuficiente) {
-          alert("Saldo insuficiente para pagar o frete de devolu\xE7\xE3o com a carteira. Use o Pix abaixo.");
+          alert(`Saldo insuficiente para pagar o frete de devolu\xE7\xE3o com a carteira \u2014 voc\xEA tem ${precoParaMoeda(resultado.saldoAntes)} e precisa de ${precoParaMoeda(valor)}. Use o Pix abaixo.`);
         } else {
           alert("N\xE3o foi poss\xEDvel pagar com saldo agora. Tente novamente ou use o Pix abaixo.");
         }
@@ -5915,7 +5937,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       if (motivo === "bloqueado_divida") {
         alert("Sua conta est\xE1 bloqueada para novos envios: voc\xEA tem uma d\xEDvida em aberto h\xE1 mais de 5 dias. V\xE1 em Perfil > Pagamento e paga a d\xEDvida via Pix pra liberar.");
       } else if (motivo === "capacidade_insuficiente") {
-        alert("Voc\xEA n\xE3o pode aceitar essa corrida agora \u2014 seu saldo est\xE1 baixo. Aceite ou conclua mais corridas para liberar.");
+        const capacidade = Number(err?.data?.capacidade);
+        const valorNecessario = Number(err?.data?.valorNecessario);
+        alert(Number.isFinite(capacidade) && Number.isFinite(valorNecessario) ? `Voc\xEA n\xE3o pode aceitar essa corrida agora \u2014 ela tem ${precoParaMoeda(valorNecessario)} de cobran\xE7a em dinheiro na entrega, mas sua capacidade dispon\xEDvel \xE9 s\xF3 ${precoParaMoeda(capacidade)}. Aceite ou conclua mais corridas para liberar.` : "Voc\xEA n\xE3o pode aceitar essa corrida agora \u2014 seu saldo est\xE1 baixo. Aceite ou conclua mais corridas para liberar.");
       } else if (motivo === "ja_aceita") {
         alert("Essa rota ja foi aceita por outro entregador.");
         await renderRotasMarketplaceEntregador(true);
@@ -7255,7 +7279,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       await auth.sendPasswordResetEmail(email);
       alert("Link de redefini\xE7\xE3o enviado.");
     } catch (err) {
-      alert("Falha ao enviar link: " + err.message);
+      alert("Falha ao enviar link: " + traduzirErroFirebaseAuth(err));
     }
   }
   var adminCharts = {};
@@ -7812,7 +7836,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     try {
       const resultado = await ajustarSaldoUsuario(lojistaUid, -valor, { permitirNegativo: false });
       if (!resultado.ok) {
-        alert(resultado.saldoInsuficiente ? "O usu\xE1rio n\xE3o tem mais saldo suficiente pra cobrir esse saque (pode j\xE1 ter gastado). N\xE3o foi marcado como pago." : "N\xE3o foi poss\xEDvel debitar o saldo agora. Tente novamente.");
+        alert(resultado.saldoInsuficiente ? `O usu\xE1rio n\xE3o tem mais saldo suficiente pra cobrir esse saque (saldo atual: ${precoParaMoeda(resultado.saldoAntes)}, saque: ${precoParaMoeda(valor)} \u2014 pode j\xE1 ter gastado). N\xE3o foi marcado como pago.` : "N\xE3o foi poss\xEDvel debitar o saldo agora. Tente novamente.");
         return;
       }
       const nomeSnap = await db.ref(`usuarios/${lojistaUid}/nome`).once("value").catch(() => null);
@@ -8220,6 +8244,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     if (!resp.ok) {
       const err = new Error(data?.error || data?.message || "HTTP " + resp.status);
       if (data?.motivo) err.motivo = data.motivo;
+      err.data = data;
       throw err;
     }
     return data;
@@ -8954,7 +8979,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
     } catch (error) {
-      alert("Erro ao cadastrar: " + error.message);
+      alert("Erro ao cadastrar: " + traduzirErroFirebaseAuth(error));
     }
   }
   async function loginClienteRastreio() {
@@ -8983,7 +9008,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       fecharModalClienteAuth();
       atualizarUiClienteAuth();
     } catch (error) {
-      alert("Erro ao entrar: " + error.message);
+      alert("Erro ao entrar: " + traduzirErroFirebaseAuth(error));
     }
   }
   async function completarCadastroClienteRastreio() {
@@ -9032,7 +9057,7 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       atualizarUiClienteAuth();
       alert("Cadastro completo! Sua conta Flex j\xE1 est\xE1 ativa em todas as lojas parceiras.");
     } catch (error) {
-      alert("Erro ao completar cadastro: " + error.message);
+      alert("Erro ao completar cadastro: " + traduzirErroFirebaseAuth(error));
     }
   }
   function sairClienteRastreio() {
@@ -11436,7 +11461,7 @@ Seu login \xE9 o seu WhatsApp e a senha tempor\xE1ria \xE9: *${senhaTemp}*
 No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
       window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, "_blank");
     } catch (error) {
-      alert("Erro ao convidar cliente: " + error.message);
+      alert("Erro ao convidar cliente: " + traduzirErroFirebaseAuth(error));
     }
   }
   function excluirClienteAtualComConfirmacao() {
@@ -13498,7 +13523,7 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     try {
       const resultadoSaldo = await ajustarSaldoUsuario(uid, -divida, { permitirNegativo: false });
       if (!resultadoSaldo.ok) {
-        alert(resultadoSaldo.saldoInsuficiente ? "Saldo insuficiente." : "N\xE3o foi poss\xEDvel pagar agora. Tente novamente.");
+        alert(resultadoSaldo.saldoInsuficiente ? `Saldo insuficiente \u2014 seu saldo dispon\xEDvel \xE9 ${precoParaMoeda(resultadoSaldo.saldoAntes)} e a d\xEDvida \xE9 ${precoParaMoeda(divida)}.` : "N\xE3o foi poss\xEDvel pagar agora. Tente novamente.");
         return;
       }
       await ajustarDividaUsuario(uid, -divida);
@@ -13808,7 +13833,7 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
       alert("Conta criada com sucesso.");
       alternarAuth("entrar");
     } catch (error) {
-      alert("Erro ao cadastrar: " + error.message);
+      alert("Erro ao cadastrar: " + traduzirErroFirebaseAuth(error));
     }
   };
   setTimeout(() => {

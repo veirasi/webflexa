@@ -139,12 +139,14 @@ export function formatarEnderecoEstruturado(end) {
     return `${ruaNum}${bairro}${cidadeUf ? ` - ${cidadeUf}` : ''}`.trim();
 }
 
-/** Endereço da loja formatado pra cálculo (igual ao de exibição + CEP). */
+/** Endereço da loja formatado pra cálculo (igual ao de exibição + CEP + complemento). */
 export function formatarEnderecoLojaParaCalculo(end) {
     const base = formatarEnderecoEstruturado(end);
     const cep = formatarCep(end?.cep);
-    if (base && cep) return `${base} - CEP ${cep}`;
-    return base;
+    let endereco = (base && cep) ? `${base} - CEP ${cep}` : base;
+    const complemento = (end?.comp || '').trim();
+    if (complemento) endereco += ` (${complemento})`;
+    return endereco.trim();
 }
 
 /** Endereço da loja formatado como string única pra geocodificação/API de rotas. */

@@ -929,6 +929,7 @@ function confirmarEnvioFinal() {
                 cidadeDestino: clientes[idx].cidade || '',
                 bairroDestino: clientes[idx].bairro || '',
                 complemento: clientes[idx].comp || '',
+                obs: clientes[idx].obs || '',
                 numero: clientes[idx].num || '',
                 lojistaUid: getUsuarioIdAtual() || ''
             };
@@ -1674,7 +1675,7 @@ function atualizarAvisoAmbientePix() {
     aviso.innerText = 'Ambiente definido pelo servidor ao gerar o Pix.';
 }
 function obterEnderecoLojaTexto() {
-    return formatarEnderecoEstruturado(window.usuarioLogado?.endereco);
+    return formatarEnderecoLojaParaCalculo(window.usuarioLogado?.endereco);
 }
 
 function obterCidadeUfUsuarioLogado() {
@@ -2456,9 +2457,38 @@ async function cadastrarReal() {
         alert("Conta criada com sucesso!");
         alternarAuth('entrar');
     } catch (error) {
-        alert("Erro ao cadastrar: " + error.message);
+        alert("Erro ao cadastrar: " + traduzirErroFirebaseAuth(error));
     }
-}    
+}
+
+// Pedido do dono (2026-10-09): mensagens do próprio app pros erros de
+// autenticação, em vez do texto técnico cru do Firebase (ex: "Firebase:
+// Error (auth/wrong-password)."). Usada em TODO lugar que faz login/
+// cadastro/recuperação de senha, tanto na instância principal (loja/
+// entregador/master) quanto na secundária (cliente, ver obterClienteAuth).
+// Projetos novos do Firebase consolidam "senha errada" e "usuário não
+// existe" num único auth/invalid-credential (por segurança — não dá pra
+// saber qual dos dois é o problema real só pelo código), por isso essas
+// duas mensagens ficam parecidas de propósito.
+function traduzirErroFirebaseAuth(error) {
+    const codigo = String(error?.code || '').toLowerCase();
+    const MAPA_ERROS_FIREBASE_AUTH = {
+        'auth/wrong-password': 'Senha incorreta.',
+        'auth/user-not-found': 'Não encontramos uma conta com esse e-mail.',
+        'auth/invalid-credential': 'E-mail/WhatsApp ou senha incorretos.',
+        'auth/invalid-login-credentials': 'E-mail/WhatsApp ou senha incorretos.',
+        'auth/email-already-in-use': 'Esse e-mail já está cadastrado. Tente entrar em vez de criar uma conta nova.',
+        'auth/invalid-email': 'E-mail inválido. Confira e tente de novo.',
+        'auth/weak-password': 'Senha muito fraca. Use pelo menos 6 caracteres, com letras e números.',
+        'auth/too-many-requests': 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.',
+        'auth/network-request-failed': 'Falha de conexão. Confira sua internet e tente de novo.',
+        'auth/user-disabled': 'Essa conta foi desativada. Fale com o suporte.',
+        'auth/requires-recent-login': 'Essa ação exige um login recente — saia e entre de novo pra confirmar.',
+        'auth/popup-closed-by-user': 'Janela fechada antes de concluir. Tente de novo.'
+    };
+    return MAPA_ERROS_FIREBASE_AUTH[codigo] || error?.message || 'Não foi possível concluir agora. Tente de novo.';
+}
+
 // ===================== [AUTENTICA - fO - VERSÃO ATIVA] =====================
 async function loginReal() {
     const whatsapp = normalizarWhatsapp(document.getElementById('whatsapp-login')?.value || '');
@@ -2530,7 +2560,7 @@ async function loginReal() {
             iniciarListenerHomeEntregador();
         }
     } catch (error) {
-        alert('Erro ao entrar: ' + error.message);
+        alert('Erro ao entrar: ' + traduzirErroFirebaseAuth(error));
     }
 }
 
@@ -2545,7 +2575,7 @@ async function recuperarSenhaReal() {
         alert('Link de redefinição enviado para o seu e-mail.');
         navegar('view-auth');
     } catch (error) {
-        alert('Não foi possível enviar o link: ' + error.message);
+        alert('Não foi possível enviar o link: ' + traduzirErroFirebaseAuth(error));
     }
 }
 
@@ -2579,7 +2609,7 @@ async function loginAdmin() {
         const splash = document.getElementById('splash-screen');
         finalizarSplash(splash);
     } catch (err) {
-        alert('Falha no login admin: ' + err.message);
+        alert('Falha no login admin: ' + traduzirErroFirebaseAuth(err));
     }
 }
 
@@ -4988,7 +5018,7 @@ async function resolverEnderecoLojaDaRotaAtual() {
 
     try {
         const snap = await db.ref(`usuarios/${lojistaUid}/endereco`).once('value');
-        return formatarEnderecoEstruturado(snap.val()).trim();
+        return formatarEnderecoLojaParaCalculo(snap.val()).trim();
     } catch (err) {
         console.warn('Falha ao buscar endereço atual da loja:', err);
         return '';
@@ -5239,7 +5269,13 @@ function renderSheetRotaEntregadorConteudo() {
     const cidadeTxt = extrairCidadeEnderecoSimples(enderecoCompleto || pac?.cidade || rotaObj?.destinoPrincipal || pac?.cidadeDestino || '');
     const complemento = pac?.complemento || pac?.destinoComplemento || '';
     const cep = formatarCep(pac?.destinoCep || pac?.cep || pac?.cepDestino || rotaObj?.destinoCep || rotaObj?.cep);
-    const obs = (pac?.observacoes || pac?.obs || '').trim();
+    // Dois campos distintos (pedido do dono 2026-10-09): "obs" é a referência
+    // do endereço do cliente (ex: "Próximo ao mercado", cadastrada junto do
+    // endereço) e "observacoes" é a instrução deste envio específico (ex:
+    // "Entregar depois das 18h"). Antes só um aparecia (o "||" escondia o
+    // outro quando os dois estavam preenchidos) — agora mostra os dois.
+    const obsEndereco = (pac?.obs || '').trim();
+    const obs = (pac?.observacoes || '').trim();
     const pedidoId = pac?.id || pac?.codigo || pac?.codigoEntrega || pac?.codigoPacote || rotaObj?.codigo || rotaObj?.id || '-';
     const destinatarioNome = pac?.destinatario
         || pac?.destinatarioNome
@@ -5278,7 +5314,7 @@ function renderSheetRotaEntregadorConteudo() {
         `<span class=\"ent-sheet-dot ${idx === rotaEntSheetIndex ? 'active' : ''} ${bloqueado ? 'locked' : ''}\"></span>`
     ).join('');
 
-    const enderecoExtra = [complemento].filter(Boolean).join(' • ');
+    const enderecoExtra = [complemento, obsEndereco].filter(Boolean).join(' • ');
 
     // Taxa de espera/subida (pedido do dono 2026-09-25) — só aparece depois
     // que o pacote está "bloqueado" (corrida iniciada, indo pro destino) e
@@ -5885,7 +5921,7 @@ async function pagarDevolucaoComSaldo() {
         const resultado = await ajustarSaldoUsuario(lojistaUid, -valor, { permitirNegativo: false });
         if (!resultado.ok) {
             if (resultado.saldoInsuficiente) {
-                alert('Saldo insuficiente para pagar o frete de devolução com a carteira. Use o Pix abaixo.');
+                alert(`Saldo insuficiente para pagar o frete de devolução com a carteira — você tem ${precoParaMoeda(resultado.saldoAntes)} e precisa de ${precoParaMoeda(valor)}. Use o Pix abaixo.`);
             } else {
                 alert('Não foi possível pagar com saldo agora. Tente novamente ou use o Pix abaixo.');
             }
@@ -6635,7 +6671,14 @@ async function aceitarRotaMarketplaceEntregador(lojistaUid, rotaId, btn = null) 
         if (motivo === 'bloqueado_divida') {
             alert('Sua conta está bloqueada para novos envios: você tem uma dívida em aberto há mais de 5 dias. Vá em Perfil > Pagamento e paga a dívida via Pix pra liberar.');
         } else if (motivo === 'capacidade_insuficiente') {
-            alert('Você não pode aceitar essa corrida agora — seu saldo está baixo. Aceite ou conclua mais corridas para liberar.');
+            // Pedido do dono (2026-10-09): mensagem de sistema com os
+            // números reais, não só "está baixo" (ver capacidade/
+            // valorNecessario que o backend passou a mandar).
+            const capacidade = Number(err?.data?.capacidade);
+            const valorNecessario = Number(err?.data?.valorNecessario);
+            alert(Number.isFinite(capacidade) && Number.isFinite(valorNecessario)
+                ? `Você não pode aceitar essa corrida agora — ela tem ${precoParaMoeda(valorNecessario)} de cobrança em dinheiro na entrega, mas sua capacidade disponível é só ${precoParaMoeda(capacidade)}. Aceite ou conclua mais corridas para liberar.`
+                : 'Você não pode aceitar essa corrida agora — seu saldo está baixo. Aceite ou conclua mais corridas para liberar.');
         } else if (motivo === 'ja_aceita') {
             alert('Essa rota ja foi aceita por outro entregador.');
             await renderRotasMarketplaceEntregador(true);
@@ -8345,7 +8388,7 @@ async function enviarResetSenhaMaster(email) {
         await auth.sendPasswordResetEmail(email);
         alert('Link de redefinição enviado.');
     } catch (err) {
-        alert('Falha ao enviar link: ' + err.message);
+        alert('Falha ao enviar link: ' + traduzirErroFirebaseAuth(err));
     }
 }
 
@@ -9026,7 +9069,7 @@ async function marcarSaqueComoPago(lojistaUid, saqueId) {
         const resultado = await ajustarSaldoUsuario(lojistaUid, -valor, { permitirNegativo: false });
         if (!resultado.ok) {
             alert(resultado.saldoInsuficiente
-                ? 'O usuário não tem mais saldo suficiente pra cobrir esse saque (pode já ter gastado). Não foi marcado como pago.'
+                ? `O usuário não tem mais saldo suficiente pra cobrir esse saque (saldo atual: ${precoParaMoeda(resultado.saldoAntes)}, saque: ${precoParaMoeda(valor)} — pode já ter gastado). Não foi marcado como pago.`
                 : 'Não foi possível debitar o saldo agora. Tente novamente.');
             return;
         }
@@ -9556,6 +9599,12 @@ async function chamarPaymentsProxy(caminho, payload) {
     if (!resp.ok) {
         const err = new Error(data?.error || data?.message || ('HTTP ' + resp.status));
         if (data?.motivo) err.motivo = data.motivo;
+        // Pedido do dono (2026-10-09): "mensagem de sistema como você tem
+        // saldo X" — alguns erros do backend vêm com números reais além do
+        // texto (ex: capacidade/valorNecessario em capacidade_insuficiente),
+        // pra quem pegar o erro montar uma mensagem específica em vez de um
+        // texto genérico. Guarda o corpo inteiro da resposta pra isso.
+        err.data = data;
         throw err;
     }
     return data;
@@ -10565,7 +10614,7 @@ async function cadastrarClienteRastreio() {
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
     } catch (error) {
-        alert('Erro ao cadastrar: ' + error.message);
+        alert('Erro ao cadastrar: ' + traduzirErroFirebaseAuth(error));
     }
 }
 
@@ -10601,7 +10650,7 @@ async function loginClienteRastreio() {
         fecharModalClienteAuth();
         atualizarUiClienteAuth();
     } catch (error) {
-        alert('Erro ao entrar: ' + error.message);
+        alert('Erro ao entrar: ' + traduzirErroFirebaseAuth(error));
     }
 }
 
@@ -10668,7 +10717,7 @@ async function completarCadastroClienteRastreio() {
         atualizarUiClienteAuth();
         alert('Cadastro completo! Sua conta Flex já está ativa em todas as lojas parceiras.');
     } catch (error) {
-        alert('Erro ao completar cadastro: ' + error.message);
+        alert('Erro ao completar cadastro: ' + traduzirErroFirebaseAuth(error));
     }
 }
 
@@ -13860,7 +13909,7 @@ async function convidarClienteParaApp(clienteId) {
             : `Olá${cliente.nome ? ', ' + cliente.nome.split(' ')[0] : ''}! Agora você pode acompanhar seus pedidos pela Flex.\n\nAcesse: ${link}\nSeu login é o seu WhatsApp e a senha temporária é: *${senhaTemp}*\n\nNo primeiro acesso você confirma seus dados e cria sua própria senha.`;
         window.open(`https://wa.me/${paraWhatsappInternacional(whatsapp)}?text=${encodeURIComponent(msg)}`, '_blank');
     } catch (error) {
-        alert('Erro ao convidar cliente: ' + error.message);
+        alert('Erro ao convidar cliente: ' + traduzirErroFirebaseAuth(error));
     }
 }
 
@@ -16438,7 +16487,9 @@ async function pagarDividaComSaldo() {
     try {
         const resultadoSaldo = await ajustarSaldoUsuario(uid, -divida, { permitirNegativo: false });
         if (!resultadoSaldo.ok) {
-            alert(resultadoSaldo.saldoInsuficiente ? 'Saldo insuficiente.' : 'Não foi possível pagar agora. Tente novamente.');
+            alert(resultadoSaldo.saldoInsuficiente
+                ? `Saldo insuficiente — seu saldo disponível é ${precoParaMoeda(resultadoSaldo.saldoAntes)} e a dívida é ${precoParaMoeda(divida)}.`
+                : 'Não foi possível pagar agora. Tente novamente.');
             return;
         }
         await ajustarDividaUsuario(uid, -divida);
@@ -16824,7 +16875,7 @@ cadastrarReal = async function cadastrarRealComTipo() {
         alert('Conta criada com sucesso.');
         alternarAuth('entrar');
     } catch (error) {
-        alert('Erro ao cadastrar: ' + error.message);
+        alert('Erro ao cadastrar: ' + traduzirErroFirebaseAuth(error));
     }
 };
 
