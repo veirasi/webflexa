@@ -1426,6 +1426,9 @@
         const tamanho = getTamanhoSelecionadoAtual();
         const embalagem = getEmbalagemSelecionadaAtual();
         const totalFrete = Number.isFinite(resumoRevisaoAtual.totalFrete) ? resumoRevisaoAtual.totalFrete : parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
+        const repasseEntregador = Number.isFinite(resumoRevisaoAtual.repasseEntregador) ? resumoRevisaoAtual.repasseEntregador : totalFrete;
+        const comissaoPlataforma = Number.isFinite(resumoRevisaoAtual.comissaoPlataforma) ? resumoRevisaoAtual.comissaoPlataforma : 0;
+        const taxaPlataformaEntregador = Number.isFinite(resumoRevisaoAtual.taxaPlataformaEntregador) ? resumoRevisaoAtual.taxaPlataformaEntregador : 0;
         const valorConteudo = Number.isFinite(resumoRevisaoAtual.valorConteudo) ? resumoRevisaoAtual.valorConteudo : parseMoedaParaNumero(document.getElementById("input-valor")?.value || 0);
         const observacoes = (resumoRevisaoAtual.observacoes || document.getElementById("input-obs-envio")?.value || clientes[idx].obs || "").trim();
         const cobrancaEntrega = resumoRevisaoAtual.cobrancaEntrega?.ativa ? resumoRevisaoAtual.cobrancaEntrega : null;
@@ -1449,7 +1452,15 @@
           cobrancaEntrega,
           tipoFluxo: ehColetaReversa ? "coleta_reversa" : "entrega",
           valorConteudo: Number(valorConteudo.toFixed(2)),
+          // valorFrete é o TOTAL cobrado do lojista/cliente (repasse do
+          // entregador + comissão da plataforma + taxa do MP, ver
+          // calcularComponentesFrete). repasseEntregador/comissaoPlataforma
+          // guardam o split pra nunca precisar recalcular depois — é o
+          // que /creditar-rota-finalizada (backend) credita de verdade.
           valorFrete: Number(totalFrete.toFixed(2)),
+          repasseEntregador: Number(repasseEntregador.toFixed(2)),
+          comissaoPlataforma: Number(comissaoPlataforma.toFixed(2)),
+          taxaPlataformaEntregador: Number(taxaPlataformaEntregador.toFixed(2)),
           servico,
           tamanho,
           embalagem,
@@ -1920,7 +1931,7 @@
   var TAXA_ESPERA_GRACE_MIN = 5;
   var TAXA_ESPERA_POR_MIN = 1;
   var TAXA_SUBIR_FIXA = 6;
-  var TAXA_POR_KM = { Standard: 1.1, Flash: 1.99 };
+  var TAXA_POR_KM = { Standard: 1, Flash: 1.99 };
   var DISTANCIA_MINIMA_KM = 4;
   var AJUSTE_VEICULO_POR_SERVICO = {
     Standard: {
@@ -2103,12 +2114,39 @@
     { ate: 25, taxa: 2 },
     { ate: Infinity, taxa: 2.5 }
   ];
-  var PISO_KM_ENTREGADOR = 1;
   function calcularTaxaPlataformaAlvo(valorFrete) {
     const v = Number(valorFrete || 0);
     const faixa = TAXA_PLATAFORMA_FAIXAS.find((f) => v <= f.ate) || TAXA_PLATAFORMA_FAIXAS[TAXA_PLATAFORMA_FAIXAS.length - 1];
     return faixa.taxa;
   }
+  function calcularComissaoPlataforma(valorFreteBase) {
+    const v = Number(valorFreteBase || 0);
+    if (v <= 0) return 0;
+    return Number(calcularTaxaPlataformaAlvo(v).toFixed(2));
+  }
+  var TAXA_MP_PERCENTUAL = 99e-4;
+  function calcularTaxaMp(subtotalComComissao) {
+    const v = Number(subtotalComComissao || 0);
+    if (v <= 0) return 0;
+    return Number((v * TAXA_MP_PERCENTUAL).toFixed(2));
+  }
+  var TAXA_PLATAFORMA_ENTREGADOR_PERCENTUAL = 0.02;
+  function calcularTaxaPlataformaEntregador(repasseEntregadorBruto) {
+    const v = Number(repasseEntregadorBruto || 0);
+    if (v <= 0) return 0;
+    return Number((v * TAXA_PLATAFORMA_ENTREGADOR_PERCENTUAL).toFixed(2));
+  }
+  function calcularComponentesFrete({ servico, veiculo, distanciaKm }) {
+    const repasseEntregadorBruto = calcularFreteEstimado({ servico, veiculo, distanciaKm });
+    const taxaPlataformaEntregador = calcularTaxaPlataformaEntregador(repasseEntregadorBruto);
+    const repasseEntregador = Number((repasseEntregadorBruto - taxaPlataformaEntregador).toFixed(2));
+    const comissaoPlataforma = calcularComissaoPlataforma(repasseEntregadorBruto);
+    const subtotal = Number((repasseEntregadorBruto + comissaoPlataforma).toFixed(2));
+    const taxaMp = calcularTaxaMp(subtotal);
+    const valorFrete = Number((subtotal + taxaMp).toFixed(2));
+    return { repasseEntregador, taxaPlataformaEntregador, comissaoPlataforma, taxaMp, valorFrete };
+  }
+  var PISO_KM_ENTREGADOR = 1;
   function calcularTaxaPlataformaRota(valorFrete, distanciaKm) {
     const v = Number(valorFrete || 0);
     if (v <= 0) return 0;
@@ -2123,6 +2161,16 @@
     if (v <= 0) return 0;
     const taxa = calcularTaxaPlataformaRota(v, distanciaKm);
     return Number(Math.max(0, v - taxa).toFixed(2));
+  }
+  function obterValorRepasseRota(rota, distanciaTotal) {
+    const repasseNovo = Number(rota?.totalRepasseEntregador);
+    if (Number.isFinite(repasseNovo) && repasseNovo > 0) return repasseNovo;
+    return calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(distanciaTotal || 0));
+  }
+  function obterComissaoPlataformaRota(rota, distanciaTotal) {
+    const comissaoNova = Number(rota?.comissaoPlataforma);
+    if (Number.isFinite(comissaoNova) && comissaoNova > 0) return comissaoNova;
+    return calcularTaxaPlataformaRota(Number(rota?.totalFrete || 0), Number(distanciaTotal || 0));
   }
   async function geocodificarEndereco(endereco, cidadeEsperada = "", ufEsperada = "") {
     if (!endereco) return null;
@@ -2462,7 +2510,7 @@
   function atualizarPrecoEstimadoAtual() {
     const servico = getServicoSelecionadoAtual();
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : 0;
-    const totalCalculado = calcularFreteEstimado({ servico, veiculo: veiculoSelecionado, distanciaKm });
+    const totalCalculado = calcularComponentesFrete({ servico, veiculo: veiculoSelecionado, distanciaKm }).valorFrete;
     const total = aplicarFreteTesteSeConfigurado(totalCalculado);
     resumoRevisaoAtual.servico = servico;
     resumoRevisaoAtual.veiculo = veiculoSelecionado;
@@ -2491,7 +2539,7 @@
       if (!card) return;
       const precoEl = card.querySelector(".veiculo-preco");
       if (!precoEl) return;
-      const valor = calcularFreteEstimado({ servico, veiculo, distanciaKm });
+      const valor = calcularComponentesFrete({ servico, veiculo, distanciaKm }).valorFrete;
       precoEl.innerText = precoParaMoeda(valor);
     });
   }
@@ -2523,7 +2571,7 @@
     atualizarPrecoEstimadoAtual();
     const servico = getServicoSelecionadoAtual();
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : 0;
-    veiculoPrecoSelecionado = precoParaMoeda(calcularFreteEstimado({ servico, veiculo: tipo, distanciaKm }));
+    veiculoPrecoSelecionado = precoParaMoeda(calcularComponentesFrete({ servico, veiculo: tipo, distanciaKm }).valorFrete);
   }
   function definirCobrancaEntregaAtiva(ativa) {
     const boxNao = document.getElementById("cobranca-entrega-nao");
@@ -2595,8 +2643,15 @@
     const enderecoDestino = (resumoRevisaoAtual.destino || enderecoDestinoExibicao || "").trim();
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : null;
     const duracaoMin = Number.isFinite(resumoRevisaoAtual.duracaoMin) ? resumoRevisaoAtual.duracaoMin : null;
-    const totalFreteCalculado = calcularFreteEstimado({ servico, veiculo: veiculoSelecionado, distanciaKm: Number.isFinite(distanciaKm) ? distanciaKm : 0 });
-    const totalFrete = aplicarFreteTesteSeConfigurado(totalFreteCalculado);
+    const baseCalculada = calcularFreteEstimado({ servico, veiculo: veiculoSelecionado, distanciaKm: Number.isFinite(distanciaKm) ? distanciaKm : 0 });
+    const repasseEntregadorBruto = aplicarFreteTesteSeConfigurado(baseCalculada);
+    const emModoTeste = Number.isFinite(resumoRevisaoAtual.freteTesteOverride);
+    const taxaPlataformaEntregador = emModoTeste ? 0 : calcularTaxaPlataformaEntregador(repasseEntregadorBruto);
+    const repasseEntregador = Number((repasseEntregadorBruto - taxaPlataformaEntregador).toFixed(2));
+    const comissaoPlataforma = emModoTeste ? 0 : calcularComissaoPlataforma(repasseEntregadorBruto);
+    const subtotalComComissao = Number((repasseEntregadorBruto + comissaoPlataforma).toFixed(2));
+    const taxaMp = emModoTeste ? 0 : calcularTaxaMp(subtotalComComissao);
+    const totalFrete = Number((subtotalComComissao + taxaMp).toFixed(2));
     resumoRevisaoAtual = {
       origem: enderecoOrigem,
       destino: enderecoDestino,
@@ -2605,6 +2660,10 @@
       distanciaKm,
       duracaoMin,
       totalFrete,
+      repasseEntregador,
+      taxaPlataformaEntregador,
+      comissaoPlataforma,
+      taxaMp,
       servico,
       veiculo: veiculoSelecionado,
       descricao: resumoRevisaoAtual.descricao || "",
@@ -3692,8 +3751,9 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             pacotes.map((p) => (p?.bairro || "").toString().trim()).filter(Boolean)
           )];
           const totalFrete = Number.isFinite(Number(rota?.totalFrete)) ? Number(rota.totalFrete) : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
-          const distanciaTotal = pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
-          const duracaoTotal = pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
+          const totalRepasseEntregador = Number(rota?.totalRepasseEntregador || 0);
+          const distanciaTotal = Number(rota?.distanciaTotal) || pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
+          const duracaoTotal = Number(rota?.duracaoTotal) || pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
           const temFlash = pacotes.some((p) => {
             const serv = normalizarTexto(p?.servico || "");
             return serv.includes("flash") || serv.includes("expresso");
@@ -3722,6 +3782,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
             totalPacotes,
             totalParadas,
             totalFrete,
+            totalRepasseEntregador,
             distanciaTotal,
             duracaoTotal,
             statusNorm,
@@ -3967,7 +4028,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const distTotalNum = Number(rota?.distanciaTotal || 0);
     const kmTxt = formatarDistancia(distTotalNum);
     const tags = montarTagsServicoMarketplace(rota);
-    const repasseValor = calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), distTotalNum);
+    const repasseValor = obterValorRepasseRota(rota, distTotalNum);
     const precoTxt = precoParaMoeda(repasseValor);
     const precoPorKmTxt = precoParaMoeda(distTotalNum > 0 ? repasseValor / distTotalNum : 0);
     const veiculoTxt = rota?.veiculoTxt || "Moto";
@@ -4012,7 +4073,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const qtdParadas = Number.isFinite(Number(rota.totalParadas)) && Number(rota.totalParadas) > 0 ? Number(rota.totalParadas) : Math.max(1, destinos.length);
     const badgeHtml = montarTagsServicoMarketplace(rota).join("");
     const distanciaTotalNum = Number(rota.distanciaTotal || 0);
-    const repasseValor = calcularValorRepasseEntregador(Number(rota.totalFrete || 0), distanciaTotalNum);
+    const repasseValor = obterValorRepasseRota(rota, distanciaTotalNum);
     const precoTxt = precoParaMoeda(repasseValor);
     const precoPorKmTxt = precoParaMoeda(distanciaTotalNum > 0 ? repasseValor / distanciaTotalNum : 0);
     const distanciaTxt = formatarDistancia(distanciaTotalNum);
@@ -4136,7 +4197,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
   function montarCardMarketplaceRotaEntregador(rota) {
     const qtdDestinos = Math.max(1, Number(rota?.destinos?.length || 0));
     const badgeTxt = `${rota.servicoLabel} \u2022 ${qtdDestinos} destino${qtdDestinos > 1 ? "s" : ""}`;
-    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
+    const precoTxt = precoParaMoeda(obterValorRepasseRota(rota, Number(rota?.distanciaTotal || 0)));
     const statusClass = String(rota?.statusVisual?.className || "").replace("rota-main-status ", "");
     const idEsc = String(rota?.id || "").replace(/'/g, "\\'");
     const lojistaUidEsc = String(rota?.lojistaUid || "").replace(/'/g, "\\'");
@@ -4164,7 +4225,7 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
     const avatar = logo ? `<img src="${escaparHtmlMarketplace(logo)}" alt="${escaparHtmlMarketplace(rota?.lojistaNome || "Loja")}" />` : `<span>${escaparHtmlMarketplace((rota?.lojistaNome || "L").slice(0, 1).toUpperCase())}</span>`;
     const statusClass = rota?.statusVisual?.className || "";
     const statusLabel = rota?.statusVisual?.label || rota?.statusNorm || "";
-    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
+    const precoTxt = precoParaMoeda(obterValorRepasseRota(rota, Number(rota?.distanciaTotal || 0)));
     const dataTxt = rota?.atualizadoEm ? new Date(rota.atualizadoEm).toLocaleDateString("pt-BR") : rota?.criadoEm ? new Date(rota.criadoEm).toLocaleDateString("pt-BR") : "--";
     const rotaIdEsc = escaparHtmlMarketplace(String(rota.id || ""));
     return `
@@ -6992,12 +7053,14 @@ ${detalheTxt || (ultimoErroRota?.msg || "Sem detalhe de erro.")}`);
       if (r.statusNorm !== "CONCLUIDO") return;
       const freteRota = Number(r.totalFrete || 0);
       const distRota = Number(r.distanciaTotal || 0);
-      const taxa = calcularTaxaPlataformaRota(freteRota, distRota);
+      const comissaoLojista = obterComissaoPlataformaRota(r, distRota);
+      const taxaEntregador = Number(r.taxaPlataformaEntregador || 0);
+      const taxa = Number((comissaoLojista + taxaEntregador).toFixed(2));
       if (taxa <= 0) return;
       const quando = Number(r.atualizadoEm || r.criadoEm || 0);
       ganhosTotal += taxa;
       totalPagoLojistaHistorico += freteRota;
-      totalPagoEntregadorHistorico += calcularValorRepasseEntregador(freteRota, distRota);
+      totalPagoEntregadorHistorico += obterValorRepasseRota(r, distRota);
       if (quando >= hojeInicio) ganhosHoje += taxa;
       if (quando >= inicioSemanaGanhosTs) ganhosSemana += taxa;
       if (quando >= inicioMesGanhosTs) ganhosMes += taxa;
@@ -8085,6 +8148,9 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
         const flash = servico.toLowerCase().includes("flash") || servico.toLowerCase().includes("expresso");
         const cidade = (camposEndereco.cidade || cliente.cidade || "Sem cidade").toString().trim() || "Sem cidade";
         const valorFrete = Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0);
+        const repasseEntregador = Number.isFinite(Number(h.repasseEntregador)) ? Number(h.repasseEntregador) : valorFrete;
+        const comissaoPlataforma = Number.isFinite(Number(h.comissaoPlataforma)) ? Number(h.comissaoPlataforma) : 0;
+        const taxaPlataformaEntregador = Number.isFinite(Number(h.taxaPlataformaEntregador)) ? Number(h.taxaPlataformaEntregador) : 0;
         pendentes.push({
           id: envioId,
           clienteId: cliente.id,
@@ -8094,14 +8160,20 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
           servico,
           flash,
           valorFrete,
+          repasseEntregador,
+          comissaoPlataforma,
+          taxaPlataformaEntregador,
           veiculo: h.veiculo || "Moto",
           tipoFluxo: h.tipoFluxo || "entrega",
-          // Geo do ponto de parada — em coleta reversa é o próprio
-          // destinoGeo que já guarda o endereço do CLIENTE (origem e
-          // destino já vêm trocados desde a criação do envio, ver
-          // confirmarEnvioFinal), então sempre é o campo certo pra
-          // calcular a ordem por proximidade (ver ordenarPacotesPorProximidade).
-          destinoGeo: h.destinoGeo || null
+          // Geo e endereço do ponto de parada — em coleta reversa é o
+          // próprio destinoGeo/destinoEndereco que já guarda o endereço do
+          // CLIENTE (origem e destino já vêm trocados desde a criação do
+          // envio, ver confirmarEnvioFinal), então sempre é o campo certo
+          // pra calcular a ordem por proximidade (ver
+          // ordenarPacotesPorProximidade) e a distância real da rota (ver
+          // calcularDistanciaTotalRotaOrdenada).
+          destinoGeo: h.destinoGeo || null,
+          destinoEndereco: h.destinoEndereco || ""
         });
       });
     });
@@ -8539,6 +8611,40 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
     }
     return [...ordenado, ...semGeo];
   }
+  var VELOCIDADE_MEDIA_FALLBACK_KMH = 22;
+  async function calcularDistanciaTotalRotaOrdenada(origemEndereco, origemGeo, itensOrdenados) {
+    const pernas = [];
+    let pontoAnteriorEndereco = origemEndereco;
+    let pontoAnteriorGeo = origemGeo;
+    for (const item of itensOrdenados) {
+      pernas.push({
+        origemEndereco: pontoAnteriorEndereco,
+        origemGeo: pontoAnteriorGeo,
+        destinoEndereco: item.destinoEndereco || "",
+        destinoGeo: item.destinoGeo || null
+      });
+      pontoAnteriorEndereco = item.destinoEndereco || pontoAnteriorEndereco;
+      pontoAnteriorGeo = item.destinoGeo || pontoAnteriorGeo;
+    }
+    const resultados = await Promise.all(pernas.map(async (perna) => {
+      if (!perna.destinoGeo && !perna.destinoEndereco) return null;
+      const estimativa = await estimarRotaEntrega(perna.origemEndereco, perna.destinoEndereco, perna.origemGeo, perna.destinoGeo).catch(() => null);
+      if (estimativa && Number.isFinite(Number(estimativa.distanciaKm))) return estimativa;
+      if (perna.origemGeo && perna.destinoGeo) {
+        const distKm = distanciaHaversineKm(perna.origemGeo, perna.destinoGeo);
+        if (Number.isFinite(distKm)) {
+          return { distanciaKm: distKm, duracaoMin: Math.max(1, Math.round(distKm / VELOCIDADE_MEDIA_FALLBACK_KMH * 60)) };
+        }
+      }
+      return null;
+    }));
+    const distanciaTotal = resultados.reduce((acc, r) => acc + (Number(r?.distanciaKm) || 0), 0);
+    const duracaoTotal = resultados.reduce((acc, r) => acc + (Number(r?.duracaoMin) || 0), 0);
+    return {
+      distanciaTotal: Number(distanciaTotal.toFixed(2)),
+      duracaoTotal: Math.round(duracaoTotal)
+    };
+  }
   async function irParaPagamentoRota() {
     const selecionados = rotaPendentesCache.filter((item) => rotaSelecaoIds.has(item.id));
     if (!selecionados.length) {
@@ -8546,12 +8652,23 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       return;
     }
     const total = selecionados.reduce((acc, item) => acc + Number(item.valorFrete || 0), 0);
+    const totalRepasseEntregador = selecionados.reduce((acc, item) => acc + Number(item.repasseEntregador || item.valorFrete || 0), 0);
+    const totalComissaoPlataforma = selecionados.reduce((acc, item) => acc + Number(item.comissaoPlataforma || 0), 0);
+    const totalTaxaPlataformaEntregador = selecionados.reduce((acc, item) => acc + Number(item.taxaPlataformaEntregador || 0), 0);
     const selecionadosOrdenados = ordenarPacotesPorProximidade(selecionados);
+    const origemEndereco = obterEnderecoLojaTexto();
+    const origemGeo = normalizarGeo(window.usuarioLogado?.endereco?.geo);
+    const { distanciaTotal, duracaoTotal } = await calcularDistanciaTotalRotaOrdenada(origemEndereco, origemGeo, selecionadosOrdenados).catch(() => ({ distanciaTotal: 0, duracaoTotal: 0 }));
     rotaDraftAtual = {
       id: gerarIdRota(),
       pacotes: selecionadosOrdenados.map((item) => item.id),
       qtd: selecionados.length,
       totalFrete: Number(total.toFixed(2)),
+      totalRepasseEntregador: Number(totalRepasseEntregador.toFixed(2)),
+      comissaoPlataforma: Number(totalComissaoPlataforma.toFixed(2)),
+      taxaPlataformaEntregador: Number(totalTaxaPlataformaEntregador.toFixed(2)),
+      distanciaTotal,
+      duracaoTotal,
       criadoEm: Date.now(),
       pagamento: "PENDENTE",
       status: "BUSCANDO",
@@ -8757,6 +8874,11 @@ Quando o entregador chegar, informe este c\xF3digo pra confirmar: ${codigoConfir
       pacoteIds: rota.pacotes,
       quantidade: rota.qtd,
       totalFrete: rota.totalFrete,
+      totalRepasseEntregador: Number(rota.totalRepasseEntregador || 0),
+      comissaoPlataforma: Number(rota.comissaoPlataforma || 0),
+      taxaPlataformaEntregador: Number(rota.taxaPlataformaEntregador || 0),
+      distanciaTotal: Number(rota.distanciaTotal || 0),
+      duracaoTotal: Number(rota.duracaoTotal || 0),
       pagamento: rota.pagamento || "APROVADO",
       status: rota.status || "BUSCANDO",
       criadoEm: rota.criadoEm,
@@ -11967,8 +12089,7 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     cancelarEdicaoFreteEnvio();
     const freteEditarBtn = document.getElementById("envio-detalhe-frete-editar-btn");
     if (freteEditarBtn) {
-      const { rota } = localizarRotaDoEnvio(envioId);
-      const podeEditarFrete = !rota || rota.pagamento !== "APROVADO";
+      const podeEditarFrete = false;
       freteEditarBtn.classList.toggle("hidden", !podeEditarFrete);
     }
     const cobrancaRow = document.getElementById("envio-detalhe-cobranca-row");
@@ -12050,6 +12171,7 @@ No primeiro acesso voc\xEA confirma seus dados e cria sua pr\xF3pria senha.`;
     document.getElementById("envio-detalhe-frete-edicao-row")?.classList.add("hidden");
   }
   async function salvarFreteEditadoEnvio() {
+    return;
     const envioId = envioDetalheAtualId;
     const uid = getUsuarioIdAtual();
     if (!envioId || !uid) return;
@@ -13962,7 +14084,7 @@ O valor continua na sua carteira at\xE9 a plataforma confirmar o pagamento manua
     const totalDist = Number.isFinite(Number(rota?.distanciaTotal)) ? Number(rota.distanciaTotal) : totalDistPacotes;
     const totalDur = Number.isFinite(Number(rota?.duracaoTotal)) ? Number(rota.duracaoTotal) : totalDurPacotes;
     const totalValorBruto = Number.isFinite(Number(rota?.totalFrete)) ? Number(rota.totalFrete) : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
-    const totalValor = calcularValorRepasseEntregador(totalValorBruto, totalDist);
+    const totalValor = obterValorRepasseRota(rota, totalDist);
     const concluidos = pacotes.filter((p) => p.status === "CONCLUIDO");
     const cancelados = pacotes.filter((p) => p.status === "CANCELADO");
     const restantes = pacotes.filter((p) => p.status !== "CONCLUIDO" && p.status !== "CANCELADO");

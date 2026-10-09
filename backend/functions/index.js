@@ -5,7 +5,16 @@ const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 
-admin.initializeApp();
+// databaseURL explícito (pedido investigado 2026-10-09: deploy falhando com
+// "Cannot determine backend specification. Timeout after 10000") — sem isso,
+// admin.database() precisa AUTO-DESCOBRIR a URL (variável de ambiente
+// FIREBASE_CONFIG ou servidor de metadados do GCP) toda vez que o arquivo é
+// carregado, inclusive durante a fase de "análise" que o `firebase deploy`
+// roda localmente pra descobrir quais functions existem — nessa fase não
+// tem acesso ao metadados do GCP (não está rodando dentro da nuvem ainda),
+// então a autodescoberta fica tentando e trava até estourar o timeout.
+// Declarar aqui elimina essa dependência de rede no load do módulo.
+admin.initializeApp({ databaseURL: 'https://flexa-app-41205-default-rtdb.firebaseio.com' });
 
 const db = admin.database();
 
@@ -275,9 +284,13 @@ async function liberarCreditoEsperaSeElegivel(tenantId, envioId, entregadorId, p
   return true;
 }
 
-// Mesmas faixas/piso de TAXA_PLATAFORMA_FAIXAS/PISO_KM_ENTREGADOR no
-// frontend (src/legacy-monolith.js ~1420) — precisam ficar iguais nos dois
-// lados pelo mesmo motivo documentado em TAXA_ESPERA_GRACE_MIN acima.
+// MUDANÇA DE MODELO (2026-10-09, espelha o comentário [COMISSÃO DA
+// PLATAFORMA] em src/legacy-monolith.js): a comissão deixou de ser
+// descontada do entregador (com piso por km) e virou aditiva, paga pelo
+// lojista/cliente por cima do frete — ver calcularComponentesFrete no
+// frontend. As funções abaixo ficam só como FALLBACK pra creditar rotas
+// aceitas/criadas ANTES dessa mudança (sem o campo totalRepasseEntregador
+// gravado) — não usar em lógica nova.
 const TAXA_PLATAFORMA_FAIXAS = [
   { ate: 5, taxa: 1.00 },
   { ate: 15, taxa: 1.50 },
@@ -332,7 +345,14 @@ const ALLOWLIST_CLIENTE_ENDERECO = ['cidade', 'estado', 'uf', 'endereco', 'cep',
 // passou do prazo de 20 min pra coleta sem confirmação — nenhum dos dois é
 // dado sensível (é só timing/status operacional, mesma classe de status já
 // exposta aqui).
-const ALLOWLIST_ROTA_MARKETPLACE = ['status', 'pagamentoStatus', 'totalFrete', 'pacoteIds', 'pacotes', 'quantidade', 'entregadorId', 'aceitoPor', 'criadoEm', 'aceitoEm', 'coletaConfirmada'];
+// distanciaTotal/duracaoTotal/totalRepasseEntregador (2026-10-09): pra
+// mostrar no marketplace a distância real da rota (soma dos trechos
+// consecutivos, não de cada pacote partindo sempre da loja — ver
+// calcularDistanciaTotalRotaOrdenada) e quanto o entregador vai receber no
+// modelo aditivo novo (totalRepasseEntregador é o valor cheio, sem desconto
+// — comissaoPlataforma NÃO entra aqui de propósito, é informação só da
+// plataforma/lojista).
+const ALLOWLIST_ROTA_MARKETPLACE = ['status', 'pagamentoStatus', 'totalFrete', 'totalRepasseEntregador', 'distanciaTotal', 'duracaoTotal', 'pacoteIds', 'pacotes', 'quantidade', 'entregadorId', 'aceitoPor', 'criadoEm', 'aceitoEm', 'coletaConfirmada'];
 
 // Prazo pra confirmar a coleta na loja depois de aceitar a rota (pedido do
 // dono 2026-10-09, prevenção contra entregador "travar" uma rota sem nunca
@@ -1981,20 +2001,28 @@ exports.payments = onRequest({ region: PAYMENTS_REGION, timeoutSeconds: 20, secr
         return semCredito(0);
       }
 
-      let valorBruto = 0;
-      for (const v of [rota.totalFrete, rota.valorTotal, rota.valor, rota.preco]) {
-        const num = Number(v);
-        if (Number.isFinite(num) && num > 0) { valorBruto = Number(num.toFixed(2)); break; }
+      // Modelo novo (2026-10-09): comissão é aditiva, não descontada — o
+      // entregador recebe o valor cheio já gravado em
+      // rota.totalRepasseEntregador (soma de repasseEntregador de cada
+      // pacote, fixado na criação do envio, ver calcularComponentesFrete no
+      // frontend). Só cai pro cálculo antigo (desconto com piso por km)
+      // quando a rota foi criada ANTES dessa mudança e não tem esse campo.
+      const repasseNovo = Number(rota.totalRepasseEntregador);
+      let valorCredito;
+      if (Number.isFinite(repasseNovo) && repasseNovo > 0) {
+        valorCredito = Number(repasseNovo.toFixed(2));
+      } else {
+        let valorBruto = 0;
+        for (const v of [rota.totalFrete, rota.valorTotal, rota.valor, rota.preco]) {
+          const num = Number(v);
+          if (Number.isFinite(num) && num > 0) { valorBruto = Number(num.toFixed(2)); break; }
+        }
+        if (valorBruto <= 0) {
+          valorBruto = Number(pacotes.reduce((acc, p) => acc + (Number(p?.valorFrete) || 0), 0).toFixed(2));
+        }
+        const distanciaKm = Number(rota.distanciaTotal) || pacotes.reduce((acc, p) => acc + (Number(p?.distanciaKm) || 0), 0);
+        valorCredito = valorBruto > 0 ? calcularValorRepasseEntregador(valorBruto, distanciaKm) : 0;
       }
-      if (valorBruto <= 0) {
-        valorBruto = Number(pacotes.reduce((acc, p) => acc + (Number(p?.valorFrete) || 0), 0).toFixed(2));
-      }
-      if (valorBruto <= 0) {
-        return semCredito(0);
-      }
-
-      const distanciaKm = Number(rota.distanciaTotal) || pacotes.reduce((acc, p) => acc + (Number(p?.distanciaKm) || 0), 0);
-      const valorCredito = calcularValorRepasseEntregador(valorBruto, distanciaKm);
       if (valorCredito <= 0) {
         return semCredito(0);
       }

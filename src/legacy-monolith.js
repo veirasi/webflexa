@@ -872,6 +872,20 @@ function confirmarEnvioFinal() {
             const totalFrete = Number.isFinite(resumoRevisaoAtual.totalFrete)
                 ? resumoRevisaoAtual.totalFrete
                 : parseMoedaParaNumero(document.getElementById('input-valor')?.value || 0);
+            // repasseEntregador/comissaoPlataforma só vêm preenchidos quando se
+            // passou por irParaRevisao (fluxo normal). No fallback acima (sem
+            // passar pela revisão), não tem como saber o split — assume que o
+            // valor inteiro é do entregador, sem comissão, pra nunca pagar
+            // menos que o dono digitou.
+            const repasseEntregador = Number.isFinite(resumoRevisaoAtual.repasseEntregador)
+                ? resumoRevisaoAtual.repasseEntregador
+                : totalFrete;
+            const comissaoPlataforma = Number.isFinite(resumoRevisaoAtual.comissaoPlataforma)
+                ? resumoRevisaoAtual.comissaoPlataforma
+                : 0;
+            const taxaPlataformaEntregador = Number.isFinite(resumoRevisaoAtual.taxaPlataformaEntregador)
+                ? resumoRevisaoAtual.taxaPlataformaEntregador
+                : 0;
             const valorConteudo = Number.isFinite(resumoRevisaoAtual.valorConteudo)
                 ? resumoRevisaoAtual.valorConteudo
                 : parseMoedaParaNumero(document.getElementById('input-valor')?.value || 0);
@@ -909,7 +923,15 @@ function confirmarEnvioFinal() {
                 cobrancaEntrega,
                 tipoFluxo: ehColetaReversa ? 'coleta_reversa' : 'entrega',
                 valorConteudo: Number(valorConteudo.toFixed(2)),
+                // valorFrete é o TOTAL cobrado do lojista/cliente (repasse do
+                // entregador + comissão da plataforma + taxa do MP, ver
+                // calcularComponentesFrete). repasseEntregador/comissaoPlataforma
+                // guardam o split pra nunca precisar recalcular depois — é o
+                // que /creditar-rota-finalizada (backend) credita de verdade.
                 valorFrete: Number(totalFrete.toFixed(2)),
+                repasseEntregador: Number(repasseEntregador.toFixed(2)),
+                comissaoPlataforma: Number(comissaoPlataforma.toFixed(2)),
+                taxaPlataformaEntregador: Number(taxaPlataformaEntregador.toFixed(2)),
                 servico,
                 tamanho,
                 embalagem,
@@ -1511,7 +1533,13 @@ const TAXA_ESPERA_GRACE_MIN = 5;
 const TAXA_ESPERA_POR_MIN = 1;
 const TAXA_SUBIR_FIXA = 6;
 
-const TAXA_POR_KM = { Standard: 1.10, Flash: 1.99 };
+// Pedido do dono (2026-10-09): baixado de 1,10 pra 1,00 — junto com a
+// comissão virando aditiva (ver [COMISSÃO DA PLATAFORMA] abaixo), o preço
+// final pro lojista/cliente fica equivalente ao de antes, mas agora
+// competitivo de verdade com Uber/99 numa corrida longa (testado com o
+// dono: 29,1 km ficou em ~R$31,91 pelo novo cálculo vs R$31,96 de antes,
+// dentro da faixa R$31,26–33,98 que a Uber cobrou pro mesmo trecho).
+const TAXA_POR_KM = { Standard: 1.00, Flash: 1.99 };
 const DISTANCIA_MINIMA_KM = 4;
 const AJUSTE_VEICULO_POR_SERVICO = {
     Standard: {
@@ -1746,28 +1774,29 @@ function calcularFreteEstimado({ servico, veiculo, distanciaKm }) {
 }
 
 // ===================== [COMISSÃO DA PLATAFORMA] =====================
-// Retida sem elemento visual novo, por pedido do dono (2026-09-19): o lojista
-// sempre vê/paga o valor cheio (totalFrete, sem mudança nenhuma nas telas
-// dele); o entregador só enxerga o valor líquido (valorFrete - taxa) em
-// qualquer lugar que hoje mostra o valor da rota pra ele — marketplace,
-// cards de rota, "a receber", e é esse valor líquido que realmente cai na
-// carteira dele quando a rota conclui. Nenhum dos dois vê o valor do outro
-// nem quanto a plataforma retém.
+// MUDANÇA DE MODELO (pedido do dono 2026-10-09): a comissão deixou de ser
+// DESCONTADA do entregador e virou um valor SOMADO ao frete, pago pelo
+// lojista/cliente — igual Uber/99 já fazem. Motivo: no modelo antigo, a
+// comissão competia com o piso de R$1,00/km do entregador (nunca podia
+// deixar o repasse dele abaixo disso), e em qualquer rota onde o frete
+// cobrado já estava "justo" com a distância (ou foi editado pra baixo pelo
+// lojista, ver iniciarEdicaoFreteEnvio), a proteção de piso zerava a
+// comissão inteira — a plataforma podia ficar com R$0,00, ou até menos,
+// uma vez somada a taxa do Mercado Pago (que nunca era contabilizada em
+// lugar nenhum). Agora comissão e repasse do entregador não disputam mais
+// o mesmo valor: o entregador sempre recebe o cheio da tarifa por km, e a
+// comissão + a taxa do MP são somadas por cima, no valor cobrado do
+// lojista/cliente (ver calcularComponentesFrete).
 //
-// Faixas definidas pelo dono (valor da corrida → taxa fixa):
+// Faixas continuam as mesmas definidas pelo dono (valor da base do
+// entregador → comissão fixa):
 //   até R$5 → R$1,00 | R$5–15 → R$1,50 | R$15–25 → R$2,00 | acima de R$25 → R$2,50
-// Proteção de piso por cima das faixas: o entregador nunca deve ficar abaixo
-// de R$1,00/km depois do corte — testamos com o dono que uma faixa fixa
-// sozinha sempre tem um "começo de faixa" que fura esse piso, então a taxa
-// alvo da faixa é reduzida automaticamente (nunca aumentada) sempre que
-// aplicá-la inteira derrubaria o entregador abaixo do piso.
 const TAXA_PLATAFORMA_FAIXAS = [
     { ate: 5, taxa: 1.00 },
     { ate: 15, taxa: 1.50 },
     { ate: 25, taxa: 2.00 },
     { ate: Infinity, taxa: 2.50 }
 ];
-const PISO_KM_ENTREGADOR = 1.00;
 
 function calcularTaxaPlataformaAlvo(valorFrete) {
     const v = Number(valorFrete || 0);
@@ -1775,11 +1804,73 @@ function calcularTaxaPlataformaAlvo(valorFrete) {
     return faixa.taxa;
 }
 
-// distanciaKm é opcional de propósito: em telas que ainda não têm a
-// distância à mão, a proteção de piso simplesmente não se aplica ali (fica
-// só a faixa alvo) — mas o crédito real na carteira (Cloud Function
-// /creditar-rota-finalizada, backend/functions/index.js) sempre passa a
-// distância, que é onde o piso realmente importa.
+// Comissão aditiva: é só a faixa alvo, sem corte nenhum — não tem mais
+// "piso do entregador" pra proteger aqui, porque ela não sai mais do bolso
+// dele. (Mantida como função própria, não só um alias de
+// calcularTaxaPlataformaAlvo, pra deixar claro no restante do código qual
+// das duas finalidades está em uso.)
+function calcularComissaoPlataforma(valorFreteBase) {
+    const v = Number(valorFreteBase || 0);
+    if (v <= 0) return 0;
+    return Number(calcularTaxaPlataformaAlvo(v).toFixed(2));
+}
+
+// Taxa do Mercado Pago no Pix (pedido do dono 2026-10-09: "lembrei de um
+// detalhe, o mercado pago cobra 0,99% de taxa") — antes não existia em
+// lugar nenhum do cálculo (era um custo invisível, absorvido pela
+// plataforma mesmo numa única conta MP recebendo tudo). Agora é somada ao
+// total cobrado do lojista/cliente, sobre o valor já com a comissão
+// incluída (é o valor cheio que entra de verdade na conta via Pix).
+const TAXA_MP_PERCENTUAL = 0.0099;
+function calcularTaxaMp(subtotalComComissao) {
+    const v = Number(subtotalComComissao || 0);
+    if (v <= 0) return 0;
+    return Number((v * TAXA_MP_PERCENTUAL).toFixed(2));
+}
+
+// Taxa da plataforma sobre a tarifa do ENTREGADOR (pedido do dono
+// 2026-10-09: "a uber cobra taxa dos entregadores, eles não recebem o valor
+// cheio... vou ter margem pra dinâmica e tbm tenho custos com api"). Sai de
+// cima da tarifa bruta, antes de somar comissão/MP — cobre custo real de
+// API (Google Routes, usada em toda estimativa/rota) e cria margem
+// operacional. Invisível pro lojista (mesmo princípio de sempre: nenhum dos
+// dois vê o valor do outro) — não muda em nada o total que ele paga, só
+// reduz o que o entregador recebe líquido.
+const TAXA_PLATAFORMA_ENTREGADOR_PERCENTUAL = 0.02;
+function calcularTaxaPlataformaEntregador(repasseEntregadorBruto) {
+    const v = Number(repasseEntregadorBruto || 0);
+    if (v <= 0) return 0;
+    return Number((v * TAXA_PLATAFORMA_ENTREGADOR_PERCENTUAL).toFixed(2));
+}
+
+// Monta os componentes do valor de um envio:
+// - repasseEntregador: o que o entregador recebe de fato (líquido, já com
+//   os 2% descontados).
+// - taxaPlataformaEntregador: os 2% retidos da tarifa do entregador.
+// - comissaoPlataforma: a comissão por faixa (R$1-2,50), somada por cima,
+//   paga pelo lojista/cliente — calculada sobre a tarifa BRUTA (antes do
+//   desconto de 2%), então o desconto do entregador nunca muda o total que
+//   o lojista paga.
+// - taxaMp: taxa do Mercado Pago, repassada ao lojista/cliente.
+// valorFrete (a soma de tudo que o lojista paga) continua exatamente igual
+// a antes dessa mudança — só o que o entregador recebe ficou menor.
+function calcularComponentesFrete({ servico, veiculo, distanciaKm }) {
+    const repasseEntregadorBruto = calcularFreteEstimado({ servico, veiculo, distanciaKm });
+    const taxaPlataformaEntregador = calcularTaxaPlataformaEntregador(repasseEntregadorBruto);
+    const repasseEntregador = Number((repasseEntregadorBruto - taxaPlataformaEntregador).toFixed(2));
+    const comissaoPlataforma = calcularComissaoPlataforma(repasseEntregadorBruto);
+    const subtotal = Number((repasseEntregadorBruto + comissaoPlataforma).toFixed(2));
+    const taxaMp = calcularTaxaMp(subtotal);
+    const valorFrete = Number((subtotal + taxaMp).toFixed(2));
+    return { repasseEntregador, taxaPlataformaEntregador, comissaoPlataforma, taxaMp, valorFrete };
+}
+
+// ===== [LEGADO — só pra rotas aceitas/criadas ANTES da mudança acima] =====
+// Mantidas só pra não recalcular errado rotas já em andamento no momento do
+// deploy (sem o campo novo totalRepasseEntregador) — ver obterValorRepasseRota
+// e o mesmo par de funções espelhado em backend/functions/index.js
+// (/creditar-rota-finalizada). Não usar em código novo.
+const PISO_KM_ENTREGADOR = 1.00;
 function calcularTaxaPlataformaRota(valorFrete, distanciaKm) {
     const v = Number(valorFrete || 0);
     if (v <= 0) return 0;
@@ -1795,6 +1886,24 @@ function calcularValorRepasseEntregador(valorFrete, distanciaKm) {
     if (v <= 0) return 0;
     const taxa = calcularTaxaPlataformaRota(v, distanciaKm);
     return Number(Math.max(0, v - taxa).toFixed(2));
+}
+
+// Valor que o entregador recebe por uma rota: prefere o campo novo
+// (totalRepasseEntregador, somado direto dos pacotes — modelo aditivo,
+// sempre o valor cheio) e só cai pro cálculo antigo com desconto/piso
+// quando a rota foi criada ANTES dessa mudança (não tem o campo novo).
+function obterValorRepasseRota(rota, distanciaTotal) {
+    const repasseNovo = Number(rota?.totalRepasseEntregador);
+    if (Number.isFinite(repasseNovo) && repasseNovo > 0) return repasseNovo;
+    return calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(distanciaTotal || 0));
+}
+
+// Mesma ideia, pro lado da comissão da plataforma (usado no dashboard do
+// master/admin, "ganhos" — ver renderGanhosMaster ou equivalente).
+function obterComissaoPlataformaRota(rota, distanciaTotal) {
+    const comissaoNova = Number(rota?.comissaoPlataforma);
+    if (Number.isFinite(comissaoNova) && comissaoNova > 0) return comissaoNova;
+    return calcularTaxaPlataformaRota(Number(rota?.totalFrete || 0), Number(distanciaTotal || 0));
 }
 
 // cidadeEsperada/ufEsperada são opcionais — quando informados, o resultado é
@@ -2174,7 +2283,9 @@ async function estimarRotaEntrega(origemEndereco, destinoEndereco, origemGeo = n
 function atualizarPrecoEstimadoAtual() {
     const servico = getServicoSelecionadoAtual();
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : 0;
-    const totalCalculado = calcularFreteEstimado({ servico, veiculo: veiculoSelecionado, distanciaKm });
+    // valorFrete já vem com comissão da plataforma + taxa do MP somadas (ver
+    // calcularComponentesFrete) — é o total real que o lojista vai pagar.
+    const totalCalculado = calcularComponentesFrete({ servico, veiculo: veiculoSelecionado, distanciaKm }).valorFrete;
     const total = aplicarFreteTesteSeConfigurado(totalCalculado);
     resumoRevisaoAtual.servico = servico;
     resumoRevisaoAtual.veiculo = veiculoSelecionado;
@@ -2207,7 +2318,7 @@ function atualizarPrecosCardsVeiculo(servico, distanciaKm) {
         if (!card) return;
         const precoEl = card.querySelector('.veiculo-preco');
         if (!precoEl) return;
-        const valor = calcularFreteEstimado({ servico, veiculo, distanciaKm });
+        const valor = calcularComponentesFrete({ servico, veiculo, distanciaKm }).valorFrete;
         precoEl.innerText = precoParaMoeda(valor);
     });
 }
@@ -2243,7 +2354,7 @@ function selecionarVeiculo(tipo, preco) {
     atualizarPrecoEstimadoAtual();
     const servico = getServicoSelecionadoAtual();
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : 0;
-    veiculoPrecoSelecionado = precoParaMoeda(calcularFreteEstimado({ servico, veiculo: tipo, distanciaKm }));
+    veiculoPrecoSelecionado = precoParaMoeda(calcularComponentesFrete({ servico, veiculo: tipo, distanciaKm }).valorFrete);
 }
 
 // ===================== [COBRANCA NA ENTREGA] =====================
@@ -2331,8 +2442,19 @@ async function irParaRevisao() {
     const enderecoDestino = (resumoRevisaoAtual.destino || enderecoDestinoExibicao || '').trim();
     const distanciaKm = Number.isFinite(resumoRevisaoAtual.distanciaKm) ? resumoRevisaoAtual.distanciaKm : null;
     const duracaoMin = Number.isFinite(resumoRevisaoAtual.duracaoMin) ? resumoRevisaoAtual.duracaoMin : null;
-    const totalFreteCalculado = calcularFreteEstimado({ servico, veiculo: veiculoSelecionado, distanciaKm: Number.isFinite(distanciaKm) ? distanciaKm : 0 });
-    const totalFrete = aplicarFreteTesteSeConfigurado(totalFreteCalculado);
+    const baseCalculada = calcularFreteEstimado({ servico, veiculo: veiculoSelecionado, distanciaKm: Number.isFinite(distanciaKm) ? distanciaKm : 0 });
+    // Modo teste (ambiente de testes, ver obterFreteTesteDasObservacoes): o
+    // valor digitado vira o total direto, sem desconto do entregador nem
+    // comissão/MP somados por cima — é só pra testar o fluxo de pagamento
+    // com valores controlados, não pra testar a economia da plataforma.
+    const repasseEntregadorBruto = aplicarFreteTesteSeConfigurado(baseCalculada);
+    const emModoTeste = Number.isFinite(resumoRevisaoAtual.freteTesteOverride);
+    const taxaPlataformaEntregador = emModoTeste ? 0 : calcularTaxaPlataformaEntregador(repasseEntregadorBruto);
+    const repasseEntregador = Number((repasseEntregadorBruto - taxaPlataformaEntregador).toFixed(2));
+    const comissaoPlataforma = emModoTeste ? 0 : calcularComissaoPlataforma(repasseEntregadorBruto);
+    const subtotalComComissao = Number((repasseEntregadorBruto + comissaoPlataforma).toFixed(2));
+    const taxaMp = emModoTeste ? 0 : calcularTaxaMp(subtotalComComissao);
+    const totalFrete = Number((subtotalComComissao + taxaMp).toFixed(2));
     resumoRevisaoAtual = {
         origem: enderecoOrigem,
         destino: enderecoDestino,
@@ -2341,6 +2463,10 @@ async function irParaRevisao() {
         distanciaKm,
         duracaoMin,
         totalFrete,
+        repasseEntregador,
+        taxaPlataformaEntregador,
+        comissaoPlataforma,
+        taxaMp,
         servico,
         veiculo: veiculoSelecionado,
         descricao: resumoRevisaoAtual.descricao || '',
@@ -3713,8 +3839,14 @@ async function carregarMarketplaceRotasEntregador() {
                 const totalFrete = Number.isFinite(Number(rota?.totalFrete))
                     ? Number(rota.totalFrete)
                     : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
-                const distanciaTotal = pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
-                const duracaoTotal = pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
+                const totalRepasseEntregador = Number(rota?.totalRepasseEntregador || 0);
+                // Prefere a distância/duração REAIS da rota (soma dos trechos
+                // consecutivos, ver calcularDistanciaTotalRotaOrdenada) — só cai
+                // pra soma de cada pacote partindo sempre da loja (exagera o
+                // total com paradas agrupadas) em rotas antigas, criadas antes
+                // desse campo existir.
+                const distanciaTotal = Number(rota?.distanciaTotal) || pacotes.reduce((acc, p) => acc + Number(p?.distanciaKm || 0), 0);
+                const duracaoTotal = Number(rota?.duracaoTotal) || pacotes.reduce((acc, p) => acc + Number(p?.duracaoMin || 0), 0);
 
                 const temFlash = pacotes.some((p) => {
                     const serv = normalizarTexto(p?.servico || '');
@@ -3755,6 +3887,7 @@ async function carregarMarketplaceRotasEntregador() {
                     totalPacotes,
                     totalParadas,
                     totalFrete,
+                    totalRepasseEntregador,
                     distanciaTotal,
                     duracaoTotal,
                     statusNorm,
@@ -4062,8 +4195,8 @@ function montarCardBuscaEntregador(rota) {
     // Tags de serviço com cor: Flash é entrega urgente, precisa se destacar.
     // Rota mista (tem pacote Start E Flash) mostra as duas tags juntas.
     const tags = montarTagsServicoMarketplace(rota);
-    // Entregador só vê o valor líquido aqui também — ver [COMISSÃO DA PLATAFORMA].
-    const repasseValor = calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), distTotalNum);
+    // Entregador vê o valor cheio que vai receber — ver [COMISSÃO DA PLATAFORMA].
+    const repasseValor = obterValorRepasseRota(rota, distTotalNum);
     const precoTxt = precoParaMoeda(repasseValor);
     // Valor/km e veículo (pedido do dono 2026-09-27): mesmo padrão de "quanto
     // vale essa corrida" que já existe no sheet de detalhes, só que resumido
@@ -4130,10 +4263,9 @@ function abrirSheetBuscaRota(rotaId, lojistaUid) {
         ? Number(rota.totalParadas)
         : Math.max(1, destinos.length);
     const badgeHtml = montarTagsServicoMarketplace(rota).join('');
-    // Entregador só vê o valor líquido (já descontada a taxa da plataforma) —
-    // ver [COMISSÃO DA PLATAFORMA].
+    // Entregador vê o valor cheio que vai receber — ver [COMISSÃO DA PLATAFORMA].
     const distanciaTotalNum = Number(rota.distanciaTotal || 0);
-    const repasseValor = calcularValorRepasseEntregador(Number(rota.totalFrete || 0), distanciaTotalNum);
+    const repasseValor = obterValorRepasseRota(rota, distanciaTotalNum);
     const precoTxt = precoParaMoeda(repasseValor);
     const precoPorKmTxt = precoParaMoeda(distanciaTotalNum > 0 ? repasseValor / distanciaTotalNum : 0);
     const distanciaTxt = formatarDistancia(distanciaTotalNum);
@@ -4273,7 +4405,7 @@ function montarDropdownFiltroMarketplace(id, tipo, cidades, valorAtual, labelPad
 function montarCardMarketplaceRotaEntregador(rota) {
     const qtdDestinos = Math.max(1, Number(rota?.destinos?.length || 0));
     const badgeTxt = `${rota.servicoLabel} • ${qtdDestinos} destino${qtdDestinos > 1 ? 's' : ''}`;
-    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
+    const precoTxt = precoParaMoeda(obterValorRepasseRota(rota, Number(rota?.distanciaTotal || 0)));
     const statusClass = String(rota?.statusVisual?.className || '').replace('rota-main-status ', '');
 
     const idEsc = String(rota?.id || '').replace(/'/g, "\\'");
@@ -4306,7 +4438,7 @@ function montarCardHistoricoRotaEntregador(rota) {
         : `<span>${escaparHtmlMarketplace((rota?.lojistaNome || 'L').slice(0,1).toUpperCase())}</span>`;
     const statusClass = rota?.statusVisual?.className || '';
     const statusLabel = rota?.statusVisual?.label || rota?.statusNorm || '';
-    const precoTxt = precoParaMoeda(calcularValorRepasseEntregador(Number(rota?.totalFrete || 0), Number(rota?.distanciaTotal || 0)));
+    const precoTxt = precoParaMoeda(obterValorRepasseRota(rota, Number(rota?.distanciaTotal || 0)));
     const dataTxt = rota?.atualizadoEm
         ? new Date(rota.atualizadoEm).toLocaleDateString('pt-BR')
         : (rota?.criadoEm ? new Date(rota.criadoEm).toLocaleDateString('pt-BR') : '--');
@@ -8043,13 +8175,19 @@ async function renderDashboardMaster() {
         if (r.statusNorm !== 'CONCLUIDO') return;
         const freteRota = Number(r.totalFrete || 0);
         const distRota = Number(r.distanciaTotal || 0);
-        const taxa = calcularTaxaPlataformaRota(freteRota, distRota);
+        // Ganho da plataforma = comissão (lojista/cliente, aditiva) + os 2%
+        // retidos da tarifa do entregador (ver taxaPlataformaEntregador) —
+        // rotas antigas (sem esse campo) simplesmente somam 0 aqui, sem
+        // quebrar nada.
+        const comissaoLojista = obterComissaoPlataformaRota(r, distRota);
+        const taxaEntregador = Number(r.taxaPlataformaEntregador || 0);
+        const taxa = Number((comissaoLojista + taxaEntregador).toFixed(2));
         if (taxa <= 0) return;
         const quando = Number(r.atualizadoEm || r.criadoEm || 0);
 
         ganhosTotal += taxa;
         totalPagoLojistaHistorico += freteRota;
-        totalPagoEntregadorHistorico += calcularValorRepasseEntregador(freteRota, distRota);
+        totalPagoEntregadorHistorico += obterValorRepasseRota(r, distRota);
         if (quando >= hojeInicio) ganhosHoje += taxa;
         if (quando >= inicioSemanaGanhosTs) ganhosSemana += taxa;
         if (quando >= inicioMesGanhosTs) ganhosMes += taxa;
@@ -9394,6 +9532,9 @@ function coletarEnviosPendentesParaRota() {
             const flash = servico.toLowerCase().includes('flash') || servico.toLowerCase().includes('expresso');
             const cidade = (camposEndereco.cidade || cliente.cidade || 'Sem cidade').toString().trim() || 'Sem cidade';
             const valorFrete = Number.isFinite(Number(h.valorFrete)) ? Number(h.valorFrete) : parseMoedaParaNumero(h.valor || 0);
+            const repasseEntregador = Number.isFinite(Number(h.repasseEntregador)) ? Number(h.repasseEntregador) : valorFrete;
+            const comissaoPlataforma = Number.isFinite(Number(h.comissaoPlataforma)) ? Number(h.comissaoPlataforma) : 0;
+            const taxaPlataformaEntregador = Number.isFinite(Number(h.taxaPlataformaEntregador)) ? Number(h.taxaPlataformaEntregador) : 0;
 
             pendentes.push({
                 id: envioId,
@@ -9404,14 +9545,20 @@ function coletarEnviosPendentesParaRota() {
                 servico,
                 flash,
                 valorFrete,
+                repasseEntregador,
+                comissaoPlataforma,
+                taxaPlataformaEntregador,
                 veiculo: h.veiculo || 'Moto',
                 tipoFluxo: h.tipoFluxo || 'entrega',
-                // Geo do ponto de parada — em coleta reversa é o próprio
-                // destinoGeo que já guarda o endereço do CLIENTE (origem e
-                // destino já vêm trocados desde a criação do envio, ver
-                // confirmarEnvioFinal), então sempre é o campo certo pra
-                // calcular a ordem por proximidade (ver ordenarPacotesPorProximidade).
-                destinoGeo: h.destinoGeo || null
+                // Geo e endereço do ponto de parada — em coleta reversa é o
+                // próprio destinoGeo/destinoEndereco que já guarda o endereço do
+                // CLIENTE (origem e destino já vêm trocados desde a criação do
+                // envio, ver confirmarEnvioFinal), então sempre é o campo certo
+                // pra calcular a ordem por proximidade (ver
+                // ordenarPacotesPorProximidade) e a distância real da rota (ver
+                // calcularDistanciaTotalRotaOrdenada).
+                destinoGeo: h.destinoGeo || null,
+                destinoEndereco: h.destinoEndereco || ''
             });
         });
     });
@@ -10005,6 +10152,57 @@ function ordenarPacotesPorProximidade(itens) {
     return [...ordenado, ...semGeo];
 }
 
+// Velocidade média usada só como ÚLTIMO recurso, quando a API de rotas do
+// Google falha pra um trecho específico (sem internet/chave/erro pontual) —
+// mesma ideia já usada em outro lugar do app pra estimar ETA sem rota real
+// (ver VELOCIDADE_MEDIA_ENTREGA_KMH). Longe de ser o caso comum: o cálculo
+// principal sempre tenta a API primeiro.
+const VELOCIDADE_MEDIA_FALLBACK_KMH = 22;
+
+// Distância/duração REAIS da rota com vários pacotes (pedido do dono
+// 2026-10-09): soma os trechos consecutivos na ordem já decidida por
+// ordenarPacotesPorProximidade (loja → 1ª parada → 2ª parada → ...), em vez
+// de somar a distância de cada pacote partindo sempre da loja (o que
+// exagerava o total sempre que as paradas ficavam agrupadas, tipo vários
+// pacotes no mesmo bairro ou em bairros vizinhos). Pede a API de rotas do
+// Google perna a perna (mesma usada pra cada pacote individual); só cai pra
+// linha reta se a API falhar de verdade pra aquele trecho específico.
+async function calcularDistanciaTotalRotaOrdenada(origemEndereco, origemGeo, itensOrdenados) {
+    const pernas = [];
+    let pontoAnteriorEndereco = origemEndereco;
+    let pontoAnteriorGeo = origemGeo;
+    for (const item of itensOrdenados) {
+        pernas.push({
+            origemEndereco: pontoAnteriorEndereco,
+            origemGeo: pontoAnteriorGeo,
+            destinoEndereco: item.destinoEndereco || '',
+            destinoGeo: item.destinoGeo || null
+        });
+        pontoAnteriorEndereco = item.destinoEndereco || pontoAnteriorEndereco;
+        pontoAnteriorGeo = item.destinoGeo || pontoAnteriorGeo;
+    }
+
+    const resultados = await Promise.all(pernas.map(async (perna) => {
+        if (!perna.destinoGeo && !perna.destinoEndereco) return null;
+        const estimativa = await estimarRotaEntrega(perna.origemEndereco, perna.destinoEndereco, perna.origemGeo, perna.destinoGeo).catch(() => null);
+        if (estimativa && Number.isFinite(Number(estimativa.distanciaKm))) return estimativa;
+        if (perna.origemGeo && perna.destinoGeo) {
+            const distKm = distanciaHaversineKm(perna.origemGeo, perna.destinoGeo);
+            if (Number.isFinite(distKm)) {
+                return { distanciaKm: distKm, duracaoMin: Math.max(1, Math.round((distKm / VELOCIDADE_MEDIA_FALLBACK_KMH) * 60)) };
+            }
+        }
+        return null;
+    }));
+
+    const distanciaTotal = resultados.reduce((acc, r) => acc + (Number(r?.distanciaKm) || 0), 0);
+    const duracaoTotal = resultados.reduce((acc, r) => acc + (Number(r?.duracaoMin) || 0), 0);
+    return {
+        distanciaTotal: Number(distanciaTotal.toFixed(2)),
+        duracaoTotal: Math.round(duracaoTotal)
+    };
+}
+
 async function irParaPagamentoRota() {
     const selecionados = rotaPendentesCache.filter((item) => rotaSelecaoIds.has(item.id));
     if (!selecionados.length) {
@@ -10013,13 +10211,26 @@ async function irParaPagamentoRota() {
     }
 
     const total = selecionados.reduce((acc, item) => acc + Number(item.valorFrete || 0), 0);
+    const totalRepasseEntregador = selecionados.reduce((acc, item) => acc + Number(item.repasseEntregador || item.valorFrete || 0), 0);
+    const totalComissaoPlataforma = selecionados.reduce((acc, item) => acc + Number(item.comissaoPlataforma || 0), 0);
+    const totalTaxaPlataformaEntregador = selecionados.reduce((acc, item) => acc + Number(item.taxaPlataformaEntregador || 0), 0);
     const selecionadosOrdenados = ordenarPacotesPorProximidade(selecionados);
+
+    const origemEndereco = obterEnderecoLojaTexto();
+    const origemGeo = normalizarGeo(window.usuarioLogado?.endereco?.geo);
+    const { distanciaTotal, duracaoTotal } = await calcularDistanciaTotalRotaOrdenada(origemEndereco, origemGeo, selecionadosOrdenados)
+        .catch(() => ({ distanciaTotal: 0, duracaoTotal: 0 }));
 
     rotaDraftAtual = {
         id: gerarIdRota(),
         pacotes: selecionadosOrdenados.map((item) => item.id),
         qtd: selecionados.length,
         totalFrete: Number(total.toFixed(2)),
+        totalRepasseEntregador: Number(totalRepasseEntregador.toFixed(2)),
+        comissaoPlataforma: Number(totalComissaoPlataforma.toFixed(2)),
+        taxaPlataformaEntregador: Number(totalTaxaPlataformaEntregador.toFixed(2)),
+        distanciaTotal,
+        duracaoTotal,
         criadoEm: Date.now(),
         pagamento: 'PENDENTE',
         status: 'BUSCANDO',
@@ -10286,6 +10497,11 @@ async function salvarRotaNoBanco(rota) {
         pacoteIds: rota.pacotes,
         quantidade: rota.qtd,
         totalFrete: rota.totalFrete,
+        totalRepasseEntregador: Number(rota.totalRepasseEntregador || 0),
+        comissaoPlataforma: Number(rota.comissaoPlataforma || 0),
+        taxaPlataformaEntregador: Number(rota.taxaPlataformaEntregador || 0),
+        distanciaTotal: Number(rota.distanciaTotal || 0),
+        duracaoTotal: Number(rota.duracaoTotal || 0),
         pagamento: rota.pagamento || 'APROVADO',
         status: rota.status || 'BUSCANDO',
         criadoEm: rota.criadoEm,
@@ -14516,16 +14732,22 @@ function abrirModalDetalheEnvio(envioId, event) {
     preencherTextoDetalheEnvio('envio-detalhe-valor-frete', precoParaMoeda(envio.valor || 0));
     preencherTextoDetalheEnvio('envio-detalhe-valor-conteudo', Number.isFinite(envio.valorConteudo) ? precoParaMoeda(envio.valorConteudo) : '--');
     cancelarEdicaoFreteEnvio();
-    // Pedido do dono (2026-10-09): lojista pode alterar o valor do frete —
-    // mas só enquanto a rota desse envio ainda não foi PAGA (mesma trava já
-    // usada em confirmarExclusaoEnvio/podeReembolsar). Depois que o frete já
-    // foi cobrado/repassado, mudar o valor aqui bagunçaria o que o entregador
-    // tem a receber — isso vira um ajuste manual à parte, não uma edição
-    // simples de campo.
+    // CONGELADO (pedido do dono 2026-10-09): "o lojista e o cliente têm que
+    // pagar o que a plataforma decide, e não a plataforma se adequar ao
+    // lojista" — editar o frete manualmente permitia um preço fora da regra
+    // da plataforma (foi inclusive o que expôs o caso de margem zero/negativa
+    // que motivou o modelo de comissão aditiva, ver [COMISSÃO DA PLATAFORMA]
+    // em calcularComponentesFrete). Botão sempre escondido agora, mas a
+    // função em si (iniciarEdicaoFreteEnvio/salvarFreteEditadoEnvio/
+    // cancelarEdicaoFreteEnvio) continua intacta, só inacessível pela UI —
+    // se decidirem reativar, troca a linha abaixo de volta pra:
+    //   const podeEditarFrete = !rota || rota.pagamento !== 'APROVADO';
+    // (e revisa salvarFreteEditadoEnvio pra recalcular repasseEntregador/
+    // comissaoPlataforma proporcionalmente ao novo valor — hoje ela só
+    // atualiza valorFrete, então o repasse ficaria desatualizado).
     const freteEditarBtn = document.getElementById('envio-detalhe-frete-editar-btn');
     if (freteEditarBtn) {
-        const { rota } = localizarRotaDoEnvio(envioId);
-        const podeEditarFrete = !rota || rota.pagamento !== 'APROVADO';
+        const podeEditarFrete = false;
         freteEditarBtn.classList.toggle('hidden', !podeEditarFrete);
     }
     const cobrancaRow = document.getElementById('envio-detalhe-cobranca-row');
@@ -14624,6 +14846,13 @@ function cancelarEdicaoFreteEnvio() {
 }
 
 async function salvarFreteEditadoEnvio() {
+    // CONGELADO (pedido do dono 2026-10-09, ver comentário em
+    // abrirModalDetalheEnvio) — guarda de segurança caso isso seja chamado
+    // direto (ex: console), já que o botão que normalmente chama essa função
+    // está escondido. Silencioso de propósito (pedido do dono: "deixa ela
+    // invisível pro lojista") — sem alert, sem rastro nenhum na tela.
+    return;
+
     const envioId = envioDetalheAtualId;
     const uid = getUsuarioIdAtual();
     if (!envioId || !uid) return;
@@ -17046,9 +17275,9 @@ function resumirRotaParaEntregador(rota, mapaPacotes, usuarioData = {}) {
     const totalValorBruto = Number.isFinite(Number(rota?.totalFrete))
         ? Number(rota.totalFrete)
         : pacotes.reduce((acc, p) => acc + Number(p?.valorFrete || 0), 0);
-    // Entregador só enxerga o valor líquido (ver [COMISSÃO DA PLATAFORMA]) —
-    // totalValor/valorRestante abaixo já saem descontados, não o bruto.
-    const totalValor = calcularValorRepasseEntregador(totalValorBruto, totalDist);
+    // Entregador vê o valor cheio que recebe (ver [COMISSÃO DA PLATAFORMA]) —
+    // totalValor/valorRestante abaixo já saem nesse valor, não no total cobrado.
+    const totalValor = obterValorRepasseRota(rota, totalDist);
 
     const concluidos = pacotes.filter((p) => p.status === 'CONCLUIDO');
     const cancelados = pacotes.filter((p) => p.status === 'CANCELADO');
