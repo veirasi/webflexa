@@ -8,7 +8,9 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions:routing",
-    "deploy:payments": "firebase deploy --only functions:payments"
+    "deploy:payments": "firebase deploy --only functions:payments",
+    "deploy:marketplace": "firebase deploy --only functions:marketplacePublicoUsuarios,functions:marketplacePublicoPacotesRaiz",
+    "deploy:all": "firebase deploy --only functions"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0",
