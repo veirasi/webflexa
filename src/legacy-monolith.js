@@ -3064,39 +3064,43 @@ function renderizarDashboard(user) {
             </div>
 
             <div class="home-search-row">
-                <button type="button" class="home-search-pill" onclick="navegar('view-novo-envio')">
+                <div class="home-search-pill">
                     <i data-lucide="search"></i>
-                    <span>Buscar cliente ou pedido</span>
-                </button>
+                    <input type="text" id="home-busca-input" class="home-search-input" placeholder="Buscar cliente ou pedido" autocomplete="off" oninput="buscarClienteOuPedidoHome(this.value)">
+                </div>
                 <button type="button" class="home-search-action" onclick="abrirModalRastrearRotas()">
                     <i data-lucide="scan-line"></i>
                 </button>
             </div>
 
-            <div id="dividas-entregador-lojista-home" class="dividas-entregador-card hidden"></div>
+            <div id="home-busca-resultados" class="home-busca-resultados hidden"></div>
 
-            <div id="banner-lojista-home" class="rastreio-pub-banners hidden"></div>
+            <div id="home-conteudo-padrao">
+                <div id="dividas-entregador-lojista-home" class="dividas-entregador-card hidden"></div>
 
-            <div class="home-quick-grid">
-                <button type="button" class="home-quick-card" onclick="navegar('view-rotas')">
-                    <strong class="home-quick-title">Nova Rota</strong>
-                    <img src="img/moto.png" alt="Nova Rota" class="home-quick-image home-quick-image-moto">
-                </button>
-                <button type="button" class="home-quick-card" onclick="abrirSeletorCliente()">
-                    <strong class="home-quick-title">Novo Envio</strong>
-                    <img src="img/box1.png" alt="Novo Envio" class="home-quick-image home-quick-image-box">
-                </button>
-            </div>
+                <div id="banner-lojista-home" class="rastreio-pub-banners hidden"></div>
 
-            ${secaoEmRotaHtml}
-
-            <section class="home-section">
-                <div class="home-section-head">
-                    <h3>Rotas Recentes</h3>
-                    <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
+                <div class="home-quick-grid">
+                    <button type="button" class="home-quick-card" onclick="navegar('view-rotas')">
+                        <strong class="home-quick-title">Nova Rota</strong>
+                        <img src="img/moto.png" alt="Nova Rota" class="home-quick-image home-quick-image-moto">
+                    </button>
+                    <button type="button" class="home-quick-card" onclick="abrirSeletorCliente()">
+                        <strong class="home-quick-title">Novo Envio</strong>
+                        <img src="img/box1.png" alt="Novo Envio" class="home-quick-image home-quick-image-box">
+                    </button>
                 </div>
-                <div class="home-recent-list">${listaRotasRecentes}</div>
-            </section>
+
+                ${secaoEmRotaHtml}
+
+                <section class="home-section">
+                    <div class="home-section-head">
+                        <h3>Rotas Recentes</h3>
+                        <button type="button" onclick="navegar('view-rotas')">Ver todas</button>
+                    </div>
+                    <div class="home-recent-list">${listaRotasRecentes}</div>
+                </section>
+            </div>
         </div>
     `;
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -3109,6 +3113,64 @@ function renderizarDashboard(user) {
     // iniciarListenerRotasLojista. Primeira chamada aqui já popula o cache
     // antes mesmo do primeiro navegar('view-dash-loja') completar.
     iniciarListenerRotasLojista();
+}
+
+// Busca da Início (pedido do dono 2026-10-12): antes o campo "Buscar cliente
+// ou pedido" não buscava nada — só era um botão disfarçado que abria a tela
+// de criar envio, sem relação com o que estava escrito nele. Agora filtra de
+// verdade por nome do cliente ou código do pedido, mostrando os cards dos
+// pedidos encontrados (com status), como um complemento rápido ao
+// "Rastreamento" (o ícone de scan ao lado, que continua abrindo a lista
+// completa de rotas em andamento).
+function buscarClienteOuPedidoHome(query) {
+    const resultados = document.getElementById('home-busca-resultados');
+    const conteudoPadrao = document.getElementById('home-conteudo-padrao');
+    if (!resultados || !conteudoPadrao) return;
+
+    const termo = normalizarTexto((query || '').trim());
+    if (!termo) {
+        resultados.classList.add('hidden');
+        resultados.innerHTML = '';
+        conteudoPadrao.classList.remove('hidden');
+        return;
+    }
+
+    conteudoPadrao.classList.add('hidden');
+    resultados.classList.remove('hidden');
+
+    const encontrados = coletarEnviosDaBase().filter((envio) => {
+        return normalizarTexto(envio.destinatario || '').includes(termo)
+            || normalizarTexto(envio.codigo || '').includes(termo);
+    });
+
+    if (!encontrados.length) {
+        resultados.innerHTML = `<div class="envios-empty"><h3>Nenhum pedido encontrado para "${escaparHtmlMarketplace(query.trim())}"</h3></div>`;
+        return;
+    }
+
+    resultados.innerHTML = encontrados.map((envio) => {
+        const valor = Number(envio.valor || 0).toFixed(2).replace('.', ',');
+        const classeStatusCor = obterClasseCorStatusEnvioCard(envio);
+        return `
+            <article class="envio-item-card" data-envio-id="${envio.id}" onclick="abrirModalDetalheEnvio('${envio.id}', event)">
+                <div class="envio-item-top envio-item-top-compact">
+                    <div class="envio-item-main">
+                        <div class="envio-item-kicker">Pedido #${envio.codigo}</div>
+                        <div class="envio-item-name">${envio.destinatario}</div>
+                    </div>
+                    <div class="envio-item-side">
+                        <div class="envio-item-price">R$ ${valor}</div>
+                        <div class="envio-item-status ${classeStatusCor}">${envio.status}</div>
+                    </div>
+                </div>
+                <div class="envio-item-line">
+                    <span class="envio-item-service">${envio.servico}</span>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function sincronizarSidebarLojaConta(user) {
@@ -18333,6 +18395,7 @@ export {
   avisarClienteStatusWhatsapp,
   baixarMeusDadosLgpd,
   buscarCEP,
+  buscarClienteOuPedidoHome,
   buscarDadosDoBanco,
   buscarEndereco,
   cadastrarClienteRastreio,

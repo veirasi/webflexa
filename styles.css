@@ -4757,6 +4757,25 @@ body.lojista-desktop-mode .rota-pix-qr-img {
     justify-content: center;
 }
 
+.home-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-weight: 600;
+    color: #1f2937;
+}
+.home-search-input::placeholder { color: #7b8798; font-weight: 600; }
+
+.home-busca-resultados {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
 .home-quick-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
